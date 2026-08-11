@@ -1,0 +1,15 @@
+# Dependencies and generated build output
+node_modules/
+dist/
+.wrangler/
+
+# Local environment values and macOS metadata
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Local AI/session notes and generated TypeScript metadata
+.claude/
+memory.md
+*.tsbuildinfo
