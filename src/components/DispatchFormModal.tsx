@@ -1,0 +1,292 @@
+/**
+ * DispatchFormModal — form "Điều phối", mở từ nút cạnh "End Flow".
+ *
+ * CHỈ GHI RA NGOÀI: nội dung form được POST thẳng lên webhook Lark Base
+ * (`services/dispatchWebhook.ts`) để Lark tự ghi vào Base. Dashboard KHÔNG đọc
+ * lại, KHÔNG đổi state bàn/khách nào theo dữ liệu nhập ở đây — sơ đồ vẫn chỉ
+ * phản ánh dữ liệu đồng bộ từ Lark như trước.
+ *
+ * **Nguồn 2 ô select là roster `Master_DS`** (`RosterEntry`), KHÔNG phải các
+ * bàn trên sơ đồ (2026-08-11, sửa sau ca test thật của user):
+ *   - "Phân loại" = các giá trị "Loại" CÓ THẬT trong roster ("Tư vấn"/"Thu
+ *     cũ"/"Backup"/"Kho") → khớp nguyên văn field single-select bên Base,
+ *     không phải hardcode rồi cầu cho trùng. "Kho" không có trên sơ đồ nên
+ *     danh sách này KHÔNG thể dựng từ `layoutConfig` được.
+ *   - "Nhân sự" = NV được phân công cho mã bàn đó, có kể cả khi bàn đang
+ *     trống. Bản đầu lấy tên từ bàn ĐANG CÓ KHÁCH (`staffName`) nên gửi lên
+ *     Lark toàn `nhanSu: ""` mỗi khi điều phối vào bàn rảnh — đúng ca hay gặp
+ *     nhất.
+ * `desks` vẫn nhận vào để lấp tên NV đang thật sự ngồi bàn khi roster bỏ
+ * trống ô đó (vd TV7–TV16 chưa gán ai trong `Master_DS`).
+ */
+import { useEffect, useMemo, useState } from 'react';
+import { useDeviceCoordinatorId } from '@/config/deviceIdentity';
+import { dispatchWebhookUrl, useLarkSettings } from '@/config/larkSettings';
+import { useCoordinators } from '@/hooks/useCoordinators';
+import { sendDispatchForm } from '@/services/dispatchWebhook';
+import type { DeskData, RosterEntry } from '@/types/desk';
+
+interface DispatchFormModalProps {
+  desks: DeskData[];
+  /** Roster nhân sự từ `Master_DS` — nguồn chính của 2 ô select. */
+  roster: RosterEntry[];
+  /**
+   * STT điền sẵn khi mở form từ nút "DP" trong popup khách đang chờ — điều
+   * phối viên khỏi phải nhớ rồi gõ lại số vừa nhìn thấy.
+   */
+  initialStt?: string;
+  onClose: () => void;
+}
+
+/**
+ * Roster rỗng (mất kết nối `Master_DS`, hoặc bảng chưa có dữ liệu) → vẫn cho
+ * điều phối bằng mã bàn trên sơ đồ thay vì khoá cứng form giữa event. Tên NV
+ * lúc đó chỉ có nếu bàn đang có khách.
+ */
+const FALLBACK_LOAI: Record<string, string> = {
+  consult: 'Tư vấn',
+  tradein: 'Thu cũ',
+  backup: 'Backup',
+};
+
+type Status =
+  | { kind: 'idle' }
+  | { kind: 'sending' }
+  | { kind: 'sent'; confirmed: boolean }
+  | { kind: 'error'; msg: string };
+
+export default function DispatchFormModal({ desks, roster, initialStt = '', onClose }: DispatchFormModalProps) {
+  const settings = useLarkSettings();
+  const webhook = dispatchWebhookUrl(settings);
+  // Danh tính máy — gửi kèm để biết bản ghi do điều phối viên nào submit.
+  const deviceId = useDeviceCoordinatorId();
+  const { coordinators } = useCoordinators();
+  const me = coordinators.find((c) => c.id === deviceId) ?? null;
+  /** Chuỗi ghi vào cột "Submit by" bên Lark — cũng là thứ hiện trong form. */
+  const submitBy = me ? [me.id, me.name].filter(Boolean).join(' · ') : '';
+
+  const [stt, setStt] = useState(initialStt);
+  const [loai, setLoai] = useState('');
+  const [deskId, setDeskId] = useState('');
+  const [status, setStatus] = useState<Status>({ kind: 'idle' });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  /*
+    Đồng bộ lại STT khi `initialStt` đổi, KHÔNG chỉ dựa vào việc form unmount
+    lúc đóng: nếu đóng rồi mở lại trong cùng một tick React (2 setState bị gộp)
+    thì component không unmount và ô STT sẽ giữ nguyên số của khách trước —
+    điều phối viên rất dễ gửi nhầm STT mà không để ý.
+  */
+  useEffect(() => {
+    setStt(initialStt);
+  }, [initialStt]);
+
+  /** Tên NV đang THẬT SỰ ngồi mỗi bàn (chỉ có khi bàn đang tiếp khách) — lấp chỗ roster bỏ trống. */
+  const liveStaffByDesk = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of desks) if (d.staffName) m.set(d.id, d.staffName);
+    return m;
+  }, [desks]);
+
+  /** Roster thật; rỗng thì suy tạm từ các bàn trên sơ đồ (xem `FALLBACK_LOAI`). */
+  const entries: RosterEntry[] = useMemo(() => {
+    if (roster.length) return roster;
+    return desks.map((d) => ({
+      deskCode: d.id,
+      loai: FALLBACK_LOAI[d.cluster] ?? d.cluster,
+      staffName: d.staffName ?? '',
+    }));
+  }, [roster, desks]);
+
+  /** Các "Loại" có thật, giữ nguyên thứ tự xuất hiện trong Lark. */
+  const loaiChoices = useMemo(() => [...new Set(entries.map((e) => e.loai))], [entries]);
+
+  const staffOptions = useMemo(
+    () => (loai ? entries.filter((e) => e.loai === loai) : []),
+    [entries, loai],
+  );
+
+  const selected = staffOptions.find((e) => e.deskCode === deskId) ?? null;
+  const staffNameOf = (e: RosterEntry) => e.staffName || liveStaffByDesk.get(e.deskCode) || '';
+  const canSubmit = Boolean(stt.trim() && loai && deskId) && status.kind !== 'sending';
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+    setStatus({ kind: 'sending' });
+    try {
+      const res = await sendDispatchForm(webhook, {
+        stt: stt.trim(),
+        phanLoai: loai,
+        maBan: deskId,
+        nhanSu: selected ? staffNameOf(selected) : '',
+        thoiGian: new Date().toISOString(),
+        dieuPhoiId: deviceId,
+        dieuPhoiTen: me?.name ?? '',
+        dieuPhoiViTri: me?.position ?? '',
+        submitBy,
+      });
+      setStatus({ kind: 'sent', confirmed: res.confirmed });
+      // Giữ nguyên "Phân loại" để nhập liên tiếp nhiều khách cùng khâu.
+      setStt('');
+      setDeskId('');
+    } catch (err) {
+      setStatus({ kind: 'error', msg: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-label="Form Điều phối"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[85vh] w-full max-w-md overflow-auto rounded-xl bg-white p-4 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-bold text-neutral-800">Form Điều phối</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+          >
+            ×
+          </button>
+        </div>
+        <p className="mb-3 text-xs text-neutral-500">
+          Thông tin dưới đây được gửi thẳng lên Webhook Lark Base để ghi vào Base —{' '}
+          <b>không ảnh hưởng</b> tới sơ đồ bàn / số liệu trên dashboard.
+        </p>
+
+        <form onSubmit={submit} className="space-y-3">
+          {/*
+            "Submit by" chỉ đọc, và KHÔNG có lối đổi từ đây (bỏ nút "Đổi"
+            2026-08-11 theo yêu cầu user): điều phối viên không được tự gán
+            máy thành người khác. Muốn đổi phải vào Cài đặt → mục 5 và nhập
+            mật khẩu admin.
+          */}
+          <Field label="Submit by">
+            <input
+              value={submitBy || '— Chưa gán điều phối viên —'}
+              readOnly
+              className={`w-full rounded border px-2 py-2 text-sm ${
+                me
+                  ? 'border-neutral-200 bg-neutral-100 text-neutral-700'
+                  : 'border-amber-300 bg-amber-50 text-amber-700'
+              }`}
+            />
+            {!me && (
+              <span className="text-[11px] text-amber-700">
+                Máy này chưa được gán — báo admin gán trong Cài đặt → 5 · Máy điều phối này là ai.
+              </span>
+            )}
+          </Field>
+
+          <Field label="STT">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={stt}
+              onChange={(e) => setStt(e.target.value)}
+              placeholder="VD: 27"
+              autoFocus={!initialStt}
+              className="w-full rounded border border-neutral-300 px-2 py-2 text-sm focus:border-brand focus:outline-none"
+            />
+          </Field>
+
+          <Field label="Phân loại">
+            <select
+              value={loai}
+              onChange={(e) => {
+                setLoai(e.target.value);
+                setDeskId(''); // bàn cũ không còn thuộc phân loại mới
+              }}
+              className="w-full rounded border border-neutral-300 bg-white px-2 py-2 text-sm focus:border-brand focus:outline-none"
+            >
+              <option value="">— Chọn phân loại —</option>
+              {loaiChoices.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Danh sách Nhân sự">
+            <select
+              value={deskId}
+              onChange={(e) => setDeskId(e.target.value)}
+              disabled={!loai}
+              className="w-full rounded border border-neutral-300 bg-white px-2 py-2 text-sm focus:border-brand focus:outline-none disabled:bg-neutral-100 disabled:text-neutral-400"
+            >
+              <option value="">{loai ? '— Chọn nhân sự —' : '— Chọn phân loại trước —'}</option>
+              {staffOptions.map((e) => {
+                const name = staffNameOf(e);
+                return (
+                  <option key={e.deskCode} value={e.deskCode}>
+                    {name ? `${e.deskCode} — ${name}` : `${e.deskCode} (chưa gán NV)`}
+                  </option>
+                );
+              })}
+            </select>
+          </Field>
+
+          {!webhook && (
+            <p className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Chưa cấu hình Webhook URL. Vào <b>Cài đặt Lark → 4 · Webhook Điều phối</b> để dán URL
+              webhook của Lark Base.
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-40"
+            >
+              {status.kind === 'sending' ? 'Đang gửi…' : 'Gửi lên Lark Base'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              Đóng
+            </button>
+          </div>
+
+          {status.kind === 'sent' && (
+            <p className={`text-sm ${status.confirmed ? 'text-emerald-700' : 'text-amber-700'}`}>
+              {status.confirmed
+                ? '✓ Đã gửi — Lark Base xác nhận nhận được.'
+                : '✓ Đã gửi. Trình duyệt bị CORS chặn đọc phản hồi nên không xác nhận được kết quả — kiểm tra lại trong Base.'}
+            </p>
+          )}
+          {status.kind === 'error' && (
+            <p className="text-sm text-red-600" title={status.msg}>
+              ✗ {status.msg}
+            </p>
+          )}
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{label}</span>
+      {children}
+    </label>
+  );
+}

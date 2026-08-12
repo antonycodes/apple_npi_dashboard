@@ -1,0 +1,37 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Proxy đang dùng thật (2026-08-11): vhws-lark-proxy.eventnpi2026.workers.dev.
+  // Tên cũ "npieventsource" vẫn còn 1 worker sống trên cùng account nhưng chạy
+  // code cũ — để nguyên tên đó thì `wrangler deploy` đẩy nhầm vào worker cũ.
+  "name": "vhws-lark-proxy",
+  "compatibility_date": "2026-07-27",
+  "main": "cloudflare-worker.js",
+  "workers_dev": true,
+  // Biến plaintext PHẢI khai ở đây: `wrangler deploy` đẩy lên đúng danh sách
+  // vars trong file này, biến thêm tay trên dashboard sẽ bị xoá khi deploy.
+  // (Secret thì ngược lại — luôn được giữ, xem "secrets" bên dưới.)
+  "vars": {
+    "LARK_HOST": "https://open.larksuite.com"
+  },
+  // Cấu hình DÙNG CHUNG cho mọi máy điều phối (danh sách điều phối viên).
+  // Trước đây mọi thứ chỉ nằm trong localStorage từng máy nên không máy nào
+  // thấy thay đổi của máy nào — xem `/config/coordinators` trong worker.
+  "kv_namespaces": [
+    {
+      "binding": "CONFIG",
+      "id": "4c310d2bfd1f4295aa980b05f913cfba"
+    }
+  ],
+  "secrets": {
+    "required": [
+      "LARK_APP_ID",
+      "LARK_APP_SECRET",
+      "LARK_APP_TOKEN",
+      "TB_CHECKIN",
+      "TB_ORDERS",
+      "TB_MASTER",
+      "TB_DISPATCH",
+      "TB_DS_MASTER"
+    ]
+  }
+}
