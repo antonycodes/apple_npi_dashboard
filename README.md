@@ -32,10 +32,11 @@ vụ**), **STT khách tiếp theo** + số khách đang chờ, danh sách **sổ
 | `#/tv4` · `#/tc1` · `#/kt1` · `#/bk2` | **Nhân viên** — mỗi bàn 1 link | Khoá đúng bàn đó, **không có** chọn/đổi bàn |
 | `#/nv` | **Admin / điều phối tổng** | Xem bàn bất kỳ, đổi bàn, và **copy link riêng** của bàn đang xem để gửi cho NV |
 
-- **Đăng nhập**: `#/nv` (admin/điều phối tổng) **không cần đăng nhập gì cả**
-  (passwordless hoàn toàn). Link riêng từng bàn (`#/tv4`…) đăng nhập bằng
-  đúng mã bàn + **mật khẩu dùng chung** `STAFF_PASSWORD` (secret trên worker).
-  Cả hai đều bị bỏ qua khi đang chạy dữ liệu mẫu hoặc chưa cấu hình API URL.
+- **Đăng nhập**: `#/nv` (admin/điều phối tổng) đăng nhập bằng tài khoản `admin`
+  + **mật khẩu** `ADMIN_PASSWORD`. Link riêng từng bàn (`#/tv4`…) đăng nhập bằng
+  đúng mã bàn + **mật khẩu dùng chung** `STAFF_PASSWORD`. Cả hai secret đều đặt
+  trên worker, không có trong bundle web. Cả hai đều bị bỏ qua khi đang chạy dữ
+  liệu mẫu hoặc chưa cấu hình API URL.
 - **Link copy ở `#/nv` có kèm `?api=…`**: máy nhân viên mở lần đầu là tự lưu
   API URL của proxy và chuyển sang dữ liệu thật, không phải vào `#/settings`
   khai tay. Tham số tự bị xoá khỏi thanh địa chỉ ngay sau đó.
@@ -269,7 +270,11 @@ deploy lại.
 
 Secrets cần cấu hình: `LARK_APP_ID`, `LARK_APP_SECRET`,
 `LARK_APP_TOKEN`, `TB_CHECKIN`, `TB_ORDERS`, `TB_MASTER`,
-`TB_DISPATCH`, `TB_DS_MASTER`; `LARK_HOST` là tuỳ chọn.
+`TB_DISPATCH`, `TB_DS_MASTER`, `ADMIN_SESSION_SECRET`, `ADMIN_PASSWORD`,
+`STAFF_PASSWORD`; `LARK_HOST` là tuỳ chọn.
+
+> `ADMIN_PASSWORD` là **bắt buộc**: thiếu nó thì mọi lần đăng nhập admin trả
+> 500 kèm thông báo rõ, KHÔNG rơi về chế độ không mật khẩu như trước.
 
 ```bash
 npx wrangler login
@@ -281,6 +286,8 @@ npx wrangler secret put TB_ORDERS
 npx wrangler secret put TB_MASTER
 npx wrangler secret put TB_DISPATCH
 npx wrangler secret put TB_DS_MASTER
+npx wrangler secret put ADMIN_PASSWORD
+npx wrangler secret put STAFF_PASSWORD
 npx wrangler deploy
 ```
 

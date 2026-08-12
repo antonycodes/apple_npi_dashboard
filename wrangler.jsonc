@@ -32,6 +32,7 @@
       "TB_MASTER",
       "TB_DISPATCH",
       "TB_DS_MASTER",
+      "ADMIN_PASSWORD",
       "STAFF_PASSWORD"
     ]
   }
