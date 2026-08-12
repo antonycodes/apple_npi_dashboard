@@ -19,9 +19,19 @@ declare global {
 
 interface QrScanButtonProps {
   onScan: (value: string) => void;
+  /**
+   * Định dạng mã cho `BarcodeDetector`. Mặc định CHỈ `qr_code` — giữ nguyên
+   * hành vi cũ ở màn Cài đặt (quét QR chứa URL proxy), tránh việc máy vô tình
+   * bắt phải một mã vạch nào đó trong khung hình.
+   *
+   * Ô IMEI truyền thêm các mã 1D vì tem IMEI trên hộp máy thường là Code128 /
+   * EAN chứ không phải QR. Lưu ý: chỉ có tác dụng trên trình duyệt CÓ
+   * `BarcodeDetector`; đường dự phòng `jsQR` luôn chỉ đọc được QR.
+   */
+  formats?: string[];
 }
 
-export default function QrScanButton({ onScan }: QrScanButtonProps) {
+export default function QrScanButton({ onScan, formats = ['qr_code'] }: QrScanButtonProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -61,7 +71,7 @@ export default function QrScanButton({ onScan }: QrScanButtonProps) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
         }
-        const detector = Detector ? new Detector({ formats: ['qr_code'] }) : null;
+        const detector = Detector ? new Detector({ formats }) : null;
         const canvas = canvasRef.current ?? document.createElement('canvas');
         canvasRef.current = canvas;
         const context = canvas.getContext('2d', { willReadFrequently: true });

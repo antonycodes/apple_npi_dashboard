@@ -33,16 +33,15 @@ export interface DispatchFormPayload {
   maBan: string;
   /** Tên NV đang ngồi bàn đó (rỗng nếu dashboard chưa biết). */
   nhanSu: string;
+  /** MSNV lấy từ `Master_DS.MSNV`, không nhập tay trên form. */
+  msnv: string;
   /** Thời điểm bấm gửi, ISO 8601. */
   thoiGian: string;
   /** Máy nào gửi — ID điều phối viên gán ở `#/admin` (xem `config/deviceIdentity.ts`). */
   dieuPhoiId: string;
   dieuPhoiTen: string;
   dieuPhoiViTri: string;
-  /**
-   * Ghép sẵn cho cột "Submit by" bên Lark — tên DP (kèm mã khi có) để map
-   * thẳng 1 biến, khỏi phải nối chuỗi trong automation.
-   */
+  /** Giá trị ghi vào cột "Submit by" bên Lark — chính là MSNV nhân viên. */
   submitBy: string;
 }
 

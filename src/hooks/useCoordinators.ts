@@ -28,7 +28,8 @@ export function useCoordinators(): UseCoordinatorsResult {
     fetchCoordinators(ctrl.signal)
       .then((cfg) => {
         if (cancelled) return;
-        setCoordinators(cfg.coordinators);
+        // Tương thích dữ liệu KV cũ chưa có trường MSNV.
+        setCoordinators(cfg.coordinators.map((c) => ({ ...c, msnv: c.msnv ?? '' })));
         setError(null);
       })
       .catch((err) => {

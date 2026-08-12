@@ -11,13 +11,37 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import LoginGate from '@/components/LoginGate';
-import { adminSessionStore, useAdminToken } from '@/config/adminSession';
+import { adminSessionStore, useAdminInfo } from '@/config/adminSession';
 import { fetchCoordinators, saveCoordinators } from '@/services/adminApi';
+import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
+import { fetchTableRecords } from '@/services/larkClient';
+import { cellToString } from '@/services/larkMapper';
+import type { LarkRecord } from '@/services/larkTypes';
 import type { Coordinator, CoordinatorConfig } from '@/types/coordinator';
 
+type DsCoordinator = { name: string; msnv: string };
+
+function canonicalDp(id: string): string {
+  return id.trim().toUpperCase().replace(/^DP0+(\d+)$/, 'DP$1');
+}
+
+function coordinatorLookup(rows: LarkRecord[]): Record<string, DsCoordinator> {
+  const result: Record<string, DsCoordinator> = {};
+  for (const row of rows) {
+    const id = cellToString(row.fields['STT bàn']);
+    const loai = cellToString(row.fields['Loại']) ?? '';
+    if (!id || !/^DP\d+$/i.test(id) || (loai && loai !== 'Điều phối')) continue;
+    result[canonicalDp(id)] = {
+      name: cellToString(row.fields['NV Tư vấn']) ?? '',
+      msnv: cellToString(row.fields.MSNV) ?? '',
+    };
+  }
+  return result;
+}
+
 export default function AdminPage() {
-  const token = useAdminToken();
-  if (!token) return <LoginGate note="Đăng nhập tài khoản admin để quản lý điều phối viên." />;
+  const session = useAdminInfo();
+  if (session?.role !== 'admin') return <LoginGate note="Đăng nhập tài khoản admin để quản lý điều phối viên." />;
 
   return (
     <div className="min-h-full bg-neutral-100 text-neutral-800">
@@ -55,6 +79,8 @@ export default function AdminPage() {
 }
 
 function CoordinatorEditor() {
+  const settings = useLarkSettings();
+  const [dsLookup, setDsLookup] = useState<Record<string, DsCoordinator>>({});
   const [rows, setRows] = useState<Coordinator[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,10 +88,27 @@ function CoordinatorEditor() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => {
+    if (settings.useMock || !settings.apiUrl.trim()) return;
+    const ctrl = new AbortController();
+    fetchTableRecords(toRuntimeConfig(settings), 'dsMaster', ctrl.signal)
+      .then((records) => setDsLookup(coordinatorLookup(records)))
+      .catch(() => undefined);
+    return () => ctrl.abort();
+  }, [settings]);
+
   const apply = useCallback((cfg: CoordinatorConfig) => {
-    setRows(cfg.coordinators);
+    setRows(cfg.coordinators.map((c) => ({ ...c, msnv: c.msnv ?? '' })));
     setUpdatedAt(cfg.updatedAt);
   }, []);
+
+  useEffect(() => {
+    if (!Object.keys(dsLookup).length) return;
+    setRows((prev) => prev.map((row) => {
+      const live = dsLookup[canonicalDp(row.id)];
+      return live ? { ...row, name: live.name || row.name, msnv: live.msnv || row.msnv } : row;
+    }));
+  }, [dsLookup]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -90,10 +133,27 @@ function CoordinatorEditor() {
   }, [apply]);
 
   const setRow = (i: number, patch: Partial<Coordinator>) =>
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+    setRows((prev) => prev.map((r, idx) => {
+      if (idx !== i) return r;
+      if (patch.id !== undefined) {
+        const live = dsLookup[canonicalDp(patch.id)];
+        return {
+          ...r,
+          ...patch,
+          // ID là Master_DS.STT bàn; nhập DP1/DP2 sẽ lookup ngay tên + MSNV.
+          ...(live ? { name: live.name, msnv: live.msnv } : { name: '', msnv: '' }),
+        };
+      }
+      return { ...r, ...patch };
+    }));
 
-  const addRow = () =>
-    setRows((prev) => [...prev, { id: `DP${String(prev.length + 1).padStart(2, '0')}`, name: '', position: '' }]);
+  const addRow = () => setRows((prev) => {
+    const used = new Set(prev.map((row) => canonicalDp(row.id)));
+    const nextId = Object.keys(dsLookup).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).find((id) => !used.has(id))
+      ?? `DP${String(prev.length + 1).padStart(2, '0')}`;
+    const live = dsLookup[nextId];
+    return [...prev, { id: nextId, msnv: live?.msnv ?? '', name: live?.name ?? '', position: '' }];
+  });
 
   // Chặn ngay ở UI thay vì để 2 máy cùng nhận 1 ID rồi lẫn dữ liệu về sau.
   const ids = rows.map((r) => r.id.trim());
@@ -133,7 +193,7 @@ function CoordinatorEditor() {
 
         {rows.length === 0 ? (
           <p className="py-6 text-center text-sm italic text-neutral-400">
-            Chưa có điều phối viên nào. Bấm “Thêm điều phối viên”.
+            Chưa có điều phối viên nào. Bấm “Thêm DP từ Master_DS”.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -141,6 +201,7 @@ function CoordinatorEditor() {
               <thead>
                 <tr className="border-b border-neutral-200 text-xs font-semibold uppercase tracking-wide text-neutral-500">
                   <th className="py-2 pr-3">ID</th>
+                  <th className="py-2 pr-3">MSNV</th>
                   <th className="py-2 pr-3">Họ và tên</th>
                   <th className="py-2 pr-3">Vị trí</th>
                   <th className="py-2" />
@@ -153,7 +214,10 @@ function CoordinatorEditor() {
                       <Cell value={r.id} onChange={(v) => setRow(i, { id: v })} placeholder="DP01" width="w-24" />
                     </td>
                     <td className="py-2 pr-3">
-                      <Cell value={r.name} onChange={(v) => setRow(i, { name: v })} placeholder="Nguyễn Văn A" />
+                      <Cell value={r.msnv} onChange={(v) => setRow(i, { msnv: v })} placeholder="MSNV từ Master_DS" width="w-36" readOnly={Boolean(dsLookup[canonicalDp(r.id)])} />
+                    </td>
+                    <td className="py-2 pr-3">
+                      <Cell value={r.name} onChange={(v) => setRow(i, { name: v })} placeholder="Tên từ Master_DS" readOnly={Boolean(dsLookup[canonicalDp(r.id)])} />
                     </td>
                     <td className="py-2 pr-3">
                       <Cell value={r.position} onChange={(v) => setRow(i, { position: v })} placeholder="Cổng / Khu Tư vấn" />
@@ -180,7 +244,7 @@ function CoordinatorEditor() {
           onClick={addRow}
           className="mt-3 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
         >
-          + Thêm điều phối viên
+          + Thêm DP từ Master_DS
         </button>
       </section>
 
@@ -207,18 +271,21 @@ function Cell({
   onChange,
   placeholder,
   width = 'w-full',
+  readOnly = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   width?: string;
+  readOnly?: boolean;
 }) {
   return (
     <input
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className={`${width} rounded border border-neutral-300 px-2 py-1.5 text-sm focus:border-brand focus:outline-none`}
+      readOnly={readOnly}
+      className={`${width} rounded border border-neutral-300 px-2 py-1.5 text-sm focus:border-brand focus:outline-none ${readOnly ? 'bg-neutral-100 text-neutral-700' : ''}`}
     />
   );
 }

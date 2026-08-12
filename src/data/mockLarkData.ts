@@ -38,15 +38,25 @@ const HOAN_TAT = 'Hoàn tất';
 // phục vụ nhiều người cùng lúc. Khách checkin trước phải hiện trước.
 const checkin: LarkRecord[] = [
   { record_id: 'ci_1', fields: { STT: 1, 'Họ và tên': 'Nguyễn Minh Long', 'SP 1': 'iPhone 17 Pro 512GB | Bạc', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'Backup check': KHONG_BACKUP, 'End flow': IN_FLOW, 'Thời gian': 1000 } },
-  { record_id: 'ci_2', fields: { STT: 2, 'Họ và tên': 'Huỳnh Ngọc Linh', 'SP 1': 'iPhone 17 Pro Max 256GB | Cam', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'Backup check': CO_BACKUP, 'End flow': END_FLOW, 'Thời gian': 2000 } },
+  // Kịch bản màn hình nhân viên TV1 (2026-08-12, yêu cầu user): STT2 đang được
+  // TV1 tiếp nhận (xem `ma_3`), STT4 là "STT tiếp theo" của TV1 (xem `dsm_7`) —
+  // mở `#/tv1` để diễn đúng luồng "Hoàn tất khách 02 → Tiếp nhận khách 04".
+  { record_id: 'ci_2', fields: { STT: 2, 'Họ và tên': 'Huỳnh Ngọc Linh', 'SP 1': 'iPhone 17 Pro Max 256GB | Cam', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'Backup check': CO_BACKUP, 'End flow': IN_FLOW, 'Thời gian': 2000 } },
   { record_id: 'ci_3', fields: { STT: 3, 'Họ và tên': 'Phạm Đức Dũng', 'SP 1': 'iPhone 17 Pro 512GB | Xanh Đậm', 'Note UDTT': 'VIB 1254', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'Thu cũ check': KHONG_THU_CU, 'Backup check': KHONG_BACKUP, 'End flow': IN_FLOW, 'Thời gian': 3000 } },
-  { record_id: 'ci_4', fields: { STT: 4, 'Họ và tên': 'Dương Xuân Long', 'SP 1': 'iPhone 17 Pro 256GB | Cam', 'Note UDTT': 'TCB 998434', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': THU_CU_SAU, 'End flow': IN_FLOW, 'Thời gian': 4000 } },
+  // STT4 = khách kế tiếp của TV1 (đã điều phối vào TV1 ở `dp_8`, chưa có dòng
+  // "Tiếp nhận" nào trong `master`) — nút Tiếp nhận ở `#/tv1` sẽ mở form recheck
+  // với đúng thông tin dòng này.
+  { record_id: 'ci_4', fields: { STT: 4, 'Họ và tên': 'Dương Xuân Long', 'SP 1': 'iPhone 17 Pro 256GB | Cam', 'Note UDTT': 'TCB 998434', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': THU_CU_SAU, 'End flow': IN_FLOW, 'Thời gian': 4000, 'Hyperlink Tiếp nhận': 'https://example.larksuite.com/base/tiep-nhan?stt=4' } },
   { record_id: 'ci_5', fields: { STT: 5, 'Họ và tên': 'Võ Xuân Phong', 'SP 1': 'iPhone 17 Pro Max 256GB | Cam', 'Note UDTT': '', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'End flow': IN_FLOW, 'Thời gian': 5000 } },
   { record_id: 'ci_6', fields: { STT: 6, 'Họ và tên': 'Vũ Xuân Phong', 'SP 1': 'iPhone 17 Pro 1TB | Xanh Đậm', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Done in Flow': 'Thu cũ', 'End flow': IN_FLOW, 'Thời gian': 6000 } },
   // Demo "Chờ điều phối" (khu chung) — vừa hoàn tất Thu cũ (xem dòng "Hoàn
   // tất" cho khách này trong `master` bên dưới), chưa được điều phối vào bàn
   // nào cả (không có dòng ở `dispatch` bên dưới).
-  { record_id: 'ci_7', fields: { STT: 7, 'Họ và tên': 'Lê Thanh My', 'SP 1': 'iPhone 17 Pro 256GB | Cam', 'Note UDTT': '', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'End flow': IN_FLOW, 'Thời gian': 7000 } },
+  // "Hyperlink Tiếp nhận" (2026-08-12) — link nút Tiếp nhận trên màn hình
+  // nhân viên `#/nv`, THEO TỪNG KHÁCH. STT7 là "STT tiếp theo" của TV4 và STT8
+  // của TV6 (xem `dsMaster` bên dưới): TV4 demo link theo khách, TV6 để trống
+  // để demo rơi về link cấp BÀN. Xem `services/staffMapper.ts`.
+  { record_id: 'ci_7', fields: { STT: 7, 'Họ và tên': 'Lê Thanh My', 'SP 1': 'iPhone 17 Pro 256GB | Cam', 'Note UDTT': '', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'End flow': IN_FLOW, 'Thời gian': 7000, 'Hyperlink Tiếp nhận': 'https://example.larksuite.com/base/tiep-nhan?stt=7' } },
   { record_id: 'ci_8', fields: { STT: 8, 'Họ và tên': 'Võ Thu Trang', 'SP 1': 'iPhone 17 Pro 512GB | Bạc', 'Note UDTT': '', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'End flow': IN_FLOW, 'Thời gian': 8000 } },
   // ci_9 / ci_10 — "bạn đồng hành", check-in SAU anchor nên phải hiện SAU trong danh sách (xem `master` bên dưới).
   { record_id: 'ci_9', fields: { STT: 9, 'Họ và tên': 'Hoàng Anh Tú', 'SP 1': 'iPhone 17 Pro 256GB | Đen', 'Note UDTT': '', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'End flow': IN_FLOW, 'Thời gian': 9000 } },
@@ -63,6 +73,12 @@ const checkin: LarkRecord[] = [
   // NHƯNG NV đó có ≥ 2 dòng trong `dsMaster` (Thu cũ + Backup) — phải lấy
   // đúng dòng Thu cũ, không lấy nhầm dòng Backup — xem `ma_13` bên dưới.
   { record_id: 'ci_14', fields: { STT: 14, 'Họ và tên': 'Lý Gia Bảo', 'SP 1': 'iPhone 17 Pro 256GB | Đen', 'Note UDTT': '', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'End flow': IN_FLOW, 'Thời gian': 14000 } },
+  // Nhận chỗ của Dương Xuân Long trong demo Backup "BK3 → TV3" (`ma_4`), để
+  // STT4 rảnh làm khách kế tiếp của TV1 — xem `ci_4`.
+  { record_id: 'ci_15', fields: { STT: 15, 'Họ và tên': 'Ngô Gia Huy', 'SP 1': 'iPhone 17 Pro Max 512GB | Đen', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': THU_CU_SAU, 'End flow': IN_FLOW, 'Thời gian': 15000 } },
+  // Giữ demo bảng "End Flow" (trước đây là `ci_2`, nay `ci_2` đang trong luồng
+  // ở TV1 theo kịch bản mới) — khách đã xong toàn bộ quy trình.
+  { record_id: 'ci_16', fields: { STT: 16, 'Họ và tên': 'Trần Khánh Vy', 'SP 1': 'iPhone 17 Pro 256GB | Bạc', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'Done in Flow': 'Tư vấn', 'End flow': END_FLOW, 'Thời gian': 16000 } },
 ];
 
 // "Danh sách đơn hàng" — 20 đơn đã đăng ký (Số tổng). 8 người trong số đó đã
@@ -92,12 +108,16 @@ const orders: LarkRecord[] = Array.from({ length: 20 }, (_, i) => ({
 const master: LarkRecord[] = [
   { record_id: 'ma_1', fields: { 'TV_MãNV': 'TC1', 'Trạng thái': TIEP_NHAN, 'Loại 2': 'Thu cũ', 'Họ và tên': 'Nguyễn Minh Long', 'Người': 'Thịnh_OPs', 'Thời gian': 1000 } },
   { record_id: 'ma_2', fields: { 'TV_MãNV': 'TC1', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Hoàng Anh Tú', 'Người': 'Thịnh_OPs', 'Thời gian': 9000 } },
-  { record_id: 'ma_3', fields: { 'TV_MãNV': 'TC2', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Huỳnh Ngọc Linh', 'Người': 'SơnTrà_AppleMaster_AM&WS', 'Thời gian': 2000 } },
-  { record_id: 'ma_4', fields: { 'TV_MãNV': 'BK3', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Dương Xuân Long', 'Người': 'SơnTrà_AppleMaster_AM&WS', 'Thời gian': 4000 } },
+  // Kịch bản TV1: khách STT2 đang được tiếp nhận. "Hyperlink Master" chính là
+  // link nút **Hoàn tất** ở màn hình nhân viên (`#/tv1`) — nút này LUÔN dùng
+  // hyperlink, không đi webhook (yêu cầu user 2026-08-12).
+  { record_id: 'ma_3', fields: { 'TV_MãNV': 'TV1', 'Trạng thái': TIEP_NHAN, 'Loại 2': 'Tư vấn', 'Họ và tên': 'Huỳnh Ngọc Linh', 'Người': 'Dương Đình Hưng', 'Thời gian': 2000, 'Hyperlink Master': 'https://example.larksuite.com/base/hoan-tat?stt=2' } },
+  { record_id: 'ma_4', fields: { 'TV_MãNV': 'BK3', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Ngô Gia Huy', 'Người': 'SơnTrà_AppleMaster_AM&WS', 'Thời gian': 15500 } },
   { record_id: 'ma_13', fields: { 'TV_MãNV': 'optZ9fQwLk', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Lý Gia Bảo', 'Người': 'SơnTrà_AppleMaster_AM&WS', 'Thời gian': 14500 } },
   { record_id: 'ma_5', fields: { 'TV_MãNV': 'TV2', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Phạm Đức Dũng', 'Người': 'TIẾN THÀNH_NV_VHWS', 'Thời gian': 3000 } },
   { record_id: 'ma_6', fields: { 'TV_MãNV': 'TV2', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Bùi Thanh Hà', 'Người': 'TIẾN THÀNH_NV_VHWS', 'Thời gian': 10000 } },
-  { record_id: 'ma_7', fields: { 'TV_MãNV': 'TV4', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Võ Xuân Phong', 'Người': 'M Thành_CV_VHWS&AM', 'Thời gian': 5000 } },
+  // "Hyperlink Master" = link nút Hoàn tất trên màn hình nhân viên `#/nv`.
+  { record_id: 'ma_7', fields: { 'TV_MãNV': 'TV4', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Võ Xuân Phong', 'Người': 'M Thành_CV_VHWS&AM', 'Thời gian': 5000, 'Hyperlink Master': 'https://example.larksuite.com/base/hoan-tat?stt=5' } },
   // Vũ Xuân Phong (STT6) đã được tiếp nhận & xong ở TC1 trước đó (Trạng thái
   // "Hoàn tất" — không tính vào occupancy) — bắt buộc phải có dòng này thì
   // "everSeenNames" mới nhận ra đã từng xuất hiện, tránh hiện trùng ở cả khu
@@ -130,21 +150,24 @@ const master: LarkRecord[] = [
 // NV nhận). `dp_3` demo cột "DS Backup" (2026-08-06) — hiện ở dòng "Nhân sự"
 // trong popover khách (Hoàng Anh Tú, đang ngồi TC1) dù không liên quan tới
 // đếm "khách đang chờ" (chỉ đọc DS Tư vấn/DS Thu cũ cho việc đó).
-// `dp_4` demo bug thật user báo 2026-08-06: Huỳnh Ngọc Linh (STT2) đã "End
-// flow" (xong toàn bộ, xem `ci_2`) nhưng dòng điều phối vào TV7 chưa/không
-// bị xoá — TV7 KHÔNG được tính "khách đang chờ" nữa (cả badge trên sơ đồ
-// lẫn "STT tiếp theo" ở QueueBoard /tuvanview), xem larkMapper.ts + queueMapper.ts.
+// `dp_4` demo bug thật user báo 2026-08-06: Trần Khánh Vy (STT16) đã "End
+// flow" (xong toàn bộ, xem `ci_16` — trước 2026-08-12 vai này là Huỳnh Ngọc
+// Linh/STT2, nay STT2 bận đóng kịch bản TV1) nhưng dòng điều phối vào TV7
+// chưa/không bị xoá — TV7 KHÔNG được tính "khách đang chờ" nữa (cả badge trên
+// sơ đồ lẫn "STT tiếp theo" ở QueueBoard /tuvanview), xem larkMapper.ts + queueMapper.ts.
 const dispatch: LarkRecord[] = [
   { record_id: 'dp_1', fields: { 'DS Tư vấn': 'TV4', 'Họ và tên': 'Lê Thanh My' } },
   { record_id: 'dp_2', fields: { 'DS Tư vấn': 'TV6', 'Họ và tên': 'Võ Thu Trang' } },
   { record_id: 'dp_3', fields: { 'DS Backup': 'BK2', 'Họ và tên': 'Hoàng Anh Tú' } },
-  { record_id: 'dp_4', fields: { 'DS Tư vấn': 'TV7', 'Họ và tên': 'Huỳnh Ngọc Linh' } },
+  { record_id: 'dp_4', fields: { 'DS Tư vấn': 'TV7', 'Họ và tên': 'Trần Khánh Vy' } },
   // Cùng khách qua 3 dòng/3 khâu: mapper phải cộng dồn thành
   // (TV1)(TC2)(BK1), không để dòng cuối ghi đè mất hai khâu trước. DS Backup
   // dùng mã bàn chính TV1 để kiểm tra bước chuẩn hoá hiển thị TV1 → BK1.
   { record_id: 'dp_5', fields: { 'DS Tư vấn': 'TV1', 'Họ và tên': 'Nguyễn Minh Long' } },
   { record_id: 'dp_6', fields: { 'DS Thu cũ': 'TC2', 'Họ và tên': 'Nguyễn Minh Long' } },
   { record_id: 'dp_7', fields: { 'DS Backup': 'TV1', 'Họ và tên': 'Nguyễn Minh Long' } },
+  // Kịch bản TV1: khách STT4 đã được gán vào TV1, đang chờ NV bấm Tiếp nhận.
+  { record_id: 'dp_8', fields: { 'DS Tư vấn': 'TV1', 'Họ và tên': 'Dương Xuân Long' } },
 ];
 
 // "DS Master" — CHỈ đọc 3 field: "STT tiếp theo" mỗi bàn, "NV Tư vấn" +
@@ -158,13 +181,16 @@ const dispatch: LarkRecord[] = [
 // option thô) phải quy về TC2 (dòng Thu cũ), TUYỆT ĐỐI không lấy "BK2" — xác
 // nhận đúng cơ chế lọc "Loại", không phải trùng hợp do chỉ có 1 dòng.
 const dsMaster: LarkRecord[] = [
-  { record_id: 'dsm_1', fields: { 'STT bàn': 'TV4', 'STT tiếp theo': '7' } },
-  { record_id: 'dsm_2', fields: { 'STT bàn': 'TV6', 'STT tiếp theo': '8' } },
+  { record_id: 'dsm_1', fields: { 'STT bàn': 'TV4', 'STT tiếp theo': '7', 'Sl khách chờ': 1, 'NV Tư vấn': 'M Thành_CV_VHWS&AM', 'Loại': 'Tư vấn' } },
+  // TV6 KHÔNG có link theo khách (xem `ci_8`) — demo nút Tiếp nhận/Hoàn tất
+  // rơi về link cấp BÀN của màn hình nhân viên `#/nv`.
+  { record_id: 'dsm_2', fields: { 'STT bàn': 'TV6', 'STT tiếp theo': '8', 'Sl khách chờ': 1, 'Hyperlink Tiếp nhận': 'https://example.larksuite.com/base/tiep-nhan?ban=TV6', 'Hyperlink Hoàn tất': 'https://example.larksuite.com/base/hoan-tat?ban=TV6' } },
   { record_id: 'dsm_3', fields: { 'STT bàn': 'TV8', 'NV Tư vấn': 'Đình Bảo_NV_VHWS', 'Loại': 'Tư vấn' } },
   { record_id: 'dsm_4', fields: { 'STT bàn': 'TV5', 'NV Tư vấn': 'THIỆU NHÂN_NV_VHWS', 'Loại': 'Tư vấn' } },
   { record_id: 'dsm_5', fields: { 'STT bàn': 'TC2', 'NV Tư vấn': 'SơnTrà_AppleMaster_AM&WS', 'Loại': 'Thu cũ' } },
   { record_id: 'dsm_6', fields: { 'STT bàn': 'BK2', 'NV Tư vấn': 'SơnTrà_AppleMaster_AM&WS', 'Loại': 'Backup' } },
+  // Kịch bản TV1 (2026-08-12): STT tiếp theo = 4, đang có 1 khách chờ.
+  { record_id: 'dsm_7', fields: { 'STT bàn': 'TV1', 'STT tiếp theo': '4', 'Sl khách chờ': 1, 'NV Tư vấn': 'Dương Đình Hưng', MSNV: 'NV001', Username: 'duong.dinh.hung', 'Loại': 'Tư vấn' } },
 ];
 
 export const mockLarkTables: LarkTables = { checkin, orders, master, dispatch, dsMaster };
-

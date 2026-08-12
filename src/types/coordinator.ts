@@ -9,6 +9,8 @@
 export interface Coordinator {
   /** Mã NV điều phối, vd "DP01" — khoá định danh, phải là duy nhất. */
   id: string;
+  /** MSNV của điều phối viên, dùng để hiển thị và gửi kèm dữ liệu. */
+  msnv: string;
   name: string;
   /** Vị trí đứng/khu vực phụ trách, vd "Cổng", "Khu Tư vấn". */
   position: string;

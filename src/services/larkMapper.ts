@@ -88,6 +88,19 @@ export function cellToString(v: LarkCellValue): string | null {
   return null;
 }
 
+/** Lấy định danh tài khoản Lark từ person field hoặc cột text riêng. */
+export function cellToUsername(v: LarkCellValue): string | null {
+  if (typeof v === 'string') return v.trim() || null;
+  if (!Array.isArray(v)) return null;
+  for (const part of v as Array<Record<string, unknown>>) {
+    for (const key of ['username', 'email', 'email_address', 'id']) {
+      const value = part[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+  }
+  return null;
+}
+
 /**
  * Lark responses copied through some proxy/browser paths can expose Vietnamese
  * column names as mojibake (for example `DS Thu cÅ©`). Read the exact key first
@@ -628,7 +641,12 @@ function buildRoster(rows: LarkRecord[], fm: DsMasterFieldMap): RosterEntry[] {
     const loai = cellToString(r.fields[fm.loai]);
     if (!deskCode || !loai || seen.has(deskCode)) continue;
     seen.add(deskCode);
-    out.push({ deskCode, loai, staffName: cellToString(r.fields[fm.staff]) ?? '' });
+    out.push({
+      deskCode,
+      loai,
+      staffName: cellToString(r.fields[fm.staff]) ?? '',
+      staffId: cellToString(r.fields[fm.staffId || 'MSNV']) ?? cellToString(r.fields.MSNV) ?? '',
+    });
   }
   return out;
 }
@@ -669,6 +687,34 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
     if (name) everSeenNames.add(name);
   }
 
+  // Khách ĐÃ hoàn tất tại từng bàn — dòng mới nhất mỗi cặp (bàn, khách) có
+  // `Trạng thái` = "Hoàn tất" (cùng nguồn dedupe `latestMasterRows` ở trên,
+  // nên 1 khách Tiếp nhận lại sau đó KHÔNG còn nằm ở đây nữa — đúng nghĩa
+  // "lịch sử", không phải khách hiện tại). Sắp mới nhất trước (theo `row.time`
+  // gốc, giảm dần) cho màn hình NV (`StaffDeskScreen`'s "Khách đã tiếp nhận ·
+  // hoàn tất") — sort NGAY TRONG lúc còn giữ `row.time` vì `DeskCustomer`
+  // (kiểu chung, dashboard cũng dùng) không có field thời gian.
+  const completedRows = latestMasterRows
+    .filter((row) => row.status === STATUS_COMPLETED)
+    .sort((a, b) => b.time - a.time);
+  const completedByDeskCode = new Map<string, DeskCustomer[]>();
+  for (const row of completedRows) {
+    const ci = checkinByName.get(row.name);
+    const list = completedByDeskCode.get(row.deskCode) ?? [];
+    list.push({
+      stt: ci?.stt ?? null,
+      name: row.name,
+      productName: ci?.product ?? null,
+      paymentNote: ci?.note ?? null,
+      deviceAccepted: ci?.deviceAccepted ?? null,
+      deviceAcceptedText: ci?.deviceAcceptedText ?? null,
+      hyperlink: hyperlinkByName.get(row.name) ?? null,
+      oldDeviceCheck: ci?.oldDeviceCheck ?? null,
+      backupCheck: ci?.backupCheck ?? null,
+    });
+    completedByDeskCode.set(row.deskCode, list);
+  }
+
   for (const pos of ALL_POSITIONS) {
     const code = pos.id;
     const group = activeByDeskCode.get(code);
@@ -695,6 +741,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       deviceAccepted: primary?.deviceAccepted ?? null,
       deviceAcceptedText: primary?.deviceAcceptedText ?? null,
       receivedCustomers,
+      completedCustomers: completedByDeskCode.get(code) ?? [],
     };
   }
 
@@ -803,4 +850,3 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
     roster: buildRoster(tables.dsMaster, dsMaster),
   };
 }
-

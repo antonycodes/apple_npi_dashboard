@@ -49,6 +49,14 @@ export interface CheckinFieldMap {
   backupCheck: string;
   /** Link điều phối cho khách đang ở khu Đã check-in. */
   dispatchHyperlink: string;
+  /**
+   * Link "Tiếp nhận" RIÊNG TỪNG KHÁCH — nút Tiếp nhận ở màn hình nhân viên
+   * (`#/nv`) mở đúng link của khách có STT tiếp theo. User tự tạo cột hyperlink
+   * này trong Lark Base; chưa có cột thì nút rơi về link cấp BÀN
+   * (`DsMasterFieldMap.receiveHyperlink`), không có nốt thì nút bị vô hiệu hoá
+   * kèm ghi chú — xem `services/staffMapper.ts`.
+   */
+  receiveHyperlink: string;
   /** Khâu vừa hoàn tất (formula) — dùng cho dòng "Trạng thái" ở "Chờ điều phối". */
   doneInFlow: string;
   /** Đã xong toàn bộ quy trình chưa (formula) — giá trị "End flow" | "In flow". */
@@ -107,6 +115,10 @@ export interface DsMasterFieldMap {
   waitingCount: string;
   /** NV phụ trách bàn (person field) — khớp theo TÊN với `MasterFieldMap.staff` ("Người"). */
   staff: string;
+  /** Mã số nhân viên trong Master_DS. */
+  staffId: string;
+  /** Cột username/email Lark của nhân viên, nếu Base có tách riêng. */
+  staffUsername: string;
   /**
    * Phân loại bàn của dòng roster này — "Tư vấn"/"Thu cũ" là bàn CHÍNH (vật
    * lý, có trên sơ đồ); "Backup"/"Kho" KHÔNG phải bàn chính, bỏ qua khi suy
@@ -114,6 +126,16 @@ export interface DsMasterFieldMap {
    * chỉ dòng Tư vấn/Thu cũ mới phản ánh đúng vị trí vật lý họ đang ngồi).
    */
   loai: string;
+  /**
+   * Link "Tiếp nhận" cấp BÀN — dự phòng cho màn hình nhân viên (`#/nv`) khi
+   * khách kế tiếp không có link riêng (`CheckinFieldMap.receiveHyperlink`).
+   */
+  receiveHyperlink: string;
+  /**
+   * Link "Hoàn tất" cấp BÀN — dự phòng khi khách đang tiếp nhận không có
+   * `Hyperlink Master` riêng (`MasterFieldMap.hyperlink`).
+   */
+  completeHyperlink: string;
 }
 
 /** All field maps bundled — what the mapper needs. */
@@ -136,6 +158,7 @@ export const DEFAULT_CHECKIN_FIELDS: CheckinFieldMap = {
   oldDeviceCheck: 'Thu cũ check',
   backupCheck: 'Backup check',
   dispatchHyperlink: 'Hyperlink Điều phối',
+  receiveHyperlink: 'Hyperlink Tiếp nhận',
   doneInFlow: 'Done in Flow',
   endFlow: 'End flow',
   time: 'Thời gian',
@@ -162,7 +185,11 @@ export const DEFAULT_DS_MASTER_FIELDS: DsMasterFieldMap = {
   nextStt: 'STT tiếp theo',
   waitingCount: 'Sl khách chờ',
   staff: 'NV Tư vấn',
+  staffId: 'MSNV',
+  staffUsername: 'Username',
   loai: 'Loại',
+  receiveHyperlink: 'Hyperlink Tiếp nhận',
+  completeHyperlink: 'Hyperlink Hoàn tất',
 };
 
 /** Giá trị `Master.Trạng thái` nghĩa là "đang được tiếp nhận". */
@@ -196,6 +223,11 @@ export const ENV_DEFAULTS = {
    * phối". CHỈ GHI RA ngoài — form này không đọc/ghi gì vào dữ liệu dashboard.
    */
   dispatchWebhookUrl: (env.VITE_LARK_DISPATCH_WEBHOOK as string | undefined) || '',
+  /**
+   * Webhook thứ hai — 2 nút Tiếp nhận/Hoàn tất ở màn hình nhân viên. Trỏ vào
+   * `https://<worker>/webhook2` (secret `LARK_WEBHOOK_URL2`).
+   */
+  staffActionWebhookUrl: (env.VITE_LARK_STAFF_WEBHOOK as string | undefined) || '',
   host: DEFAULT_HOST,
   appToken: (env.VITE_LARK_APP_TOKEN as string | undefined) || '',
   accessToken: (env.VITE_LARK_ACCESS_TOKEN as string | undefined) || '',
@@ -210,4 +242,3 @@ export const ENV_DEFAULTS = {
     dsMaster: (env.VITE_LARK_TABLE_DS_MASTER as string | undefined) || '',
   } as Record<TableKey, string>,
 } as const;
-

@@ -94,6 +94,8 @@ export interface RosterEntry {
   loai: string;
   /** Tên NV được phân công (rỗng nếu bàn chưa có ai). */
   staffName: string;
+  /** MSNV lấy từ cột `Master_DS.MSNV`, không nhập tay trên form. */
+  staffId?: string;
 }
 
 /**
@@ -124,6 +126,12 @@ export interface DeskLiveState {
   deviceAcceptedText?: string | null; // Nguyên văn cột Check nghiệm thu
   /** Mọi khách đang "Tiếp nhận" cùng lúc tại bàn này, sắp theo "Thời gian" trong `Master`. */
   receivedCustomers: DeskCustomer[];
+  /**
+   * Khách ĐÃ tiếp nhận rồi hoàn tất tại bàn này (dòng `Master` mới nhất của
+   * cặp (bàn, khách) đó có `Trạng thái` = "Hoàn tất") — lịch sử phục vụ trong
+   * ngày, KHÔNG phải khách đang ở bàn. Sắp mới nhất trước (Thời gian giảm dần).
+   */
+  completedCustomers: DeskCustomer[];
 }
 
 /** A position combined with its (optional) live state — one rendered node. */

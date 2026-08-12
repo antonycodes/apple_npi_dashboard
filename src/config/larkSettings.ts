@@ -1,7 +1,7 @@
 /**
  * larkSettings — user-editable Lark connection + field mapping, persisted to
- * localStorage. This is the single source the app reads at runtime; the
- * Settings page writes it. Falls back to env/compile-time defaults on first run.
+ * Cấu hình runtime trong bộ nhớ. Cấu hình chính thức nằm trên Worker KV và
+ * được hook đồng bộ kéo về; không lưu API URL/webhook/field map vào trình duyệt.
  */
 import { useSyncExternalStore } from 'react';
 import type { ClusterKey } from '@/types/desk';
@@ -35,6 +35,13 @@ export interface LarkSettings {
    * Lark Base — dashboard không bao giờ đọc lại dữ liệu form này.
    */
   dispatchWebhookUrl: string;
+  /**
+   * Webhook cho 2 nút Tiếp nhận / Hoàn tất ở màn hình nhân viên — workflow Lark
+   * RIÊNG (secret `LARK_WEBHOOK_URL2` trên worker, route `/webhook2`), tạo
+   * record trong SS_Master. Để TRỐNG = giữ nguyên cách cũ: 2 nút chỉ mở
+   * hyperlink Lark, app không ghi gì.
+   */
+  staffActionWebhookUrl: string;
   pollSeconds: number;
   tableIds: Record<TableKey, string>;
   fields: {
@@ -45,8 +52,6 @@ export interface LarkSettings {
   };
 }
 
-const LS_KEY = 'npievent-lark-settings-v1';
-
 export function defaultSettings(): LarkSettings {
   return {
     useMock: ENV_DEFAULTS.useMock,
@@ -56,6 +61,7 @@ export function defaultSettings(): LarkSettings {
     appToken: ENV_DEFAULTS.appToken,
     accessToken: ENV_DEFAULTS.accessToken,
     dispatchWebhookUrl: ENV_DEFAULTS.dispatchWebhookUrl,
+    staffActionWebhookUrl: ENV_DEFAULTS.staffActionWebhookUrl,
     pollSeconds: 5,
     tableIds: { ...ENV_DEFAULTS.tableIds },
     fields: {
@@ -94,29 +100,26 @@ function hydrate(raw: unknown): LarkSettings {
         backupDeskField: p.fields?.dispatch?.backupDeskField ?? base.fields.dispatch.backupDeskField,
         name: p.fields?.dispatch?.name ?? base.fields.dispatch.name,
       },
-      dsMaster: { ...base.fields.dsMaster, ...(p.fields?.dsMaster ?? {}) },
+      dsMaster: {
+        ...base.fields.dsMaster,
+        ...(p.fields?.dsMaster ?? {}),
+        // Giá trị mặc định cố định theo schema Master_DS; cấu hình cũ không
+        // được phép làm MSNV rơi về rỗng.
+        staffId: p.fields?.dsMaster?.staffId?.trim() || 'MSNV',
+        staffUsername: p.fields?.dsMaster?.staffUsername?.trim() || 'Username',
+      },
     },
   };
 }
 
 function load(): LarkSettings {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(LS_KEY) : null;
-    return hydrate(raw ? JSON.parse(raw) : null);
-  } catch {
-    return defaultSettings();
-  }
+  return hydrate(null);
 }
 
 let settings: LarkSettings = load();
 const listeners = new Set<() => void>();
 
 function emit() {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(settings));
-  } catch {
-    /* ignore */
-  }
   listeners.forEach((l) => l());
 }
 
@@ -175,7 +178,13 @@ export function toFieldConfig(s: LarkSettings = settings): FieldConfig {
     checkin: s.fields.checkin,
     master: s.fields.master,
     dispatch: s.fields.dispatch,
-    dsMaster: s.fields.dsMaster,
+    dsMaster: {
+      ...s.fields.dsMaster,
+      // KV/config cũ có thể thiếu field; không gọi `.trim()` trực tiếp trên
+      // undefined để tránh làm trắng toàn bộ trang sau khi sync live.
+      staffId: String(s.fields?.dsMaster?.staffId ?? '').trim() || 'MSNV',
+      staffUsername: String(s.fields?.dsMaster?.staffUsername ?? '').trim() || 'Username',
+    },
   };
 }
 
@@ -184,7 +193,15 @@ export function toFieldConfig(s: LarkSettings = settings): FieldConfig {
  * thay vì im lặng nuốt dữ liệu người dùng vừa nhập).
  */
 export function dispatchWebhookUrl(s: LarkSettings = settings): string {
-  return s.dispatchWebhookUrl.trim();
+  return String(s.dispatchWebhookUrl ?? '').trim();
+}
+
+/**
+ * URL webhook cho 2 nút Tiếp nhận / Hoàn tất (rỗng = chưa cấu hình → màn hình
+ * nhân viên giữ nguyên chế độ mở hyperlink, xem `StaffDeskScreen`).
+ */
+export function staffActionWebhookUrl(s: LarkSettings = settings): string {
+  return String(s.staffActionWebhookUrl ?? '').trim();
 }
 
 /** True when a real HTTPS source is configured. */
@@ -210,6 +227,7 @@ export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
   oldDeviceCheck: 'Thu cũ check (lựa chọn — hiển thị nguyên văn)',
   backupCheck: 'Backup check (lựa chọn — hiển thị nguyên văn)',
   dispatchHyperlink: 'Hyperlink Điều phối (khách Đã check-in)',
+  receiveHyperlink: 'Hyperlink Tiếp nhận — theo KHÁCH (nút Tiếp nhận ở màn hình NV)',
   doneInFlow: 'Done in Flow (khâu vừa hoàn tất)',
   endFlow: 'End flow (đã xong toàn bộ quy trình)',
   time: 'Thời gian check-in (để sắp thứ tự)',
@@ -237,7 +255,11 @@ export const DS_MASTER_FIELD_LABELS: Record<keyof DsMasterFieldMap, string> = {
   nextStt: 'STT tiếp theo',
   waitingCount: 'SL khách chờ',
   staff: 'NV phụ trách (person field — dự phòng suy mã bàn khi Master thiếu TV_MãNV)',
+  staffId: 'MSNV của nhân viên',
+  staffUsername: 'Username / email Lark của nhân viên (Submit by)',
   loai: 'Loại (lọc dòng "Tư vấn"/"Thu cũ" — bỏ qua "Backup"/"Kho" khi suy mã bàn dự phòng)',
+  receiveHyperlink: 'Hyperlink Tiếp nhận — theo BÀN (dự phòng khi khách không có link riêng)',
+  completeHyperlink: 'Hyperlink Hoàn tất — theo BÀN (dự phòng khi khách không có Hyperlink Master)',
 };
 
 export const TABLE_LABELS: Record<TableKey, string> = {

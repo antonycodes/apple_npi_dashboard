@@ -15,6 +15,11 @@ export interface LarkTextSegment {
   text?: string;
   /** Person/link field (vd "Nhân viên") không có `.text` — dùng tên hiển thị này thay. */
   name?: string;
+  /** Person field metadata returned by Lark. */
+  id?: string;
+  email?: string;
+  username?: string;
+  email_address?: string;
   type?: string;
 }
 
@@ -62,4 +67,3 @@ export type TableKey = 'checkin' | 'orders' | 'master' | 'dispatch' | 'dsMaster'
 
 /** Raw records for every table, as returned by the service. */
 export type LarkTables = Record<TableKey, LarkRecord[]>;
-
