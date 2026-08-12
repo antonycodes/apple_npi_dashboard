@@ -74,25 +74,33 @@ function buildGrid(cluster: ClusterKey, xs: number[], ys: number[]): TablePositi
 
 // ── Bàn thu cũ (trade-in) — TOP-right block, 5 columns × 2 rows ─────────────
 // Cùng hàng với Backup để tách hẳn khỏi vùng Tư vấn ở phía dưới.
+//
+// Toạ độ Y chỉnh 2026-08-12 cùng lúc với việc bỏ box "Cổng" trong
+// `LayoutDashboard.tsx`: hàng cách nhau 14% (trước 12%) và nằm cân trong hộp
+// cụm 5–43%. Hộp và node là 2 nguồn RIÊNG BIỆT — đổi hộp mà quên đổi đây thì
+// node sẽ lệch ra ngoài nền cụm.
 export const TRADEIN_POSITIONS = buildGrid(
   'tradein',
   [58.5, 66.5, 74.5, 82.5, 90.5],
-  [17, 29],
+  [19, 33],
 );
 
 // ── Bàn tư vấn (consult) — BOTTOM-wide grid, 8 columns × 2 rows ─────────────
 // Trải rộng toàn đáy bản đồ để node luôn tách biệt khỏi hai cụm phía trên.
+// Khoảng cách hàng 19% (trước 15%) — tận dụng phần đáy vừa được giải phóng khi
+// bỏ box "Cổng", nằm cân trong hộp cụm 49–95%.
 export const CONSULT_POSITIONS = buildGrid(
   'consult',
   [10, 21.43, 32.86, 44.29, 55.71, 67.14, 78.57, 90],
-  [59, 74],
+  [64, 83],
 );
 
 // ── Backup — TOP-left zone, 5 columns × 2 rows ──────────────────────────────
+// Cùng lưới Y với Thu cũ (xem ghi chú ở trên).
 export const BACKUP_POSITIONS = buildGrid(
   'backup',
   [9.5, 17.5, 25.5, 33.5, 41.5],
-  [17, 29],
+  [19, 33],
 );
 
 /** All 36 positions, flat. */

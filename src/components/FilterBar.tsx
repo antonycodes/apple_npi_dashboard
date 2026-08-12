@@ -22,11 +22,16 @@ export default function FilterBar({
 }: FilterBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {/*
+        "Điều phối" đứng TRƯỚC "End Flow" và luôn tô đỏ: đây là thao tác chính
+        trong ca (mở form ghi ra Lark), còn End Flow chỉ để tra cứu — nút phụ
+        nên giữ dạng viền nhạt, chỉ tô đỏ khi đang mở.
+      */}
+      <Chip solid active={dispatchFormOpen} onClick={onToggleDispatchForm}>
+        Điều phối
+      </Chip>
       <Chip active={endFlowOpen} onClick={onToggleEndFlow}>
         End Flow{endFlowCount > 0 ? ` (${endFlowCount})` : ''}
-      </Chip>
-      <Chip active={dispatchFormOpen} onClick={onToggleDispatchForm}>
-        Điều phối
       </Chip>
     </div>
   );
@@ -34,10 +39,13 @@ export default function FilterBar({
 
 function Chip({
   active,
+  solid,
   onClick,
   children,
 }: {
   active: boolean;
+  /** Luôn tô đỏ (nút hành động chính), không chỉ khi `active`. */
+  solid?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -49,9 +57,13 @@ function Chip({
       className={[
         // min-h-8 keeps the chips comfortably tappable on a tablet.
         'flex min-h-8 items-center rounded-full border px-3 text-xs font-medium transition',
-        active
+        solid || active
           ? 'border-brand bg-brand text-white shadow-sm'
           : 'border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50',
+        // Nút đỏ cố định: vẫn phải thấy được trạng thái đang mở, nên dùng ring
+        // thay cho đổi nền (đổi nền sẽ mất luôn màu đỏ user yêu cầu).
+        solid && active ? 'ring-2 ring-brand ring-offset-1' : '',
+        solid ? 'font-semibold hover:opacity-90' : '',
       ].join(' ')}
     >
       {children}

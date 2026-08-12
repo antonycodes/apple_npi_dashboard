@@ -29,19 +29,6 @@ interface LayoutDashboardProps {
  */
 const MAX_DESK_DOTS = 2;
 
-function Region({ label, sub, className }: { label: string; sub?: string; className: string }) {
-  return (
-    <div
-      className={`absolute flex flex-col items-center justify-center rounded-lg border border-dashed px-1 text-center ${className}`}
-    >
-      <span className="text-[length:var(--label-fs)] font-semibold uppercase leading-tight tracking-wide">
-        {label}
-      </span>
-      {sub && <span className="text-[length:var(--label-sm-fs)] opacity-70">{sub}</span>}
-    </div>
-  );
-}
-
 /** Nền cụm bàn, giúp quét nhanh ba luồng vận hành mà không che node. */
 function ClusterZone({ label, className }: { label: string; className: string }) {
   return (
@@ -65,19 +52,26 @@ export default function LayoutDashboard({
           layer (below) so they're never cut off near the board's edges. */}
       <div className="absolute inset-0 overflow-hidden rounded-xl border border-neutral-300 bg-neutral-50 shadow-inner">
         {/* ── Static venue backdrop ─────────────────────────────────── */}
+        {/*
+          Bỏ box "Cổng" (2026-08-12) và chia lại chiều dọc cho 3 cụm: trước đây
+          Cổng chiếm 88–96% nên 3 cụm bị dồn lên trên, thừa một dải trống ở đáy.
+          Nay chừa 5% mép trên/dưới đối xứng, gap giữa 2 tầng cụm 6%, và cụm Tư
+          vấn (2 hàng, 8 cột) được phần cao hơn hẳn vì nó cần khoảng thở lớn
+          nhất. Toạ độ node trong `layoutConfig.ts` đã chỉnh khớp với các hộp
+          này — sửa một bên thì phải sửa bên kia.
+        */}
         <ClusterZone
           label="Backup"
-          className="left-[4%] top-[6%] h-[34%] w-[43%] border-sky-200 bg-sky-50/70 text-sky-700"
+          className="left-[4%] top-[5%] h-[38%] w-[43%] border-sky-200 bg-sky-50/70 text-sky-700"
         />
         <ClusterZone
           label="Thu cũ"
-          className="left-[53%] top-[6%] h-[34%] w-[43%] border-emerald-200 bg-emerald-50/70 text-emerald-700"
+          className="left-[53%] top-[5%] h-[38%] w-[43%] border-emerald-200 bg-emerald-50/70 text-emerald-700"
         />
         <ClusterZone
           label="Tư vấn"
-          className="left-[4%] top-[46%] h-[41%] w-[92%] border-red-200 bg-red-50/70 text-red-700"
+          className="left-[4%] top-[49%] h-[46%] w-[92%] border-red-200 bg-red-50/70 text-red-700"
         />
-        <Region label="Cổng" className="left-[42%] top-[88%] h-[8%] w-[16%] border-neutral-300 text-neutral-500" />
 
         {/* ── Interactive desks (36) ────────────────────────────────── */}
         {desks.map((d) => (
@@ -121,7 +115,11 @@ export default function LayoutDashboard({
                     onClick={() => onSelectCustomer?.(d.id, i)}
                     className={[
                       'flex h-[var(--dot)] min-w-[var(--dot)] shrink-0 items-center justify-center',
-                      'rounded-full bg-amber-500 px-[2px] text-[length:var(--dot-fs)] font-bold leading-none',
+                      // ĐỎ = khách ĐANG ĐƯỢC TIẾP NHẬN tại bàn, cùng màu với
+                      // node occupied. Khác hẳn badge VÀNG ở góc trên node
+                      // ("STT tiếp theo" — khách đang CHỜ, xem `Desk.tsx`);
+                      // trước đây cả hai đều vàng nên không phân biệt được.
+                      'rounded-full bg-occupied px-[2px] text-[length:var(--dot-fs)] font-bold leading-none',
                       'text-white shadow ring-1 ring-white transition hover:scale-125',
                       active ? 'z-30 scale-125 ring-2 ring-blue-500 ring-offset-1' : '',
                     ].join(' ')}
@@ -133,7 +131,7 @@ export default function LayoutDashboard({
               {overflow > 0 && (
                 <span
                   title={`Thêm ${overflow} khách — bấm vào bàn để xem đầy đủ`}
-                  className="flex h-[var(--dot)] items-center justify-center rounded-full bg-amber-700 px-[3px] text-[length:var(--dot-fs)] font-bold leading-none text-white shadow ring-1 ring-white"
+                  className="flex h-[var(--dot)] items-center justify-center rounded-full bg-red-800 px-[3px] text-[length:var(--dot-fs)] font-bold leading-none text-white shadow ring-1 ring-white"
                 >
                   +{overflow}
                 </span>

@@ -22,8 +22,11 @@ body,
  * the board keeps the clearance proportional — no overlap at any size.
  *
  * Vertical budget for one row (enforced in layoutConfig by MIN_ROW_PITCH):
- *   node/2 + air + dot = 1.12 × node ≈ 6.2% of the board height below a node's
- *   center, plus half a node for the row underneath → rows are spaced ≥ 11%.
+ *   node/2 + air + dot = 1.12 × node ≈ 7.1% of the board height below a node's
+ *   center, plus half a node for the row underneath (≈3.2%) → cần ≥ 10.3%.
+ *   MIN_ROW_PITCH = 11% vẫn thoả nhưng biên chỉ còn ~0.7% sau khi node to thêm
+ *   15% (2026-08-12) — phóng node thêm nữa thì PHẢI nâng MIN_ROW_PITCH và giãn
+ *   toạ độ hàng trong `layoutConfig.ts` theo.
  *
  * NOTE: the variables are declared here but only ever *used* by descendants of
  * `.board` — container units resolve against the nearest ancestor container, so
@@ -32,8 +35,13 @@ body,
 .board {
   container-type: size;
 
-  /** Desk node edge length — the unit everything else derives from. */
-  --node: clamp(16px, 5.5cqh, 42px);
+  /**
+   * Desk node edge length — the unit everything else derives from.
+   * To thêm 15% (2026-08-12, yêu cầu user): 5.5cqh → 6.33cqh, hai đầu clamp
+   * nhân theo cùng tỉ lệ. Chấm STT và cỡ chữ suy từ biến này nên tự lớn theo,
+   * giữ đúng tỉ lệ cũ giữa node ↔ chấm ↔ nhãn.
+   */
+  --node: clamp(18px, 6.33cqh, 48px);
   --node-fs: calc(var(--node) * 0.32);
 
   /** STT dot (khách) attached under a node. */
@@ -57,6 +65,6 @@ body,
 /* Pre-container-query browsers: fall back to a fixed, non-colliding scale. */
 @supports not (container-type: size) {
   .board {
-    --node: 30px;
+    --node: 35px;
   }
 }

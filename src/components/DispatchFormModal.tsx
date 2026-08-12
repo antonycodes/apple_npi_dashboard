@@ -49,6 +49,13 @@ const FALLBACK_LOAI: Record<string, string> = {
   backup: 'Backup',
 };
 
+/*
+  Ô nhập dùng chung: `text-base` = 16px là NGƯỠNG của Safari iOS — dưới mức đó
+  trình duyệt tự phóng to trang khi focus vào input, làm lệch cả sơ đồ phía
+  sau. `py-3` cho vùng chạm cao ~48px, đủ lớn để bấm bằng ngón trên iPad.
+*/
+const FIELD_BASE = 'w-full rounded-lg border px-3 py-3 text-base';
+
 type Status =
   | { kind: 'idle' }
   | { kind: 'sending' }
@@ -148,26 +155,21 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
       onClick={onClose}
     >
       <div
-        className="max-h-[85vh] w-full max-w-md overflow-auto rounded-xl bg-white p-4 shadow-xl"
+        className="max-h-[90dvh] w-full max-w-xl overflow-auto rounded-2xl bg-white p-5 shadow-xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-neutral-800">Form Điều phối</h2>
+          <h2 className="text-xl font-bold text-neutral-800 sm:text-2xl">Form Điều phối</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-2xl leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
           >
             ×
           </button>
         </div>
-        <p className="mb-3 text-xs text-neutral-500">
-          Thông tin dưới đây được gửi thẳng lên Webhook Lark Base để ghi vào Base —{' '}
-          <b>không ảnh hưởng</b> tới sơ đồ bàn / số liệu trên dashboard.
-        </p>
-
-        <form onSubmit={submit} className="space-y-3">
+        <form onSubmit={submit} className="mt-4 space-y-4">
           {/*
             "Submit by" chỉ đọc, và KHÔNG có lối đổi từ đây (bỏ nút "Đổi"
             2026-08-11 theo yêu cầu user): điều phối viên không được tự gán
@@ -178,7 +180,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
             <input
               value={submitBy || '— Chưa gán điều phối viên —'}
               readOnly
-              className={`w-full rounded border px-2 py-2 text-sm ${
+              className={`${FIELD_BASE} ${
                 me
                   ? 'border-neutral-200 bg-neutral-100 text-neutral-700'
                   : 'border-amber-300 bg-amber-50 text-amber-700'
@@ -198,8 +200,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
               value={stt}
               onChange={(e) => setStt(e.target.value)}
               placeholder="VD: 27"
-              autoFocus={!initialStt}
-              className="w-full rounded border border-neutral-300 px-2 py-2 text-sm focus:border-brand focus:outline-none"
+              className={`${FIELD_BASE} border-neutral-300 focus:border-brand focus:outline-none`}
             />
           </Field>
 
@@ -210,7 +211,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
                 setLoai(e.target.value);
                 setDeskId(''); // bàn cũ không còn thuộc phân loại mới
               }}
-              className="w-full rounded border border-neutral-300 bg-white px-2 py-2 text-sm focus:border-brand focus:outline-none"
+              className={`${FIELD_BASE} border-neutral-300 bg-white focus:border-brand focus:outline-none`}
             >
               <option value="">— Chọn phân loại —</option>
               {loaiChoices.map((c) => (
@@ -226,7 +227,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
               value={deskId}
               onChange={(e) => setDeskId(e.target.value)}
               disabled={!loai}
-              className="w-full rounded border border-neutral-300 bg-white px-2 py-2 text-sm focus:border-brand focus:outline-none disabled:bg-neutral-100 disabled:text-neutral-400"
+              className={`${FIELD_BASE} border-neutral-300 bg-white focus:border-brand focus:outline-none disabled:bg-neutral-100 disabled:text-neutral-400`}
             >
               <option value="">{loai ? '— Chọn nhân sự —' : '— Chọn phân loại trước —'}</option>
               {staffOptions.map((e) => {
@@ -247,18 +248,18 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-3 pt-1">
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               type="submit"
               disabled={!canSubmit}
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-40"
+              className="min-h-12 flex-1 rounded-lg bg-brand px-6 text-base font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-40 sm:flex-none"
             >
               {status.kind === 'sending' ? 'Đang gửi…' : 'Gửi lên Lark Base'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className="min-h-12 rounded-lg border border-neutral-300 px-6 text-base font-medium text-neutral-700 hover:bg-neutral-50"
             >
               Đóng
             </button>
@@ -284,8 +285,8 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{label}</span>
+    <label className="flex flex-col gap-1.5">
+      <span className="text-sm font-semibold uppercase tracking-wide text-neutral-500">{label}</span>
       {children}
     </label>
   );
