@@ -24,7 +24,7 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
         <p className="text-xs text-neutral-500">
           Cấu hình được lưu trên Cloudflare KV. Đăng nhập admin để ghi cấu hình dùng chung cho tất cả máy.
         </p>
-        <AdminLoginForm fixedUsername="admin" passwordless submitLabel="Đăng nhập admin để đẩy cấu hình" />
+        <AdminLoginForm fixedUsername="admin" submitLabel="Đăng nhập admin để đẩy cấu hình" />
       </div>
     );
   }

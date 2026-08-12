@@ -1,9 +1,10 @@
 /**
  * adminApi — đăng nhập admin + đọc/ghi cấu hình dùng chung qua worker.
  *
- * Admin đăng nhập không cần mật khẩu; tài khoản nhân viên vẫn gửi mật khẩu lên
- * `/admin/login` để worker kiểm tra. Không đặt secret/hash vào bundle web —
- * mọi thứ trong `src/` đều tải về được từ trình duyệt.
+ * MỌI tài khoản đều gửi mật khẩu lên `/admin/login` để worker kiểm tra — admin
+ * so với secret `ADMIN_PASSWORD`, nhân viên so với `STAFF_PASSWORD`. Không đặt
+ * secret/hash vào bundle web — mọi thứ trong `src/` đều tải về được từ trình
+ * duyệt.
  *
  * Token trả về có hạn 12h, giữ trong `config/adminSession.ts`. Hết hạn thì
  * worker từ chối và UI bắt đăng nhập lại — client không tự phán đoán quyền.

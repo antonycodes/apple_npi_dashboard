@@ -15,7 +15,7 @@ export default function LoginGate({ note }: { note?: string }) {
           <h1 className="text-lg font-bold">NPI Event · Đăng nhập</h1>
           <p className="text-sm text-neutral-500">{note ?? 'Đăng nhập tài khoản admin để tiếp tục.'}</p>
         </div>
-        <AdminLoginForm fixedUsername="admin" passwordless />
+        <AdminLoginForm fixedUsername="admin" />
       </div>
     </div>
   );

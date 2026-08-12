@@ -8,6 +8,8 @@
  *
  * Tuỳ chọn (2 nút Tiếp nhận/Hoàn tất ở màn hình nhân viên, 2026-08-12):
  * `LARK_WEBHOOK_URL2` = URL webhook của workflow Lark tạo record SS_Master.
+ * `ADMIN_PASSWORD` = mật khẩu tài khoản `admin` (BẮT BUỘC — thiếu thì mọi lần
+ * đăng nhập admin trả 500 kèm thông báo rõ, KHÔNG rơi về chế độ không mật khẩu).
  * `STAFF_PASSWORD` = mật khẩu dùng chung cho tài khoản con TV/TC/BK (đặt 0000).
  * App trỏ ô "Webhook Tiếp nhận / Hoàn tất" vào `https://<worker>/webhook2`.
  *
@@ -120,8 +122,8 @@ const CORS = {
 // ── Admin: đăng nhập + cấu hình dùng chung giữa các máy điều phối ──────────
 //
 // **Mật khẩu KHÔNG BAO GIỜ nằm trong bundle web**: client chỉ POST
-// username/password lên `/admin/login`. Tài khoản admin không cần mật khẩu;
-// tài khoản nhân viên vẫn phải có STAFF_PASSWORD. Worker trả về token có hạn.
+// username/password lên `/admin/login`. Admin dùng `ADMIN_PASSWORD`, tài khoản
+// nhân viên dùng `STAFF_PASSWORD`. Worker trả về token có hạn.
 //
 // Token là chuỗi tự xác thực `<hết hạn>.<HMAC-SHA256>` ký bằng secret
 // `ADMIN_SESSION_SECRET` — worker không cần lưu session, và token cũ tự chết
@@ -359,7 +361,17 @@ export default {
       let desk = '';
       let valid = false;
       if (username.toLowerCase() === 'admin') {
-        valid = true;
+        // Admin PHẢI có mật khẩu (2026-08-12, yêu cầu user — trước đây đăng
+        // nhập admin không cần gì cả, tức ai biết URL worker cũng đẩy được
+        // cấu hình cho toàn bộ 38 máy).
+        //
+        // Thiếu secret thì TỪ CHỐI, không rơi về chế độ không mật khẩu: im
+        // lặng cho qua là để lại đúng lỗ hổng vừa vá. Báo rõ để người cấu hình
+        // biết phải chạy `wrangler secret put ADMIN_PASSWORD`.
+        if (!env.ADMIN_PASSWORD) {
+          return json({ code: -1, msg: 'Chưa cấu hình ADMIN_PASSWORD trên worker' }, 500);
+        }
+        valid = safeEqual(String(body.password ?? ''), env.ADMIN_PASSWORD);
       } else if (isStaffDesk(username) && env.STAFF_PASSWORD) {
         valid = safeEqual(String(body.password ?? ''), env.STAFF_PASSWORD);
         role = 'staff';

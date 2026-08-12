@@ -4,11 +4,15 @@
  * màn hình nhân viên `#/nv` (`StaffPage`).
  *
  * `fixedUsername` (2026-08-12, yêu cầu user cho màn hình nhân viên): khoá cứng
- * tài khoản và ẩn ô tài khoản. Admin có thể dùng `passwordless`; tài khoản nhân
- * viên vẫn phải nhập mật khẩu.
+ * tài khoản và ẩn ô tài khoản.
  *
- * Với tài khoản nhân viên, mật khẩu chỉ được GỬI ĐI và so khớp ở worker —
- * không có mật khẩu hay hash nào trong bundle web.
+ * MỌI tài khoản đều phải nhập mật khẩu (2026-08-12, tiếp — trước đây admin
+ * đăng nhập không cần gì, tức ai biết URL worker cũng đẩy được cấu hình cho
+ * toàn bộ máy). Admin so với secret `ADMIN_PASSWORD`, nhân viên so với
+ * `STAFF_PASSWORD`.
+ *
+ * Mật khẩu chỉ được GỬI ĐI và so khớp ở worker — không có mật khẩu hay hash
+ * nào trong bundle web.
  */
 import { useState } from 'react';
 import { login } from '@/services/adminApi';
@@ -17,15 +21,12 @@ export default function AdminLoginForm({
   onSuccess,
   submitLabel = 'Đăng nhập',
   fixedUsername,
-  passwordless = false,
   size = 'sm',
 }: {
   onSuccess?: () => void;
   submitLabel?: string;
   /** Khoá tài khoản (ẩn ô nhập) — vd "admin" ở màn hình nhân viên. */
   fixedUsername?: string;
-  /** Đăng nhập admin không cần nhập mật khẩu. */
-  passwordless?: boolean;
   /** 'lg' = cỡ chữ/nút to cho điện thoại. */
   size?: 'sm' | 'lg';
 }) {
@@ -39,7 +40,7 @@ export default function AdminLoginForm({
     setBusy(true);
     setError(null);
     try {
-      await login(fixedUsername ?? username.trim().toUpperCase(), passwordless ? '' : password);
+      await login(fixedUsername ?? username.trim().toUpperCase(), password);
       onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -74,30 +75,26 @@ export default function AdminLoginForm({
           />
         </label>
       )}
-      {!passwordless && (
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-neutral-500">Mật khẩu</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            autoFocus={Boolean(fixedUsername)}
-            className={inputCls}
-          />
-        </label>
-      )}
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-neutral-500">Mật khẩu</span>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          autoFocus={Boolean(fixedUsername)}
+          className={inputCls}
+        />
+      </label>
       <button
         type="submit"
-        disabled={busy || (!fixedUsername && !username.trim()) || (!passwordless && !password)}
+        disabled={busy || (!fixedUsername && !username.trim()) || !password}
         className={buttonCls}
       >
         {busy ? 'Đang kiểm tra…' : submitLabel}
       </button>
       {error && <p className="text-sm text-red-600">✗ {error}</p>}
-      <p className="text-[11px] text-neutral-400">
-        {passwordless ? 'Admin không yêu cầu mật khẩu. Phiên giữ 12 giờ.' : 'Mật khẩu được kiểm tra ở máy chủ. Phiên giữ 12 giờ.'}
-      </p>
+      <p className="text-[11px] text-neutral-400">Mật khẩu được kiểm tra ở máy chủ. Phiên giữ 12 giờ.</p>
     </form>
   );
 }

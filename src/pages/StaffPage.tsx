@@ -13,8 +13,8 @@
  * `?api=…` nên máy NV mở 1 lần là tự chuyển sang dữ liệu thật — xem
  * `config/staffLink.ts`.
  *
- * Đăng nhập: tài khoản admin không cần mật khẩu; tài khoản link bàn của nhân
- * viên vẫn dùng mật khẩu STAFF_PASSWORD. Bỏ qua khi đang
+ * Đăng nhập: bản admin (`#/nv`) dùng mật khẩu `ADMIN_PASSWORD`; link riêng
+ * từng bàn dùng `STAFF_PASSWORD`. Bỏ qua khi đang
  * chạy dữ liệu mẫu hoặc chưa cấu hình API URL — lúc đó `/admin/login` chưa tồn
  * tại nên bắt đăng nhập chỉ khiến máy bị khoá cứng.
  *
@@ -103,7 +103,6 @@ export default function StaffPage({ lockedDeskId }: { lockedDeskId?: string }) {
           <div className="mt-6 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
             <AdminLoginForm
               fixedUsername={locked ? lockedDeskId : 'admin'}
-              passwordless={!locked}
               size="lg"
               submitLabel="Đăng nhập"
             />

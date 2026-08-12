@@ -68,7 +68,6 @@ export default function CoordinatorAssignModal({ onClose }: { onClose: () => voi
         {!verified ? (
           <AdminLoginForm
             fixedUsername="admin"
-            passwordless
             submitLabel="Đăng nhập để đổi"
             onSuccess={() => setVerified(true)}
           />
