@@ -65,6 +65,9 @@ export default function Desk({
       {nextWaitingStt && (
         <span
           data-desk-badge=""
+          // VÀNG = "STT tiếp theo" (khách đang chờ tới lượt). Giữ nguyên vàng
+          // để phân biệt với chấm ĐỎ dưới node (khách đang được tiếp nhận,
+          // xem `LayoutDashboard.tsx`).
           // Sits just outside the top-right edge — never on top of the label.
           style={{ right: 'calc(var(--dot) * -0.55)', top: 'calc(var(--dot) * -0.45)' }}
           className="absolute flex h-[var(--dot)] min-w-[var(--dot)] items-center justify-center rounded-full bg-amber-500 px-[2px] text-[length:var(--dot-fs)] font-bold leading-none text-white shadow ring-1 ring-white"
