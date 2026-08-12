@@ -9,14 +9,12 @@
  */
 import { useSyncExternalStore } from 'react';
 
-const LS_KEY = 'npievent-device-coordinator-v1';
-
 function load(): string {
-  try {
-    return localStorage.getItem(LS_KEY) ?? '';
-  } catch {
-    return '';
-  }
+  const main = new URLSearchParams(window.location.search).get('dp')?.trim();
+  if (main) return main;
+  const queryIndex = window.location.hash.indexOf('?');
+  if (queryIndex < 0) return '';
+  return new URLSearchParams(window.location.hash.slice(queryIndex + 1)).get('dp')?.trim() ?? '';
 }
 
 let coordinatorId = load();
@@ -33,13 +31,20 @@ export const deviceIdentityStore = {
     return coordinatorId;
   },
   set(id: string) {
-    coordinatorId = id;
-    try {
-      if (id) localStorage.setItem(LS_KEY, id);
-      else localStorage.removeItem(LS_KEY);
-    } catch {
-      /* ignore */
-    }
+    coordinatorId = id.trim();
+    // Không dùng localStorage: danh tính máy đi theo query URL chính `?dp=...`,
+    // nên đổi route/refresh vẫn giữ đúng người đã gán.
+    const mainParams = new URLSearchParams(window.location.search);
+    if (coordinatorId) mainParams.set('dp', coordinatorId);
+    else mainParams.delete('dp');
+
+    // Xoá bản dp cũ trong hash nếu có (tương thích link đã gán trước đây).
+    const hash = window.location.hash || '#/';
+    const [path, query = ''] = hash.split('?');
+    const hashParams = new URLSearchParams(query);
+    hashParams.delete('dp');
+    const nextHash = `${path}${hashParams.toString() ? `?${hashParams.toString()}` : ''}`;
+    window.history.replaceState(null, '', `${window.location.pathname}${mainParams.toString() ? `?${mainParams.toString()}` : ''}${nextHash}`);
     listeners.forEach((l) => l());
   },
 };

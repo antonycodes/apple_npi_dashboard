@@ -16,6 +16,8 @@ const LS_KEY = 'npievent-admin-token-v1';
 interface StoredToken {
   token: string;
   expiresAt: number;
+  role: 'admin' | 'staff';
+  desk: string;
 }
 
 function load(): StoredToken | null {
@@ -27,7 +29,7 @@ function load(): StoredToken | null {
       localStorage.removeItem(LS_KEY);
       return null;
     }
-    return t;
+    return { ...t, role: t.role ?? 'admin', desk: t.desk ?? '' };
   } catch {
     return null;
   }
@@ -52,14 +54,19 @@ export const adminSessionStore = {
     if (current && current.expiresAt <= Date.now()) current = null;
     return current?.token ?? '';
   },
-  set(token: string, ttlMs: number) {
-    current = { token, expiresAt: Date.now() + ttlMs };
+  set(token: string, ttlMs: number, role: 'admin' | 'staff' = 'admin', desk = '') {
+    current = { token, expiresAt: Date.now() + ttlMs, role, desk };
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(current));
     } catch {
       /* ignore */
     }
     emit();
+  },
+  /** Snapshot ổn định cho useSyncExternalStore — không tạo object mới mỗi lần đọc. */
+  getInfo(): StoredToken | null {
+    if (current && current.expiresAt <= Date.now()) current = null;
+    return current;
   },
   clear() {
     current = null;
@@ -78,5 +85,13 @@ export function useAdminToken(): string {
     adminSessionStore.subscribe,
     adminSessionStore.getSnapshot,
     adminSessionStore.getSnapshot,
+  );
+}
+
+export function useAdminInfo(): { token: string; expiresAt: number; role: 'admin' | 'staff'; desk: string } | null {
+  return useSyncExternalStore(
+    adminSessionStore.subscribe,
+    adminSessionStore.getInfo,
+    adminSessionStore.getInfo,
   );
 }

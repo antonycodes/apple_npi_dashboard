@@ -1,10 +1,61 @@
+function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty: boolean }) {
+  const session = useAdminInfo();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const push = async () => {
+    setBusy(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await pushSharedSettings(toSharedSettings(settings));
+      setMessage('Đã đẩy cấu hình Live Base cho mọi máy. Máy NV sẽ áp dụng tối đa trong 5 giây.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (session?.role !== 'admin') {
+    return (
+      <div className="space-y-3">
+        <p className="text-xs text-neutral-500">
+          Cấu hình được lưu trên Cloudflare KV. Đăng nhập admin để ghi cấu hình dùng chung cho tất cả máy.
+        </p>
+        <AdminLoginForm fixedUsername="admin" passwordless submitLabel="Đăng nhập admin để đẩy cấu hình" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-neutral-500">
+        Đang chuẩn bị đẩy: <b>{settings.useMock ? 'Dữ liệu mẫu' : 'Lark Base (live)'}</b> · proxy <b>{settings.apiUrl || 'chưa có'}</b>.
+        {dirty && ' Anh nên bấm “Lưu & đồng bộ” trước để dùng bản mới nhất.'}
+      </p>
+      <button
+        type="button"
+        onClick={push}
+        disabled={busy || dirty || !settings.apiUrl.trim()}
+        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40"
+      >
+        {busy ? 'Đang đẩy…' : 'Đẩy cấu hình cho mọi máy'}
+      </button>
+      {message && <p className="text-sm text-emerald-700">✓ {message}</p>}
+      {error && <p className="text-sm text-red-600">✗ {error}</p>}
+    </div>
+  );
+}
+
 /**
  * SettingsPage — connect the dashboard to a real Lark Base at runtime.
  *
  * Enter the proxy URL and map each Lark column name to the corresponding web field. Settings are
  * saved to localStorage and applied immediately (the dashboard re-syncs).
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CHECKIN_LABELS,
   DISPATCH_BACKUP_FIELD_LABEL,
@@ -21,12 +72,15 @@ import {
 } from '@/config/larkSettings';
 import type { CheckinFieldMap, DsMasterFieldMap, MasterFieldMap } from '@/config/larkConfig';
 import CoordinatorAssignModal from '@/components/CoordinatorAssignModal';
+import AdminLoginForm from '@/components/AdminLoginForm';
+import { useAdminInfo } from '@/config/adminSession';
 import { useDeviceCoordinatorId } from '@/config/deviceIdentity';
 import { useCoordinators } from '@/hooks/useCoordinators';
 import { fetchLarkData } from '@/services/larkService';
 import { mapDeskStates } from '@/services/larkMapper';
 import type { ClusterKey } from '@/types/desk';
 import QrScanButton from '@/components/QrScanButton';
+import { pushSharedSettings, toSharedSettings } from '@/services/appConfigApi';
 
 const clone = (s: LarkSettings): LarkSettings => JSON.parse(JSON.stringify(s));
 
@@ -38,6 +92,12 @@ export default function SettingsPage() {
   const [savedTick, setSavedTick] = useState(false);
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
+
+  // Cấu hình runtime có thể vừa được bootstrap từ Worker KV; form phải theo
+  // bản trung tâm thay vì giữ bản mặc định/mock của lần render đầu.
+  useEffect(() => {
+    setDraft(clone(saved));
+  }, [saved]);
 
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(saved), [draft, saved]);
 
@@ -209,7 +269,7 @@ export default function SettingsPage() {
               <Input
                 key={k}
                 label={DS_MASTER_FIELD_LABELS[k]}
-                value={draft.fields.dsMaster[k]}
+                value={draft.fields.dsMaster[k] || (k === 'staffId' ? 'MSNV' : k === 'staffUsername' ? 'Username' : '')}
                 onChange={(v) => setDsMasterField(k, v)}
               />
             ))}
@@ -223,12 +283,24 @@ export default function SettingsPage() {
             placeholder="https://open.larksuite.com/anycross/trigger/callback/..."
             value={draft.dispatchWebhookUrl}
             onChange={(v) => setTop('dispatchWebhookUrl', v)}
-            hint='Nút "Điều phối" trên sơ đồ POST JSON {stt, phanLoai, maBan, nhanSu, thoiGian} lên URL này. Chỉ ghi ra Lark — không đọc lại, không ảnh hưởng dữ liệu dashboard.'
+            hint='Nút "Điều phối" trên sơ đồ POST JSON {stt, phanLoai, maBan, nhanSu, msnv, thoiGian} lên URL này. MSNV lấy từ Master_DS.MSNV. Chỉ ghi ra Lark — không đọc lại, không ảnh hưởng dữ liệu dashboard.'
+          />
+          <Input
+            label="Webhook Tiếp nhận / Hoàn tất (màn hình nhân viên)"
+            placeholder="https://<worker>.workers.dev/webhook2"
+            value={draft.staffActionWebhookUrl}
+            onChange={(v) => setTop('staffActionWebhookUrl', v)}
+            hint='2 nút ở màn hình NV (#/tv4…) POST JSON {action, trangThai, stt, hoTen, maBan, phanLoai, nhanSu, thoiGian} lên URL này để Lark tạo record SS_Master. Worker route /webhook2 → secret LARK_WEBHOOK_URL2. ĐỂ TRỐNG = 2 nút giữ chế độ cũ (mở hyperlink Lark).'
           />
         </Section>
 
+        {/* Đẩy cấu hình cho MỌI máy — thứ khiến máy nhân viên live theo admin */}
+        <Section title="5 · Đẩy cấu hình cho mọi máy (live base dùng chung)">
+          <SharedSettingsPush settings={saved} dirty={dirty} />
+        </Section>
+
         {/* Danh tính máy — thứ DUY NHẤT nên khác nhau giữa các máy điều phối */}
-        <Section title="5 · Máy điều phối này là ai">
+        <Section title="6 · Máy điều phối này là ai">
           <DeviceIdentityPicker />
         </Section>
 
@@ -292,7 +364,7 @@ function DeviceIdentityPicker() {
         <span className="text-xs font-medium text-neutral-500">Điều phối viên:</span>
         {current ? (
           <b className="text-sm text-neutral-800">
-            {current.id} · {current.name}
+            {current.id} - {current.msnv || '—'} - {current.name}
             {current.position ? ` · ${current.position}` : ''}
           </b>
         ) : (

@@ -52,7 +52,7 @@ export default function CoordinatorAssignModal({ onClose }: { onClose: () => voi
           <div>
             <h2 className="text-lg font-bold text-neutral-800">Đổi điều phối viên</h2>
             <p className="text-xs text-neutral-500">
-              {verified ? 'Chọn người phụ trách máy này.' : 'Nhập lại mật khẩu admin để đổi.'}
+              {verified ? 'Chọn người phụ trách máy này.' : 'Xác nhận tài khoản admin để đổi.'}
             </p>
           </div>
           <button
@@ -66,7 +66,12 @@ export default function CoordinatorAssignModal({ onClose }: { onClose: () => voi
         </div>
 
         {!verified ? (
-          <AdminLoginForm submitLabel="Đăng nhập để đổi" onSuccess={() => setVerified(true)} />
+          <AdminLoginForm
+            fixedUsername="admin"
+            passwordless
+            submitLabel="Đăng nhập để đổi"
+            onSuccess={() => setVerified(true)}
+          />
         ) : (
           <div className="space-y-3">
             <label className="flex flex-col gap-1">
@@ -79,7 +84,7 @@ export default function CoordinatorAssignModal({ onClose }: { onClose: () => voi
                 <option value="">— Chưa gán —</option>
                 {coordinators.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.id} · {c.name}
+                    {c.id} - {c.msnv || '—'} - {c.name}
                     {c.position ? ` · ${c.position}` : ''}
                   </option>
                 ))}

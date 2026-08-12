@@ -69,8 +69,6 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const deviceId = useDeviceCoordinatorId();
   const { coordinators } = useCoordinators();
   const me = coordinators.find((c) => c.id === deviceId) ?? null;
-  /** Chuỗi ghi vào cột "Submit by" bên Lark — cũng là thứ hiện trong form. */
-  const submitBy = me ? [me.id, me.name].filter(Boolean).join(' · ') : '';
 
   const [stt, setStt] = useState(initialStt);
   const [loai, setLoai] = useState('');
@@ -120,6 +118,13 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
 
   const selected = staffOptions.find((e) => e.deskCode === deskId) ?? null;
   const staffNameOf = (e: RosterEntry) => e.staffName || liveStaffByDesk.get(e.deskCode) || '';
+  const msnv = selected?.staffId ?? '';
+  const coordinatorEntry = entries.find((e) => {
+    const id = e.deskCode.toUpperCase().replace(/^DP0+(\d+)$/, 'DP$1');
+    const current = deviceId.toUpperCase().replace(/^DP0+(\d+)$/, 'DP$1');
+    return id === current && e.loai === 'Điều phối';
+  });
+  const submitBy = coordinatorEntry?.staffId || me?.msnv || '';
   const canSubmit = Boolean(stt.trim() && loai && deskId) && status.kind !== 'sending';
 
   const submit = async (e: React.FormEvent) => {
@@ -132,10 +137,15 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
         phanLoai: loai,
         maBan: deskId,
         nhanSu: selected ? staffNameOf(selected) : '',
+        msnv,
         thoiGian: new Date().toISOString(),
         dieuPhoiId: deviceId,
         dieuPhoiTen: me?.name ?? '',
         dieuPhoiViTri: me?.position ?? '',
+        // Cột Submit by bên webhook Điều phối dùng cùng định danh nhân viên
+        // với webhook2: MSNV lấy trực tiếp từ Master_DS.
+        // Submit by là điều phối viên của máy, không phải nhân viên của bàn
+        // khách đang được chọn.
         submitBy,
       });
       setStatus({ kind: 'sent', confirmed: res.confirmed });
@@ -170,29 +180,6 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
           </button>
         </div>
         <form onSubmit={submit} className="mt-4 space-y-4">
-          {/*
-            "Submit by" chỉ đọc, và KHÔNG có lối đổi từ đây (bỏ nút "Đổi"
-            2026-08-11 theo yêu cầu user): điều phối viên không được tự gán
-            máy thành người khác. Muốn đổi phải vào Cài đặt → mục 5 và nhập
-            mật khẩu admin.
-          */}
-          <Field label="Submit by">
-            <input
-              value={submitBy || '— Chưa gán điều phối viên —'}
-              readOnly
-              className={`${FIELD_BASE} ${
-                me
-                  ? 'border-neutral-200 bg-neutral-100 text-neutral-700'
-                  : 'border-amber-300 bg-amber-50 text-amber-700'
-              }`}
-            />
-            {!me && (
-              <span className="text-[11px] text-amber-700">
-                Máy này chưa được gán — báo admin gán trong Cài đặt → 5 · Máy điều phối này là ai.
-              </span>
-            )}
-          </Field>
-
           <Field label="STT">
             <input
               type="text"
@@ -239,6 +226,14 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
                 );
               })}
             </select>
+          </Field>
+
+          <Field label="Submit by">
+            <input
+              value={submitBy || '— Chưa có MSNV điều phối trong Master_DS —'}
+              readOnly
+              className={`${FIELD_BASE} ${submitBy ? 'border-neutral-200 bg-neutral-100 text-neutral-700' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
+            />
           </Field>
 
           {!webhook && (

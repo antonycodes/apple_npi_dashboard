@@ -17,6 +17,125 @@ thái bàn từ **Lark Base (Bitable)** qua HTTPS, tự cập nhật mỗi 30 gi
 - **Trang Cài đặt Lark** (`#/settings`): nhập key kết nối và ánh xạ tên cột Lark
   ↔ trường web ngay trong web (không cần sửa code/env) — xem mục dưới.
 
+## Màn hình nhân viên trên điện thoại (`#/tv4`, `#/nv`)
+
+Giao diện riêng cho **từng nhân viên TV / TC / BK**, thiết kế theo iPhone 17
+(402 × 874 pt, có chừa Dynamic Island + thanh home). Nội dung: khách đang tiếp
+nhận (STT · tên · sản phẩm · ghi chú thanh toán · các cột check · **đồng hồ phục
+vụ**), **STT khách tiếp theo** + số khách đang chờ, danh sách **sổ xuống**
+"Khách đã tiếp nhận · hoàn tất" (lịch sử phục vụ trong ngày của đúng bàn đó,
+đóng theo mặc định, ẩn hẳn khi bàn chưa hoàn tất khách nào), và 2 nút cố định
+ở đáy — **Tiếp nhận** / **Hoàn tất**. Tự làm mới **5 giây/lần** qua proxy.
+
+| Link | Dành cho | Khác biệt |
+| --- | --- | --- |
+| `#/tv4` · `#/tc1` · `#/kt1` · `#/bk2` | **Nhân viên** — mỗi bàn 1 link | Khoá đúng bàn đó, **không có** chọn/đổi bàn |
+| `#/nv` | **Admin / điều phối tổng** | Xem bàn bất kỳ, đổi bàn, và **copy link riêng** của bàn đang xem để gửi cho NV |
+
+- **Đăng nhập**: `#/nv` (admin/điều phối tổng) **không cần đăng nhập gì cả**
+  (passwordless hoàn toàn). Link riêng từng bàn (`#/tv4`…) đăng nhập bằng
+  đúng mã bàn + **mật khẩu dùng chung** `STAFF_PASSWORD` (secret trên worker).
+  Cả hai đều bị bỏ qua khi đang chạy dữ liệu mẫu hoặc chưa cấu hình API URL.
+- **Link copy ở `#/nv` có kèm `?api=…`**: máy nhân viên mở lần đầu là tự lưu
+  API URL của proxy và chuyển sang dữ liệu thật, không phải vào `#/settings`
+  khai tay. Tham số tự bị xoá khỏi thanh địa chỉ ngay sau đó.
+- **Mock data**: mọi trang (kể cả `#/tv4`) tự đọc cấu hình dùng chung từ KV
+  của worker mỗi 5 giây (`useSharedSettingsSync`), nên `npm run dev` mở
+  `#/tv1` **không** tự vào kịch bản mock nữa nếu worker đã có cấu hình Live —
+  thêm `?mock=1` vào hash (`#/tv1?mock=1`) hoặc bật Mock ở `#/settings` để
+  xem kịch bản mẫu: TV1 đang tiếp khách **STT 02**, **STT tiếp theo là 04**.
+- **Đồng hồ phục vụ**: chạy từ lúc bấm **Tiếp nhận** đến lúc bấm **Hoàn tất**,
+  mốc chỉ lưu trong bộ nhớ của tab (không phải `localStorage`) — khoá màn
+  hình/chuyển app rồi quay lại không mất, nhưng **reload trang thì mất**, đồng
+  hồ quay về suy đoán. Vàng ≥ 10 phút, đỏ ≥ 20 phút. Mở màn hình lên mà thấy
+  sẵn khách (được tiếp nhận từ máy khác, hoặc sau khi reload) thì đồng hồ hiện
+  `~` — mốc suy ra từ lúc màn hình nhìn thấy, không phải số đo thật.
+
+### 2 nút Tiếp nhận / Hoàn tất — cùng 1 đường: form recheck → webhook
+
+Cả 2 nút đều mở **form recheck** (sửa được STT / họ tên; mã bàn / phân loại /
+nhân sự / MSNV chỉ để đối chiếu, không sửa) → POST webhook → automation Lark
+tạo record `SS_Master`. **Bắt buộc phải cấu hình webhook** — không còn đường
+dự phòng mở hyperlink trực tiếp: thiếu webhook thì cả 2 nút xám, không bấm
+được.
+
+Điền ô "Webhook Tiếp nhận / Hoàn tất" ở `#/settings` bằng
+`https://<worker>.workers.dev/webhook2`.
+
+```jsonc
+// POST /webhook2 → worker chuyển tiếp tới secret LARK_WEBHOOK_URL2
+{
+  "action": "tiep_nhan",        // hoặc "hoan_tat" — dùng để rẽ nhánh trong automation
+  "trangThai": "Tiếp nhận",     // → cột "Trạng thái"
+  "stt": "7",
+  "hoTen": "Lê Thanh My",       // → cột "Họ và tên"
+  "maBan": "TV4",               // → cột "TV_MãNV"
+  "msnv": "NV0007",             // MSNV từ Master_DS, không sửa được trên form
+  "phanLoai": "Tư vấn",         // → cột "Loại 2"
+  "nhanSu": "M Thành_CV_VHWS&AM",
+  "submitBy": "NV0007",         // = msnv, cùng quy ước với webhook Điều phối
+  "thoiGian": "2026-08-12T11:24:03.000Z", // → cột "Thời gian"
+
+  // ── Chỉ có khi HOÀN TẤT (mọi khâu) ────────────────────────────────────
+  "checkBackup": "Có",          // "Có" | "Không" — bắt buộc chọn
+
+  // ── Chỉ có khi HOÀN TẤT ở khâu THU CŨ / BACKUP, sau khi chọn "Thu lại
+  //    máy". Cả 4 field dưới đều KHÔNG bắt buộc: field nào NV bỏ trống thì
+  //    KHÔNG xuất hiện trong JSON. ─────────────────────────────────────────
+  "thuLaiMay": "Thu máy ngay",  // "Thu máy ngay" | "Thu máy sau"
+  "hinhNghiemThu": ["TZsybpKIUo…", "Qlc5bkK5Ko…"], // MẢNG file_token (chọn nhiều ảnh)
+  "scanQr": "QR-TEST-12345",    // nội dung QR máy thu cũ
+  "imei": "356938035643809"
+}
+```
+
+Cột **"Người"** là *person field* nên automation không điền được từ text — cứ để
+trống, mapper vẫn xác định đúng bàn qua `TV_MãNV` và tên NV lấy từ roster
+`Master_DS`. Muốn lưu tên NV thì tạo thêm 1 cột text và map `nhanSu` vào đó.
+
+**Field nào xuất hiện lúc nào** — form chỉ hiện đúng thứ cần cho khâu đó, và
+payload KHÔNG chứa key của field không áp dụng (để automation phân biệt "không
+áp dụng" khỏi "có áp dụng nhưng để trống"):
+
+| Field | Tiếp nhận | Hoàn tất · Tư vấn | Hoàn tất · Thu cũ / Backup |
+| --- | --- | --- | --- |
+| `checkBackup` | — | ✅ bắt buộc | ✅ bắt buộc |
+| `thuLaiMay` | — | — | ✅ tuỳ chọn |
+| `hinhNghiemThu` · `scanQr` · `imei` | — | — | ✅ tuỳ chọn, chỉ hiện sau khi chọn `thuLaiMay` |
+
+- **`checkBackup`**: NV tự xác nhận khách có dùng Backup không — độc lập với
+  cột "Backup check" ở Check-in (do khâu khác ghi từ trước, form chỉ hiện nó
+  ở phần đối chiếu read-only). Bắt buộc chọn 1 trong 2 mới bấm Gửi được.
+- **`thuLaiMay`** mở ra 3 field máy thu cũ (ảnh / QR / IMEI). Chọn option nào
+  cũng mở, kể cả "Thu máy sau". Cả 3 để trống vẫn gửi được.
+- **`hinhNghiemThu` là MẢNG `file_token`, không phải ảnh**: cột đính kèm Bitable
+  chỉ nhận token do Lark cấp. NV chọn/chụp được **nhiều ảnh một lần**; app
+  upload TUẦN TỰ từng ảnh qua `POST /upload` của worker (worker ký bằng
+  `tenant_access_token`, xem mục Worker), gom token rồi mới gửi JSON này. Upload
+  hỏng ảnh nào thì app DỪNG HẲN và báo đứt ở ảnh thứ mấy, không gửi webhook —
+  không tạo record báo thành công mà thiếu ảnh.
+- **Ô Scan QR và IMEI đều quét được bằng camera**. IMEI mở thêm định dạng mã
+  vạch 1D (`code_128`, `code_39`, `ean_13`, `itf`) vì tem IMEI trên hộp máy
+  thường không phải QR — chỉ có tác dụng trên trình duyệt hỗ trợ
+  `BarcodeDetector`; đường dự phòng `jsQR` luôn chỉ đọc được QR.
+
+> Cần tự thêm cột trong `SS_Master` + map 5 field mới (`checkBackup`,
+> `thuLaiMay`, `hinhNghiemThu`, `scanQr`, `imei`) trong automation Lark thì giá
+> trị mới được lưu. Riêng `hinhNghiemThu` phải map vào **cột đính kèm**.
+
+Chống ghi trùng: nút khoá trong lúc đang gửi; gửi hỏng thì hoàn tác trạng thái
+trên máy (không để màn hình báo "đã tiếp nhận" trong khi Lark chẳng có record);
+gửi xong 15 giây mà polling vẫn chưa thấy record thì hiện cảnh báo vàng.
+
+Nút **Hoàn tất** chỉ hiện khi bàn đang có khách — bấm Tiếp nhận là nó hiện ra
+ngay (kèm nhãn "đang chờ Lark cập nhật") chứ không phải đợi hết 5 giây polling.
+
+> Cột hyperlink (`Master."Hyperlink Master"`, `Master_Check in."Hyperlink
+> Tiếp nhận"`, và cặp cột dự phòng cấp bàn ở `Master_DS`) vẫn được đọc và tính
+> sẵn trong `staffMapper.ts` nhưng **hiện không nút nào dùng tới** — mã còn
+> lại từ bản trước khi chuyển hẳn sang webhook, giữ lại phòng khi cần quay
+> lại kiểu mở hyperlink trực tiếp.
+
 ## Trang Cài đặt Lark (`#/settings`)
 
 Mở link **"Cài đặt Lark"** ở header. Cho phép cấu hình **runtime** (lưu vào
@@ -88,6 +207,65 @@ tiến độ từng bước.
 Worker nằm tại `cloudflare-worker.js`, cấu hình tại `wrangler.jsonc`.
 Worker cung cấp các route `/checkin`, `/orders`, `/master`,
 `/dispatch` và `/dsMaster` theo schema trong PROJECT_SPEC_LARK_REUSE.md.
+
+**`POST /upload`** (2026-08-12) — nhận ảnh nghiệm thu (multipart, field `file`,
+tối đa 10MB) từ form Hoàn tất khâu Thu cũ/Backup, upload lên Lark bằng
+`tenant_access_token` rồi trả `{ data: { fileToken } }`. Không cần secret mới
+(dùng lại `LARK_APP_ID`/`LARK_APP_SECRET`/`LARK_APP_TOKEN`), nhưng **phải
+`npx wrangler deploy` lại** thì route mới có hiệu lực.
+
+**`GET /fields`** (2026-08-12) — soi schema bảng `TB_MASTER`: tên + kiểu từng
+cột, kèm kết quả đối chiếu với `RECORD_FIELD_MAP` (cột nào khớp, cột nào sai
+tên, cột nào không ghi được). Mở bằng trình duyệt để kiểm tra map **trước khi**
+bấm thử ca thật, khỏi tốn record rác mới biết lệch tên.
+
+**`GET /media/<file_token>`** (2026-08-12) — mở ảnh từ token bằng trình duyệt.
+`file_token` không phải URL; muốn ra ảnh phải gọi API tải của Lark kèm
+`tenant_access_token`, nên worker ký hộ rồi stream ảnh về. Dùng để **soi lỗi**
+("token này có ra ảnh thật không?") — đường chính để ảnh hiện trong Base vẫn là
+ghi token vào cột đính kèm qua `/record`.
+
+> Route này **không đòi đăng nhập**: ai có URL worker + 1 token hợp lệ đều tải
+> được file đó (token là chuỗi ngẫu nhiên không đoán được, và route chỉ ĐỌC).
+> Không cần nữa thì xoá khối `route.startsWith('media/')` rồi deploy lại.
+
+### `POST /record` — ghi thẳng record, thay cho automation
+
+Ô **đính kèm** bên Bitable chỉ nhận giá trị dạng `[{"file_token": "..."}]`
+(mảng object), trong khi automation "Add record" chỉ kéo được **một tham số
+text** vào ô đó — nên ảnh nghiệm thu gần như chắc chắn không vào được nếu đi
+đường automation. Route này gọi thẳng Bitable API, nơi định dạng trên là chính
+thức.
+
+**Cách đổi sang đường này — không cần sửa code app**: route nhận đúng payload
+app đang gửi và trả cùng khuôn `{code, msg}`. Chỉ cần vào `#/settings` → ô
+"Webhook Tiếp nhận / Hoàn tất", đổi `…/webhook2` thành `…/record`. Dán lại URL
+cũ là quay về automation ngay, không phải deploy lại.
+
+| | `/webhook2` (automation) | `/record` (ghi thẳng) |
+| --- | --- | --- |
+| Ảnh nghiệm thu | ❌ gần như không vào được ô đính kèm | ✅ đúng định dạng Lark quy định |
+| Tên cột | map trong automation | map trong `RECORD_FIELD_MAP` ở worker |
+| Việc khác của automation (thông báo, cập nhật bảng khác…) | ✅ giữ nguyên | ❌ mất — phải tự làm lại |
+
+Route **tự dò schema** trước khi ghi: đọc field metadata của bảng `TB_MASTER`,
+chỉ ghi cột nào có thật và ghi được; cột sai tên / là formula-lookup-hệ thống /
+là person field đều bị bỏ qua và liệt kê trong `data.skipped` của phản hồi —
+sai tên cột lộ ra ngay thay vì làm hỏng cả record. Phản hồi thành công:
+
+```jsonc
+{
+  "code": 0,
+  "data": {
+    "recordId": "recXXXXXXXX",
+    "written": ["STT Input", "Họ và tên", "TV_MãNV", "Trạng thái", "…"],
+    "skipped": ["Người — cột người dùng, cần open_id"]
+  }
+}
+```
+
+Muốn sửa tên cột thì sửa `RECORD_FIELD_MAP` trong `cloudflare-worker.js` rồi
+deploy lại.
 
 Secrets cần cấu hình: `LARK_APP_ID`, `LARK_APP_SECRET`,
 `LARK_APP_TOKEN`, `TB_CHECKIN`, `TB_ORDERS`, `TB_MASTER`,
