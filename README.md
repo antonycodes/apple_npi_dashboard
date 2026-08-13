@@ -286,10 +286,39 @@ tối đa 10MB) từ form Hoàn tất khâu Thu cũ/Backup, upload lên Lark b�
 (dùng lại `LARK_APP_ID`/`LARK_APP_SECRET`/`LARK_APP_TOKEN`), nhưng **phải
 `npx wrangler deploy` lại** thì route mới có hiệu lực.
 
-**`GET /fields`** (2026-08-12) — soi schema bảng `TB_MASTER`: tên + kiểu từng
-cột, kèm kết quả đối chiếu với `RECORD_FIELD_MAP` (cột nào khớp, cột nào sai
-tên, cột nào không ghi được). Mở bằng trình duyệt để kiểm tra map **trước khi**
-bấm thử ca thật, khỏi tốn record rác mới biết lệch tên.
+**`GET /fields`** (2026-08-12) — soi schema bảng: tên + kiểu từng cột, kèm kết
+quả đối chiếu với map tương ứng (cột nào khớp, cột nào sai tên, cột nào không
+ghi được). Mở bằng trình duyệt để kiểm tra map **trước khi** bấm thử ca thật,
+khỏi tốn record rác mới biết lệch tên. Mặc định soi `TB_MASTER`;
+`?table=dispatch` soi bảng Điều phối.
+
+### `POST /dispatch-record` — Điều phối ghi thẳng, thay `/webhook`
+
+`/webhook` chỉ **châm ngòi** một Lark Automation. Lark trả 200 nghĩa là "đã
+nhận trigger", **không phải** "đã tạo record" — phần ghi chạy bất đồng bộ trong
+hàng đợi của Lark, và khi trigger đến nhanh hơn tốc độ hàng đợi thì run bị bỏ.
+Đo trên production, tỉ lệ mất tăng theo mức đồng thời:
+
+| Request đồng thời | Tỉ lệ mất record |
+| --- | --- |
+| nhịp thưa (~10 VU rải đều) | 6,5% |
+| 10 | 19% |
+| 15 | 38% |
+| 20 | 43% |
+
+Người gọi không có cách nào biết, vì 200 đã trả từ trước khi automation chạy.
+Đây cũng là gốc của hiện tượng cột Nhân sự hiện `()()()` ở bảng End Flow.
+
+Route này gọi thẳng Bitable API như `/record`: worker giữ kết nối tới khi Lark
+xác nhận, lỗi thì trả `code != 0` để client thấy ngay. **Drop-in thay
+`/webhook`** — nhận đúng `DispatchFormPayload` app đang gửi, nên đổi đường chỉ
+cần sửa ô "Webhook Điều phối" ở `#/settings` sang `…/dispatch-record`; dán lại
+URL cũ là rollback.
+
+> Bảng Điều phối tách mã bàn thành **ba cột** theo khâu (`DS Tư vấn`,
+> `DS Thu cũ`, `DS Backup`) chứ không dùng chung một cột như bảng Master.
+> Route chọn cột theo `phanLoai`; `phanLoai` lạ thì bỏ qua và báo trong
+> `skipped` thay vì đoán bừa. Kiểm tra bằng `/fields?table=dispatch` trước.
 
 **`GET /media/<file_token>`** (2026-08-12) — mở ảnh từ token bằng trình duyệt.
 `file_token` không phải URL; muốn ra ảnh phải gọi API tải của Lark kèm

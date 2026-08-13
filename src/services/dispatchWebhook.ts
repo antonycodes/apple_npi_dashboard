@@ -69,7 +69,21 @@ export async function sendDispatchForm(
       adminSessionStore.clear();
       throw new Error('Phiên đăng nhập đã hết hạn — đăng nhập lại rồi gửi lại.');
     }
-    if (!res.ok) throw new Error(`Webhook trả về HTTP ${res.status}`);
+    if (!res.ok) {
+      // Hiện nguyên văn `msg` của worker thay vì chỉ mã số. Với route ghi
+      // thẳng `/dispatch-record`, lỗi hay gặp nhất là lệch tên cột và worker
+      // nói rõ cột nào — nuốt mất câu đó thì điều phối viên chỉ thấy "HTTP
+      // 400" và không ai biết phải sửa gì.
+      let detail = '';
+      try {
+        const raw = await res.text();
+        const parsed = JSON.parse(raw) as { msg?: string; data?: { body?: string } };
+        detail = parsed.msg ?? parsed.data?.body ?? raw;
+      } catch {
+        /* response không phải JSON */
+      }
+      throw new Error(`Webhook trả về HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
+    }
     return { confirmed: true };
   } catch (err) {
     // Chỉ `TypeError` mới là "fetch không đi được" (CORS/mạng); lỗi HTTP ở
