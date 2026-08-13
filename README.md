@@ -135,10 +135,16 @@ dùng Backup không" là thừa.
   `tenant_access_token`, xem mục Worker), gom token rồi mới gửi JSON này. Upload
   hỏng ảnh nào thì app DỪNG HẲN và báo đứt ở ảnh thứ mấy, không gửi webhook —
   không tạo record báo thành công mà thiếu ảnh.
-- **Ô Scan QR và IMEI đều quét được bằng camera**. IMEI mở thêm định dạng mã
-  vạch 1D (`code_128`, `code_39`, `ean_13`, `itf`) vì tem IMEI trên hộp máy
-  thường không phải QR — chỉ có tác dụng trên trình duyệt hỗ trợ
-  `BarcodeDetector`; đường dự phòng `jsQR` luôn chỉ đọc được QR.
+- **Ô Scan QR và IMEI đều quét được bằng camera**, hoặc chụp/chọn ảnh có mã.
+  IMEI mở thêm mã vạch 1D (`code_128`, `code_39`, `ean_13`, `itf`) vì tem IMEI
+  trên máy là mã vạch, không phải QR.
+  - Giải mã: dùng `BarcodeDetector` khi có (Android — chạy native, nhanh hơn),
+    còn lại rơi sang **zxing-wasm**. Bắt buộc phải có đường WASM vì
+    `BarcodeDetector` **không tồn tại trên iOS** — mọi trình duyệt ở đó đều chạy
+    WebKit, nên nếu chỉ dựa vào API đó thì iPhone không quét được mã vạch nào.
+  - Module WASM (~1MB, gzip ~448KB) `import()` động, **chỉ tải khi NV mở máy
+    quét** — bundle chính không phình. File `.wasm` tự host qua `?url` của Vite
+    chứ không lấy từ CDN mặc định của thư viện, để hội trường chặn CDN vẫn chạy.
 
 > Cần tự thêm cột trong `SS_Master` + map 5 field mới (`checkBackup`,
 > `thuLaiMay`, `hinhNghiemThu`, `scanQr`, `imei`) trong automation Lark thì giá

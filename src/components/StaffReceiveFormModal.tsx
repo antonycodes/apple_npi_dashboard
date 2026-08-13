@@ -180,11 +180,6 @@ export default function StaffReceiveFormModal({
                   );
                 })}
               </div>
-              {khoaThuMaySau && (
-                <p className="mt-1 text-xs text-neutral-400">
-                  Đã có đủ ảnh, QR và IMEI — máy coi như đã thu, không chọn "Thu máy sau" được.
-                </p>
-              )}
             </div>
           )}
 
@@ -305,7 +300,8 @@ export default function StaffReceiveFormModal({
                 <Field label="Mã bàn · Master_DS" value={values.maBan} onChange={() => undefined} readOnly compact />
                 <Field label="Phân loại · Master_DS.Loại" value={values.phanLoai} onChange={() => undefined} readOnly compact />
                 <Field label="Nhân sự · Master_DS.NV Tư vấn" value={values.nhanSu} onChange={() => undefined} readOnly compact />
-                <Field label="MSNV · Master_DS.MSNV" value={values.msnv} onChange={() => undefined} readOnly compact />
+                {/* 1 dòng thôi: `msnv` và `submitBy` luôn cùng giá trị (xem
+                    `StaffDeskScreen.submitAction`), hiện 2 dòng chỉ gây rối. */}
                 <Field label="Submit by · MSNV nhân viên" value={values.msnv} onChange={() => undefined} readOnly compact />
               </div>
             )}
