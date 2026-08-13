@@ -241,6 +241,11 @@ export const MASTER_FIELD_LABELS: Record<keyof MasterFieldMap, string> = {
   stage: 'Loại khâu (Loại 2 — Tư vấn/Thu cũ/Backup)',
   hyperlink: 'Hyperlink Master',
   time: 'Thời gian (để sắp thứ tự nhiều khách/bàn)',
+  sttInput: 'STT Input (khoá tra dữ liệu máy cũ đã ghi trước đó)',
+  thuLaiMay: 'Thu lại máy (Thu máy ngay/Thu máy sau)',
+  scanQr: 'Scan QR máy cũ',
+  imei: 'Scan IMEI',
+  hinhNghiemThu: 'Hình nghiệm thu máy cũ (cột đính kèm)',
 };
 
 export const DISPATCH_FIELD_LABEL = 'Họ và tên';

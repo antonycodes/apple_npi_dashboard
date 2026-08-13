@@ -16,7 +16,8 @@
  */
 import { useEffect, useState } from 'react';
 import QrScanButton from '@/components/QrScanButton';
-import type { StaffCustomer } from '@/services/staffMapper';
+import { workerBaseUrl } from '@/services/adminApi';
+import type { PrevImage, StaffCustomer } from '@/services/staffMapper';
 import type { ClusterKey } from '@/types/desk';
 
 export interface ReceiveFormValues {
@@ -33,6 +34,11 @@ export interface ReceiveFormValues {
   thuLaiMay: string;
   /** Ảnh nghiệm thu NV vừa chụp/chọn (chọn được NHIỀU) — upload lấy `file_token` lúc submit. */
   hinhNghiemThu: File[];
+  /**
+   * Ảnh đã ghi vào Base từ lần trước mà NV muốn GIỮ LẠI. Bỏ 1 ảnh khỏi mảng
+   * này = không đưa vào record mới (ảnh cũ vẫn còn ở record cũ, xem README).
+   */
+  anhGiuLai: PrevImage[];
   /** Nội dung QR máy thu cũ (quét bằng camera hoặc gõ tay). */
   scanQr: string;
   /** IMEI máy thu cũ. */
@@ -43,6 +49,7 @@ export default function StaffReceiveFormModal({
   customer,
   deskLabel,
   cluster,
+  khoaThuMaySau = false,
   defaults,
   action,
   busy,
@@ -55,6 +62,12 @@ export default function StaffReceiveFormModal({
   deskLabel: string;
   /** Cụm của bàn đang thao tác — quyết định có hiện câu hỏi Check Backup không. */
   cluster: ClusterKey;
+  /**
+   * Khoá nút "Thu máy sau" (xám, bấm không được). Bật khi ở bàn Backup mà dữ
+   * liệu máy cũ đã đủ cả 3 — máy đã cầm trên tay nên chọn "sau" là sai, khoá
+   * để NV khỏi bấm nhầm (yêu cầu user 2026-08-12). Xem `buildDeviceDefaults`.
+   */
+  khoaThuMaySau?: boolean;
   defaults: ReceiveFormValues;
   action: 'tiep_nhan' | 'hoan_tat';
   busy: boolean;
@@ -73,8 +86,9 @@ export default function StaffReceiveFormModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [busy, onClose]);
 
-  // Check Backup: mọi khâu khi HOÀN TẤT (mở rộng 2026-08-12 — ban đầu chỉ Tư vấn).
-  const showBackupCheck = action === 'hoan_tat';
+  // Check Backup khi HOÀN TẤT, TRỪ chính bàn Backup (yêu cầu user 2026-08-12,
+  // tiếp): hỏi "khách có dùng Backup không" ngay tại bàn Backup là thừa.
+  const showBackupCheck = action === 'hoan_tat' && cluster !== 'backup';
   // "Thu lại máy" + 3 field máy thu cũ: CHỈ Hoàn tất ở khâu Thu cũ/Backup.
   const showThuLaiMay = action === 'hoan_tat' && (cluster === 'tradein' || cluster === 'backup');
   // 3 field chỉ bung ra sau khi chọn 1 trong 2 option (yêu cầu user).
@@ -145,21 +159,32 @@ export default function StaffReceiveFormModal({
             <div>
               <span className="text-xs font-semibold text-neutral-500">Thu lại máy</span>
               <div className="mt-1 flex gap-2">
-                {(['Thu máy ngay', 'Thu máy sau'] as const).map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => set('thuLaiMay', opt)}
-                    className={`min-h-11 flex-1 rounded-xl border px-2 text-sm font-bold ${
-                      values.thuLaiMay === opt
-                        ? 'border-emerald-600 bg-emerald-600 text-white'
-                        : 'border-neutral-300 bg-white text-neutral-600'
-                    }`}
-                  >
-                    {opt}
-                  </button>
-                ))}
+                {(['Thu máy ngay', 'Thu máy sau'] as const).map((opt) => {
+                  const khoa = khoaThuMaySau && opt === 'Thu máy sau';
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      disabled={khoa}
+                      onClick={() => set('thuLaiMay', opt)}
+                      className={`min-h-11 flex-1 rounded-xl border px-2 text-sm font-bold ${
+                        khoa
+                          ? 'cursor-not-allowed border-neutral-200 bg-neutral-100 text-neutral-400'
+                          : values.thuLaiMay === opt
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-neutral-300 bg-white text-neutral-600'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
               </div>
+              {khoaThuMaySau && (
+                <p className="mt-1 text-xs text-neutral-400">
+                  Đã có đủ ảnh, QR và IMEI — máy coi như đã thu, không chọn "Thu máy sau" được.
+                </p>
+              )}
             </div>
           )}
 
@@ -169,6 +194,37 @@ export default function StaffReceiveFormModal({
             <div className="space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
               <div>
                 <span className="text-xs font-semibold text-neutral-500">Ảnh nghiệm thu sản phẩm</span>
+
+                {/* Ảnh đã ghi ở lần "Thu máy sau" trước đó. Thumbnail lấy qua
+                    `GET /media/<token>` của worker — token KHÔNG phải URL, và
+                    link `url`/`tmp_url` Lark trả về thì đòi Bearer nên thẻ
+                    <img> không hiển thị thẳng được. */}
+                {values.anhGiuLai.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {values.anhGiuLai.map((img) => (
+                      <div key={img.fileToken} className="relative">
+                        <img
+                          src={`${workerBaseUrl()}/media/${encodeURIComponent(img.fileToken)}`}
+                          alt={img.name ?? 'Ảnh nghiệm thu'}
+                          className="h-20 w-20 rounded-xl border border-neutral-300 object-cover"
+                        />
+                        <button
+                          type="button"
+                          aria-label="Bỏ ảnh này"
+                          onClick={() =>
+                            set(
+                              'anhGiuLai',
+                              values.anhGiuLai.filter((x) => x.fileToken !== img.fileToken),
+                            )
+                          }
+                          className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-800 text-sm leading-none text-white"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {/* `multiple` = chọn/chụp nhiều ảnh 1 lần (yêu cầu user).
                     KHÔNG đặt `capture` cùng `multiple`: trên iOS `capture` ép mở
                     thẳng camera và chỉ nhận ĐÚNG 1 ảnh, mất luôn khả năng chọn
@@ -204,7 +260,7 @@ export default function StaffReceiveFormModal({
                     placeholder="Quét QR hoặc gõ tay"
                     className="min-h-11 w-full rounded-xl border border-neutral-300 px-3 text-base"
                   />
-                  <QrScanButton onScan={(v) => set('scanQr', v)} />
+                  <QrScanButton onScan={(v) => set('scanQr', v)} label="Quét QR máy thu cũ" />
                 </div>
               </div>
 
@@ -223,6 +279,7 @@ export default function StaffReceiveFormModal({
                   <QrScanButton
                     onScan={(v) => set('imei', v)}
                     formats={['qr_code', 'code_128', 'code_39', 'ean_13', 'itf']}
+                    label="Quét IMEI"
                   />
                 </div>
               </div>

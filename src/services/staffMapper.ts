@@ -21,17 +21,37 @@
  * Không có link nào thì trả `null` — UI vô hiệu hoá nút và nói rõ thiếu cột
  * nào, thay vì mở 1 link sai (vd link Điều phối) làm hỏng dữ liệu Base.
  */
-import type { CheckinFieldMap, DsMasterFieldMap, FieldConfig } from '@/config/larkConfig';
+import type { CheckinFieldMap, DsMasterFieldMap, FieldConfig, MasterFieldMap } from '@/config/larkConfig';
 import { toFieldConfig } from '@/config/larkSettings';
 import { ALL_POSITIONS } from '@/config/layoutConfig';
 import type { ClusterKey, DeskCustomer } from '@/types/desk';
 import { cellToBool, cellToString, cellToUrl, cellToUsername, mapDeskStates, normalizeDeskCode } from './larkMapper';
 import type { LarkRecord, LarkTables } from './larkTypes';
 
+/** 1 ảnh nghiệm thu đã ghi vào Base từ lần trước. */
+export interface PrevImage {
+  fileToken: string;
+  name: string | null;
+}
+
+/**
+ * Dữ liệu máy cũ app ĐÃ GHI cho khách này ở lần Hoàn tất trước (đọc ngược từ
+ * `Master`). Chỉ dùng để điền sẵn form khi lần trước chọn "Thu máy sau" — tức
+ * máy chưa thu, khâu sau phải thu nốt (yêu cầu user 2026-08-12).
+ */
+export interface PrevDeviceData {
+  thuLaiMay: string | null;
+  scanQr: string | null;
+  imei: string | null;
+  images: PrevImage[];
+}
+
 /** 1 khách trên màn hình NV — như `DeskCustomer`, thêm URL cho nút bấm. */
 export interface StaffCustomer extends DeskCustomer {
   /** Link mở form Tiếp nhận trong Lark cho đúng khách này (chỉ khách kế tiếp mới cần). */
   receiveUrl?: string | null;
+  /** Dữ liệu máy cũ đã ghi lần trước — null nếu chưa từng ghi. */
+  prevDevice?: PrevDeviceData | null;
 }
 
 /** Toàn bộ những gì 1 màn hình nhân viên cần hiển thị. */
@@ -82,6 +102,48 @@ function indexCheckinByStt(rows: LarkRecord[], fm: CheckinFieldMap): Map<string,
     });
   }
   return m;
+}
+
+/** Lấy danh sách file_token từ 1 ô đính kèm Bitable (mảng object). */
+function cellToAttachments(v: unknown): PrevImage[] {
+  if (!Array.isArray(v)) return [];
+  const out: PrevImage[] = [];
+  for (const part of v as Array<Record<string, unknown>>) {
+    const token = part?.file_token;
+    if (typeof token === 'string' && token.trim()) {
+      out.push({ fileToken: token.trim(), name: typeof part.name === 'string' ? part.name : null });
+    }
+  }
+  return out;
+}
+
+/**
+ * Tra dữ liệu máy cũ đã ghi, theo `STT Input`.
+ *
+ * Lấy dòng MỚI NHẤT (theo `Thời gian`) có `Thu lại máy` — mỗi khách có thể có
+ * nhiều dòng `Master` (Tiếp nhận, Hoàn tất, nhiều khâu), chỉ dòng nào thật sự
+ * ghi trạng thái thu máy mới đáng dùng để điền lại form.
+ */
+function indexPrevDeviceByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<string, PrevDeviceData> {
+  const best = new Map<string, { time: number; data: PrevDeviceData }>();
+  for (const r of rows) {
+    const stt = cellToString(r.fields[fm.sttInput]);
+    const thuLaiMay = cellToString(r.fields[fm.thuLaiMay]);
+    if (!stt || !thuLaiMay) continue;
+    const time = Number(r.fields[fm.time]) || 0;
+    const prev = best.get(stt);
+    if (prev && time < prev.time) continue;
+    best.set(stt, {
+      time,
+      data: {
+        thuLaiMay,
+        scanQr: cellToString(r.fields[fm.scanQr]),
+        imei: cellToString(r.fields[fm.imei]),
+        images: cellToAttachments(r.fields[fm.hinhNghiemThu]),
+      },
+    });
+  }
+  return new Map([...best].map(([stt, v]) => [stt, v.data]));
 }
 
 /** Mã bàn → 2 link cấp bàn trong `Master_DS`. */
@@ -141,6 +203,14 @@ export function mapStaffDeskView(
   const next = nextStt ? checkinByStt.get(nextStt) ?? { stt: nextStt, name: null } : null;
   const urls = deskUrls.get(pos.id);
 
+  // Gắn dữ liệu máy cũ đã ghi lần trước vào từng khách, để form Hoàn tất điền
+  // sẵn khi lần đó chọn "Thu máy sau".
+  const prevByStt = indexPrevDeviceByStt(tables.master, fields.master);
+  const withPrev = (c: StaffCustomer): StaffCustomer => ({
+    ...c,
+    prevDevice: c.stt ? prevByStt.get(c.stt) ?? null : null,
+  });
+
   return {
     id: pos.id,
     label: pos.label,
@@ -148,8 +218,8 @@ export function mapStaffDeskView(
     staffName: state?.staffName ?? rosterStaff.get(pos.id)?.name ?? null,
     staffId: rosterStaff.get(pos.id)?.staffId ?? null,
     submitBy: rosterStaff.get(pos.id)?.username ?? null,
-    current: state?.receivedCustomers ?? [],
-    next,
+    current: (state?.receivedCustomers ?? []).map(withPrev),
+    next: next ? withPrev(next) : null,
     waiting: state?.waiting ?? 0,
     completedHistory: state?.completedCustomers ?? [],
     deskReceiveUrl: urls?.receive ?? null,

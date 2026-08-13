@@ -83,6 +83,17 @@ export interface MasterFieldMap {
   hyperlink: string;
   /** Dùng để sắp khách theo thứ tự khi 1 NV/bàn phục vụ nhiều khách cùng lúc. */
   time: string;
+  // ── 5 cột do chính app ghi ra ở form Hoàn tất (`/record`) ────────────────
+  // Đọc NGƯỢC LẠI để điền sẵn form khi khách quay lại ở khâu sau với trạng
+  // thái "Thu máy sau" — xem `staffMapper.indexPrevDeviceByStt`.
+  /** STT khách dạng text — khoá tra dữ liệu cũ (khác cột `STT` formula). */
+  sttInput: string;
+  /** "Thu máy ngay" | "Thu máy sau". */
+  thuLaiMay: string;
+  scanQr: string;
+  imei: string;
+  /** Cột đính kèm ảnh nghiệm thu. */
+  hinhNghiemThu: string;
 }
 
 /**
@@ -172,6 +183,11 @@ export const DEFAULT_MASTER_FIELDS: MasterFieldMap = {
   stage: 'Loại 2',
   hyperlink: 'Hyperlink Master',
   time: 'Thời gian',
+  sttInput: 'STT Input',
+  thuLaiMay: 'Thu lại máy',
+  scanQr: 'Scan QR máy cũ',
+  imei: 'Scan IMEI',
+  hinhNghiemThu: 'Hình nghiệm thu máy cũ',
 };
 
 export const DEFAULT_DISPATCH_FIELDS: DispatchFieldMap = {
