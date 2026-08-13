@@ -11,6 +11,7 @@ import { DEFAULT_FIELD_CONFIG, toRuntimeConfig, useLarkSettings } from '@/config
 import { mockLarkTables } from '@/data/mockLarkData';
 import { fetchLarkData } from '@/services/larkService';
 import { mapStaffDeskView, type StaffDeskView } from '@/services/staffMapper';
+import { startSerializedPolling } from './serializedPolling';
 
 export interface UseStaffDeskDataResult {
   /** null = chưa chọn bàn, mã bàn không hợp lệ, hoặc chưa tải xong lần đầu. */
@@ -73,12 +74,11 @@ export function useStaffDeskData(deskId: string): UseStaffDeskDataResult {
       }
     }
 
-    void load(true);
-    const timer = setInterval(() => void load(false), cfg.pollMs);
+    const stopPolling = startSerializedPolling(load, cfg.pollMs, () => cancelled);
     return () => {
       cancelled = true;
       controller.abort();
-      clearInterval(timer);
+      stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deskId, isMock, sig, nonce]);

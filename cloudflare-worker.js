@@ -249,6 +249,101 @@ function resolveOptionRefs(records, fieldMaps) {
   }
 }
 
+// Dashboard reads are shared per warm Worker isolate. The short TTL is
+// deliberate: it coalesces a burst of devices without making writes appear
+// permanently stale. POST routes never use this cache.
+let dashboardSnapshotCache = null;
+let dashboardSnapshotInFlight = null;
+const dashboardTableCache = new Map();
+const DASHBOARD_SNAPSHOT_TTL_MS = 4000;
+const DASHBOARD_SNAPSHOT_STALE_MS = 30000;
+const DASHBOARD_TABLES = ['checkin', 'orders', 'master', 'dispatch', 'dsMaster'];
+
+async function readTableRecords(env, host, key, token, appToken) {
+  const envKey = TABLE_ENV[key];
+  const tableId = envKey ? env[envKey] : undefined;
+  if (!envKey || !tableId) throw new Error(`Missing Cloudflare secret for table "${key}"`);
+
+  let items = [];
+  let pageToken;
+  do {
+    const u = new URL(`${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`);
+    u.searchParams.set('page_size', '500');
+    if (pageToken) u.searchParams.set('page_token', pageToken);
+    const response = await fetch(u, { headers: { Authorization: `Bearer ${token}` } });
+    const body = await response.json();
+    if (body.code !== 0) throw new Error(`Lark API error on ${key}: ${body.msg} (code ${body.code})`);
+    items = items.concat(body.data?.items ?? []);
+    pageToken = body.data?.has_more ? body.data.page_token : null;
+  } while (pageToken);
+
+  const fieldMaps = await getFieldOptionMaps(env, host, appToken, token, tableId);
+  resolveOptionRefs(items, fieldMaps);
+  return items;
+}
+
+async function getDashboardSnapshot(env, host) {
+  const now = Date.now();
+  if (dashboardSnapshotCache && now < dashboardSnapshotCache.expiresAt) {
+    return { ...dashboardSnapshotCache.payload, cache: 'hit' };
+  }
+  if (dashboardSnapshotInFlight) return dashboardSnapshotInFlight;
+
+  dashboardSnapshotInFlight = (async () => {
+    const token = await getToken(env, host);
+    const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
+    const results = await Promise.all(DASHBOARD_TABLES.map(async (key) => {
+      try {
+        const items = await readTableRecords(env, host, key, token, appToken);
+        dashboardTableCache.set(key, { items, updatedAt: Date.now() });
+        return { key, items, warning: null };
+      } catch (error) {
+        const cached = dashboardTableCache.get(key);
+        return {
+          key,
+          items: cached?.items ?? [],
+          warning: `${key}: ${String(error?.message || error)}`,
+        };
+      }
+    }));
+    const tables = Object.fromEntries(results.map(({ key, items }) => [key, items]));
+    const warnings = results.map((result) => result.warning).filter(Boolean);
+    const payload = {
+      code: 0,
+      msg: warnings.length ? 'partial snapshot' : 'success',
+      data: { tables, generatedAt: new Date().toISOString(), warnings },
+    };
+    dashboardSnapshotCache = {
+      payload,
+      expiresAt: Date.now() + DASHBOARD_SNAPSHOT_TTL_MS,
+      staleUntil: Date.now() + DASHBOARD_SNAPSHOT_STALE_MS,
+    };
+    return { ...payload, cache: 'miss' };
+  })();
+
+  try {
+    return await dashboardSnapshotInFlight;
+  } catch (error) {
+    // Keep the dashboard usable during a short Lark timeout/rate-limit burst.
+    // Writes still invalidate this cache, so this fallback is only a read-path
+    // resilience measure and is bounded by DASHBOARD_SNAPSHOT_STALE_MS.
+    if (dashboardSnapshotCache && Date.now() < dashboardSnapshotCache.staleUntil) {
+      return {
+        ...dashboardSnapshotCache.payload,
+        cache: 'stale',
+        warning: String(error?.message || error),
+      };
+    }
+    throw error;
+  } finally {
+    dashboardSnapshotInFlight = null;
+  }
+}
+
+function invalidateDashboardSnapshot() {
+  dashboardSnapshotCache = null;
+}
+
 // ── `POST /record`: map payload → cột Bitable ───────────────────────────────
 //
 // Tên cột lấy theo bảng "Master" đang dùng thật. Sai tên KHÔNG làm hỏng
@@ -273,6 +368,32 @@ const RECORD_FIELD_MAP = {
   hinhNghiemThu: 'Hình nghiệm thu máy cũ',
 };
 
+/**
+ * Map cho bảng ĐIỀU PHỐI (`TB_DISPATCH`), dùng bởi `POST /dispatch-record`.
+ *
+ * Form Điều phối KHÔNG gửi tên khách — bên Base cột `Họ và tên` là tra ngược
+ * từ STT, nên ở đây chỉ ghi `STT input` và để Base tự suy phần còn lại.
+ * `maBan` không nằm trong map này: nó vào 1 trong 3 cột tuỳ `phanLoai`, xem
+ * `DISPATCH_DESK_COLUMN`.
+ */
+const DISPATCH_FIELD_MAP = {
+  stt: 'STT input',
+  phanLoai: 'Phân loại',
+  submitBy: 'Submit by',
+};
+
+/**
+ * Bảng Điều phối tách mã bàn thành BA cột riêng theo khâu, không dùng chung
+ * một cột như bảng Master. Đây cũng là ba cột dashboard đọc để dựng dòng
+ * "(DS Tư vấn)(DS Thu cũ)(DS Backup)" ở End Flow — ghi sai cột là cột Nhân sự
+ * rỗng. Khớp với `DispatchFieldMap` bên `src/config/larkConfig.ts`.
+ */
+const DISPATCH_DESK_COLUMN = {
+  'Tư vấn': 'DS Tư vấn',
+  'Thu cũ': 'DS Thu cũ',
+  Backup: 'DS Backup',
+};
+
 // Mã kiểu field Bitable (theo tài liệu Lark): 1 Text · 2 Number · 3 Single
 // select · 5 Date · 7 Checkbox · 11 User · 17 Attachment · 19 Lookup ·
 // 20 Formula · 1001–1005 hệ thống. Barcode là type 1 + `ui_type: "Barcode"`.
@@ -283,12 +404,17 @@ const LARK_FIELD_USER = 11;
 const LARK_FIELD_ATTACHMENT = 17;
 const READONLY_FIELD_TYPES = new Set([19, 20, 1001, 1002, 1003, 1004, 1005]);
 
-let cachedRecordFieldMeta = null;
+// Cache schema THEO TỪNG BẢNG. Bản đầu dùng một biến duy nhất và bỏ qua
+// `tableId` — lúc đó chỉ có mỗi `/record` đọc `TB_MASTER` nên không lộ. Thêm
+// bảng thứ hai (`TB_DISPATCH`) là nó trả nhầm schema của bảng đọc trước, và
+// hậu quả sẽ là "cột không tồn tại" hàng loạt hoặc ghi sai bảng.
+const recordFieldMetaCache = new Map();
 
-/** `Map(tên cột → { type })` của bảng ghi record — cache chung nhịp 10 phút với field options. */
+/** `Map(tên cột → { type, uiType })` của 1 bảng — cache 10 phút, cùng nhịp với field options. */
 async function getRecordFieldMeta(env, host, appToken, token, tableId) {
   const now = Date.now();
-  if (cachedRecordFieldMeta && now < cachedRecordFieldMeta.expiresAt) return cachedRecordFieldMeta.byName;
+  const hit = recordFieldMetaCache.get(tableId);
+  if (hit && now < hit.expiresAt) return hit.byName;
 
   const url = `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/fields?page_size=200`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -297,8 +423,51 @@ async function getRecordFieldMeta(env, host, appToken, token, tableId) {
 
   const byName = new Map();
   for (const f of data?.data?.items ?? []) byName.set(f.field_name, { type: f.type, uiType: f.ui_type });
-  cachedRecordFieldMeta = { byName, expiresAt: now + FIELD_CACHE_MS };
+  recordFieldMetaCache.set(tableId, { byName, expiresAt: now + FIELD_CACHE_MS });
   return byName;
+}
+
+/**
+ * Dựng object `fields` cho Bitable từ payload + map cột, CHỈ giữ cột có thật và
+ * ghi được. Trả kèm `written`/`skipped` để phản hồi nói rõ cột nào rớt và vì
+ * sao — sai tên cột lộ ra ở response thay vì làm hỏng cả record.
+ *
+ * Dùng chung cho `/record` (bảng Master) và `/dispatch-record` (bảng Điều
+ * phối): hai bảng khác schema nhưng quy tắc lọc thì giống hệt.
+ */
+function buildRecordFields(payload, fieldMap, meta) {
+  const fields = {};
+  const written = [];
+  const skipped = [];
+  for (const [key, column] of Object.entries(fieldMap)) {
+    const raw = payload[key];
+    // Payload cố tình BỎ HẲN key không áp dụng — không ghi đè cột bằng chuỗi rỗng.
+    if (raw === undefined || raw === null || raw === '') continue;
+
+    const m = meta.get(column);
+    if (!m) {
+      skipped.push(`${column} — bảng không có cột này`);
+      continue;
+    }
+    if (READONLY_FIELD_TYPES.has(m.type)) {
+      skipped.push(`${column} — cột tính toán/hệ thống, không ghi được`);
+      continue;
+    }
+    if (m.type === LARK_FIELD_USER) {
+      // Cùng giới hạn với automation: person field cần open_id, không điền
+      // được từ tên dạng text.
+      skipped.push(`${column} — cột người dùng, cần open_id`);
+      continue;
+    }
+    const value = toCellValue(m, raw);
+    if (value === null) {
+      skipped.push(`${column} — giá trị không hợp với kiểu cột`);
+      continue;
+    }
+    fields[column] = value;
+    written.push(column);
+  }
+  return { fields, written, skipped };
 }
 
 /** Đổi giá trị payload sang đúng dạng Bitable đòi. `null` = không hợp lệ, bỏ qua cột. */
@@ -491,14 +660,20 @@ export default {
     // được. Có giới hạn 10MB để không biến worker thành kho ảnh miễn phí.
     // ── `GET /fields` (2026-08-12) — soi schema bảng ghi record ────────────
     //
-    // Trả tên + kiểu từng cột của `TB_MASTER`, kèm kết quả đối chiếu với
-    // `RECORD_FIELD_MAP`: cột nào khớp, cột nào sai tên, cột nào không ghi
-    // được. Dùng để kiểm tra map TRƯỚC khi bấm thử ca thật — khỏi tốn 1 record
-    // rác mới biết lệch tên.
+    // Trả tên + kiểu từng cột, kèm kết quả đối chiếu với map tương ứng: cột nào
+    // khớp, cột nào sai tên, cột nào không ghi được. Dùng để kiểm tra map TRƯỚC
+    // khi bấm thử ca thật — khỏi tốn 1 record rác mới biết lệch tên.
+    //
+    // `?table=dispatch` soi bảng Điều phối (đối chiếu `DISPATCH_FIELD_MAP`);
+    // mặc định là bảng Master (`RECORD_FIELD_MAP`).
     if (request.method === 'GET' && table === 'fields') {
       if (!env.LARK_APP_TOKEN) return json({ code: -1, msg: 'Chưa cấu hình LARK_APP_TOKEN' }, 500);
-      const fieldsTableId = env.TB_MASTER;
-      if (!fieldsTableId) return json({ code: -1, msg: 'Chưa cấu hình TB_MASTER' }, 500);
+      const which = new URL(request.url).searchParams.get('table') === 'dispatch' ? 'dispatch' : 'master';
+      const fieldsTableId = which === 'dispatch' ? env.TB_DISPATCH : env.TB_MASTER;
+      if (!fieldsTableId) {
+        return json({ code: -1, msg: `Chưa cấu hình ${which === 'dispatch' ? 'TB_DISPATCH' : 'TB_MASTER'}` }, 500);
+      }
+      const activeMap = which === 'dispatch' ? DISPATCH_FIELD_MAP : RECORD_FIELD_MAP;
       try {
         const bearerToken = await getToken(env, host);
         const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
@@ -509,14 +684,26 @@ export default {
           type: m.type,
           uiType: m.uiType ?? null,
         }));
-        const mapping = Object.entries(RECORD_FIELD_MAP).map(([key, column]) => {
+        // Ba cột mã bàn của bảng Điều phối không nằm trong map (chọn theo
+        // `phanLoai` lúc chạy) — vẫn phải đối chiếu, nếu không sai tên 1 trong
+        // 3 cột sẽ chỉ lộ ra khi có ca thật đúng khâu đó.
+        const extra =
+          which === 'dispatch'
+            ? Object.entries(DISPATCH_DESK_COLUMN).map(([loai, column]) => {
+                const m = meta.get(column);
+                return m
+                  ? { key: `maBan (${loai})`, column, ok: !READONLY_FIELD_TYPES.has(m.type), type: m.type, uiType: m.uiType ?? null }
+                  : { key: `maBan (${loai})`, column, ok: false, reason: 'bảng không có cột này' };
+              })
+            : [];
+        const mapping = Object.entries(activeMap).map(([key, column]) => {
           const m = meta.get(column);
           if (!m) return { key, column, ok: false, reason: 'bảng không có cột này' };
           if (READONLY_FIELD_TYPES.has(m.type)) return { key, column, ok: false, reason: 'cột tính toán/hệ thống' };
           if (m.type === LARK_FIELD_USER) return { key, column, ok: false, reason: 'cột người dùng, cần open_id' };
           return { key, column, ok: true, type: m.type, uiType: m.uiType ?? null };
         });
-        return json({ code: 0, msg: 'success', data: { tableId: fieldsTableId, columns, mapping } });
+        return json({ code: 0, msg: 'success', data: { table: which, tableId: fieldsTableId, columns, mapping: [...mapping, ...extra] } });
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);
       }
@@ -605,6 +792,94 @@ export default {
       }
     }
 
+    // ── `POST /dispatch-record` (2026-08-13) — Điều phối ghi thẳng ─────────
+    //
+    // Vì sao có route này: `/webhook` chỉ CHÂM NGÒI một Lark Automation. Lark
+    // trả 200 nghĩa là "đã nhận trigger", không phải "đã tạo record" — phần
+    // ghi chạy bất đồng bộ trong hàng đợi của Lark, và khi trigger đến nhanh
+    // hơn tốc độ hàng đợi thì run bị bỏ. Đo được trên production: tỉ lệ mất
+    // tăng theo mức đồng thời — 19% ở 10 request, 38% ở 15, 43% ở 20; nhịp
+    // thưa vẫn mất 6,5%. Người gọi KHÔNG có cách nào biết vì 200 đã trả rồi.
+    //
+    // Route này gọi thẳng Bitable API như `/record`: worker giữ kết nối tới
+    // khi Lark xác nhận, lỗi thì trả `code != 0` để client thấy ngay.
+    //
+    // **Drop-in thay `/webhook`**: nhận ĐÚNG payload `DispatchFormPayload` app
+    // đang gửi, trả cùng khuôn `{code, msg}`. Đổi đường = sửa ô "Webhook Điều
+    // phối" trong Cài đặt sang `/dispatch-record`; dán lại URL cũ là rollback.
+    if (request.method === 'POST' && table === 'dispatch-record') {
+      if (!env.LARK_APP_TOKEN) return json({ code: -1, msg: 'Chưa cấu hình LARK_APP_TOKEN' }, 500);
+      const dispatchTableId = env.TB_DISPATCH;
+      if (!dispatchTableId) return json({ code: -1, msg: 'Chưa cấu hình TB_DISPATCH' }, 500);
+
+      let payload;
+      try {
+        payload = await request.json();
+      } catch {
+        return json({ code: -1, msg: 'Body không phải JSON' }, 400);
+      }
+
+      try {
+        const bearerToken = await getToken(env, host);
+        const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
+        const meta = await getRecordFieldMeta(env, host, appToken, bearerToken, dispatchTableId);
+
+        const { fields, written, skipped } = buildRecordFields(payload, DISPATCH_FIELD_MAP, meta);
+
+        // Mã bàn vào đúng 1 trong 3 cột theo khâu. `phanLoai` lạ thì BỎ QUA và
+        // nói rõ, thay vì đoán bừa một cột — ghi nhầm cột là dashboard đọc sai
+        // khâu, tệ hơn là thiếu hẳn.
+        const maBan = String(payload.maBan ?? '').trim();
+        const deskColumn = DISPATCH_DESK_COLUMN[String(payload.phanLoai ?? '').trim()];
+        if (maBan && !deskColumn) {
+          skipped.push(`maBan — phân loại "${payload.phanLoai}" không khớp khâu nào`);
+        } else if (maBan && deskColumn) {
+          const m = meta.get(deskColumn);
+          if (!m) skipped.push(`${deskColumn} — bảng không có cột này`);
+          else if (READONLY_FIELD_TYPES.has(m.type)) skipped.push(`${deskColumn} — cột tính toán/hệ thống`);
+          else {
+            const value = toCellValue(m, maBan);
+            if (value === null) skipped.push(`${deskColumn} — giá trị không hợp với kiểu cột`);
+            else {
+              fields[deskColumn] = value;
+              written.push(deskColumn);
+            }
+          }
+        }
+
+        if (written.length === 0) {
+          return json({ code: -1, msg: `Không map được cột nào. ${skipped.join(' | ')}` }, 400);
+        }
+
+        const r = await fetch(
+          `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${dispatchTableId}/records`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${bearerToken}`,
+              'Content-Type': 'application/json; charset=utf-8',
+            },
+            body: JSON.stringify({ fields }),
+          },
+        );
+        const j = await r.json();
+        if (j.code !== 0) {
+          return json(
+            { code: -1, msg: `Lark ghi record Điều phối lỗi: ${j.msg} (code ${j.code})`, data: { skipped } },
+            502,
+          );
+        }
+        invalidateDashboardSnapshot();
+        return json({
+          code: 0,
+          msg: 'success',
+          data: { recordId: j.data?.record?.record_id ?? null, written, skipped },
+        });
+      } catch (e) {
+        return json({ code: -1, msg: String(e?.message || e) }, 500);
+      }
+    }
+
     // ── `POST /record` (2026-08-12) — GHI THẲNG record, thay automation ────
     //
     // Vì sao có route này: ô ĐÍNH KÈM bên Bitable đòi giá trị dạng
@@ -640,38 +915,7 @@ export default {
         const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
         const meta = await getRecordFieldMeta(env, host, appToken, bearerToken, recordTableId);
 
-        const fields = {};
-        const written = [];
-        const skipped = [];
-        for (const [key, column] of Object.entries(RECORD_FIELD_MAP)) {
-          const raw = payload[key];
-          // Payload cố tình BỎ HẲN key không áp dụng (xem `staffActionWebhook.ts`)
-          // — không ghi đè cột bằng chuỗi rỗng.
-          if (raw === undefined || raw === null || raw === '') continue;
-
-          const m = meta.get(column);
-          if (!m) {
-            skipped.push(`${column} — bảng không có cột này`);
-            continue;
-          }
-          if (READONLY_FIELD_TYPES.has(m.type)) {
-            skipped.push(`${column} — cột tính toán/hệ thống, không ghi được`);
-            continue;
-          }
-          if (m.type === LARK_FIELD_USER) {
-            // Cùng giới hạn với automation: person field cần open_id, không
-            // điền được từ tên dạng text.
-            skipped.push(`${column} — cột người dùng, cần open_id`);
-            continue;
-          }
-          const value = toCellValue(m, raw);
-          if (value === null) {
-            skipped.push(`${column} — giá trị không hợp với kiểu cột`);
-            continue;
-          }
-          fields[column] = value;
-          written.push(column);
-        }
+        const { fields, written, skipped } = buildRecordFields(payload, RECORD_FIELD_MAP, meta);
 
         if (written.length === 0) {
           return json({ code: -1, msg: `Không map được cột nào. ${skipped.join(' | ')}` }, 400);
@@ -695,6 +939,7 @@ export default {
             502,
           );
         }
+        invalidateDashboardSnapshot();
         return json({
           code: 0,
           msg: 'success',
@@ -716,6 +961,7 @@ export default {
           body: await request.text(),
         });
         const text = await r.text();
+        if (r.ok) invalidateDashboardSnapshot();
         return json({ code: r.ok ? 0 : -1, msg: r.ok ? 'success' : `Lark HTTP ${r.status}`, data: { body: text } }, r.ok ? 200 : 502);
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);
@@ -724,6 +970,14 @@ export default {
 
     if (table === '' || table === 'health') {
       return json({ code: 0, msg: 'ok', tables: Object.keys(TABLE_ENV) });
+    }
+
+    if (request.method === 'GET' && route === 'dashboard/snapshot') {
+      try {
+        return json(await getDashboardSnapshot(env, host));
+      } catch (e) {
+        return json({ code: -1, msg: String(e?.message || e), data: { tables: {} } }, 500);
+      }
     }
 
     const envKey = TABLE_ENV[table];
@@ -739,22 +993,7 @@ export default {
     try {
       const token = await getToken(env, host);
       const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
-      let items = [];
-      let pageToken;
-      do {
-        const u = new URL(`${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`);
-        u.searchParams.set('page_size', '500');
-        if (pageToken) u.searchParams.set('page_token', pageToken);
-        const r = await fetch(u, { headers: { Authorization: `Bearer ${token}` } });
-        const jj = await r.json();
-        if (jj.code !== 0) return json(jj);
-        items = items.concat(jj.data?.items ?? []);
-        pageToken = jj.data?.has_more ? jj.data.page_token : null;
-      } while (pageToken);
-
-      const fieldMaps = await getFieldOptionMaps(env, host, appToken, token, tableId);
-      resolveOptionRefs(items, fieldMaps);
-
+      const items = await readTableRecords(env, host, table, token, appToken);
       return json({ code: 0, msg: 'success', data: { items, has_more: false, total: items.length } });
     } catch (e) {
       return json({ code: -1, msg: String(e?.message || e), data: { items: [] } }, 500);

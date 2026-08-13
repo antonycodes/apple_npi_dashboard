@@ -50,6 +50,20 @@ export interface DispatchSendResult {
   confirmed: boolean;
 }
 
+/** Điều phối phải ghi thẳng vào bảng dispatch để không mất record khi burst. */
+function normalizeDispatchUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    if (url.pathname.replace(/\/+$/, '') === '/webhook') {
+      url.pathname = `${url.pathname.replace(/\/+$/, '')}-record`;
+      return url.toString();
+    }
+  } catch {
+    // Giữ nguyên để fetch trả lỗi cấu hình rõ ràng.
+  }
+  return rawUrl;
+}
+
 export async function sendDispatchForm(
   url: string,
   payload: DispatchFormPayload,
@@ -59,24 +73,39 @@ export async function sendDispatchForm(
   }
 
   const body = JSON.stringify(payload);
+  const dispatchUrl = normalizeDispatchUrl(url);
   const token = adminSessionStore.getSnapshot();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
-    const res = await fetch(url, { method: 'POST', headers, body });
+    const res = await fetch(dispatchUrl, { method: 'POST', headers, body });
     if (res.status === 401) {
       adminSessionStore.clear();
       throw new Error('Phiên đăng nhập đã hết hạn — đăng nhập lại rồi gửi lại.');
     }
-    if (!res.ok) throw new Error(`Webhook trả về HTTP ${res.status}`);
+    if (!res.ok) {
+      // Hiện nguyên văn `msg` của worker thay vì chỉ mã số. Với route ghi
+      // thẳng `/dispatch-record`, lỗi hay gặp nhất là lệch tên cột và worker
+      // nói rõ cột nào — nuốt mất câu đó thì điều phối viên chỉ thấy "HTTP
+      // 400" và không ai biết phải sửa gì.
+      let detail = '';
+      try {
+        const raw = await res.text();
+        const parsed = JSON.parse(raw) as { msg?: string; data?: { body?: string } };
+        detail = parsed.msg ?? parsed.data?.body ?? raw;
+      } catch {
+        /* response không phải JSON */
+      }
+      throw new Error(`Webhook trả về HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
+    }
     return { confirmed: true };
   } catch (err) {
     // Chỉ `TypeError` mới là "fetch không đi được" (CORS/mạng); lỗi HTTP ở
     // trên là Error thường → ném tiếp, không gửi lặp lần 2.
     if (!(err instanceof TypeError)) throw err;
 
-    await fetch(url, {
+    await fetch(dispatchUrl, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },

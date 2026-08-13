@@ -45,3 +45,24 @@ export async function fetchTableRecords(
   if (body.code !== 0) throw new LarkApiError(`Lark API error on ${key}: ${body.msg} (code ${body.code})`, body.code);
   return body.data?.items ?? [];
 }
+
+export async function fetchDashboardSnapshot(
+  cfg: LarkRuntimeConfig,
+  signal?: AbortSignal,
+): Promise<Record<TableKey, LarkRecord[]>> {
+  if (!cfg.apiUrl) throw new LarkApiError('Snapshot cần cấu hình Proxy/API URL.');
+  const res = await fetch(`${cfg.apiUrl.replace(/\/+$/, '')}/dashboard/snapshot`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+  if (!res.ok) throw new LarkApiError(`Lark snapshot HTTP ${res.status} ${res.statusText}`);
+  const body = (await res.json()) as { code: number; msg?: string; data?: { tables?: Partial<Record<TableKey, LarkRecord[]>> } };
+  if (body.code !== 0 || !body.data?.tables) throw new LarkApiError(`Lark snapshot error: ${body.msg ?? 'unknown error'}`);
+  return {
+    checkin: body.data.tables.checkin ?? [],
+    orders: body.data.tables.orders ?? [],
+    master: body.data.tables.master ?? [],
+    dispatch: body.data.tables.dispatch ?? [],
+    dsMaster: body.data.tables.dsMaster ?? [],
+  };
+}

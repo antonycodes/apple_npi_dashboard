@@ -11,7 +11,7 @@
 import type { LarkRuntimeConfig } from '@/config/larkConfig';
 import { toRuntimeConfig } from '@/config/larkSettings';
 import { mockLarkTables } from '@/data/mockLarkData';
-import { fetchTableRecords } from './larkClient';
+import { fetchDashboardSnapshot, fetchTableRecords } from './larkClient';
 import type { LarkTables, TableKey } from './larkTypes';
 
 const KEYS: TableKey[] = ['checkin', 'orders', 'master', 'dispatch', 'dsMaster'];
@@ -21,6 +21,7 @@ export async function fetchLarkData(
   signal?: AbortSignal,
 ): Promise<LarkTables> {
   if (cfg.useMock) return mockLarkTables;
+  if (cfg.apiUrl) return fetchDashboardSnapshot(cfg, signal);
 
   const result: LarkTables = { checkin: [], orders: [], master: [], dispatch: [], dsMaster: [] };
   await Promise.all(
@@ -30,4 +31,3 @@ export async function fetchLarkData(
   );
   return result;
 }
-

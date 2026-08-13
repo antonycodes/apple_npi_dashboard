@@ -11,6 +11,7 @@ import { mockLarkTables } from '@/data/mockLarkData';
 import { DEFAULT_FIELD_CONFIG } from '@/config/larkSettings';
 import { fetchLarkData } from '@/services/larkService';
 import { mapDeskStates } from '@/services/larkMapper';
+import { startSerializedPolling } from './serializedPolling';
 import {
   computeSummary,
   type DashboardSummary,
@@ -103,12 +104,11 @@ export function useDashboardData(): UseDashboardDataResult {
       }
     }
 
-    void load(true);
-    const timer = setInterval(() => void load(false), cfg.pollMs);
+    const stopPolling = startSerializedPolling(load, cfg.pollMs, () => cancelled);
     return () => {
       cancelled = true;
       controller.abort();
-      clearInterval(timer);
+      stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMock, sig, nonce]);

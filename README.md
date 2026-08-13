@@ -192,6 +192,34 @@ npm run build    # typecheck + build production
 npm run preview  # xem bản build
 ```
 
+## Stress test hạ tầng
+
+Branch tối ưu hạ tầng/test: `codex/infra-k6-optimization`. Các màn hình đọc
+Lark dùng polling tuần tự để tránh chồng vòng đọc khi Lark phản hồi chậm. Các
+POST Tiếp nhận/Hoàn tất vẫn độc lập và có thể chạy đồng thời giữa TV1/TV2.
+
+Runner chỉ đọc mặc định, kiểm tra `/health` rồi tạo tải đồng thời lên 5 route
+bảng mà dashboard đọc. Ví dụ 30 worker trong 5 phút:
+
+```bash
+npm run stress-test -- --mode read --duration 300 --concurrency 30
+```
+
+Muốn mô phỏng cả điều phối, Tiếp nhận và Hoàn tất thì phải bật ghi live một cách
+tường minh. Các payload đều mang mã synthetic `LOADTEST-...`/STT test và có thể
+tạo record thật trong Lark; nên chạy trên Base/test workflow hoặc có kế hoạch dọn
+dữ liệu sau đó:
+
+```bash
+npm run stress-test -- --mode write --duration 600 --concurrency 32 --allow-live-writes
+```
+
+Có thể đổi `--base-url`, `--dispatch-url`, `--staff-url`, `--interval-ms` và
+`--timeout-ms`. Kết quả cuối gồm tổng request, lỗi/timeout, throughput và p50/p95/p99.
+Runner không tự kết luận sức chịu tải của Lark hay workflow nếu chưa chạy vào môi
+trường live; cần đối chiếu thêm Workers Logs, Lark automation run history và số
+record thực tế sau bài test.
+
 ## Kiến trúc dữ liệu
 
 Ứng dụng đọc **7 bảng** Lark (xem `memory.md §4` để biết chi tiết schema thật):
@@ -235,16 +263,62 @@ Worker nằm tại `cloudflare-worker.js`, cấu hình tại `wrangler.jsonc`.
 Worker cung cấp các route `/checkin`, `/orders`, `/master`,
 `/dispatch` và `/dsMaster` theo schema trong PROJECT_SPEC_LARK_REUSE.md.
 
+**`GET /dashboard/snapshot`** (2026-08-13) — gom **cả 5 bảng vào 1 request**.
+Mọi màn hình đọc Lark đều đi đường này; trước đây mỗi máy bắn 5 request song
+song mỗi 5 giây, nhân với ~38 máy là ~38 request/giây liên tục lên Lark.
+
+Chịu lỗi tạm thời của Lark (`1254607 Data not ready`) theo **từng bảng**: bảng
+nào lỗi thì trả cache riêng của bảng đó (hoặc `[]`) và ghi vào `data.warnings`,
+`msg` thành `"partial snapshot"` — endpoint vẫn **HTTP 200** để dashboard không
+sập vì một bảng chớp nháy. Cache 4 giây, có stale fallback 30 giây, và bị xoá
+ngay sau mỗi `/record`, `/webhook`, `/webhook2` thành công.
+
+> Route đọc bảng lẻ (`/checkin`, `/master`…) **không có** lớp chịu lỗi này —
+> Lark trả `1254607` là nó trả thẳng HTTP 500. Đó chính là nguyên nhân "lỗi đồng
+> bộ" thỉnh thoảng hiện trên dashboard trước khi chuyển sang snapshot.
+
+Cache là biến trong isolate của Worker, **không dùng chung giữa các edge
+isolate** — nên máy ở khu vực khác có thể vẫn phải đọc Lark thật.
+
 **`POST /upload`** (2026-08-12) — nhận ảnh nghiệm thu (multipart, field `file`,
 tối đa 10MB) từ form Hoàn tất khâu Thu cũ/Backup, upload lên Lark bằng
 `tenant_access_token` rồi trả `{ data: { fileToken } }`. Không cần secret mới
 (dùng lại `LARK_APP_ID`/`LARK_APP_SECRET`/`LARK_APP_TOKEN`), nhưng **phải
 `npx wrangler deploy` lại** thì route mới có hiệu lực.
 
-**`GET /fields`** (2026-08-12) — soi schema bảng `TB_MASTER`: tên + kiểu từng
-cột, kèm kết quả đối chiếu với `RECORD_FIELD_MAP` (cột nào khớp, cột nào sai
-tên, cột nào không ghi được). Mở bằng trình duyệt để kiểm tra map **trước khi**
-bấm thử ca thật, khỏi tốn record rác mới biết lệch tên.
+**`GET /fields`** (2026-08-12) — soi schema bảng: tên + kiểu từng cột, kèm kết
+quả đối chiếu với map tương ứng (cột nào khớp, cột nào sai tên, cột nào không
+ghi được). Mở bằng trình duyệt để kiểm tra map **trước khi** bấm thử ca thật,
+khỏi tốn record rác mới biết lệch tên. Mặc định soi `TB_MASTER`;
+`?table=dispatch` soi bảng Điều phối.
+
+### `POST /dispatch-record` — Điều phối ghi thẳng, thay `/webhook`
+
+`/webhook` chỉ **châm ngòi** một Lark Automation. Lark trả 200 nghĩa là "đã
+nhận trigger", **không phải** "đã tạo record" — phần ghi chạy bất đồng bộ trong
+hàng đợi của Lark, và khi trigger đến nhanh hơn tốc độ hàng đợi thì run bị bỏ.
+Đo trên production, tỉ lệ mất tăng theo mức đồng thời:
+
+| Request đồng thời | Tỉ lệ mất record |
+| --- | --- |
+| nhịp thưa (~10 VU rải đều) | 6,5% |
+| 10 | 19% |
+| 15 | 38% |
+| 20 | 43% |
+
+Người gọi không có cách nào biết, vì 200 đã trả từ trước khi automation chạy.
+Đây cũng là gốc của hiện tượng cột Nhân sự hiện `()()()` ở bảng End Flow.
+
+Route này gọi thẳng Bitable API như `/record`: worker giữ kết nối tới khi Lark
+xác nhận, lỗi thì trả `code != 0` để client thấy ngay. **Drop-in thay
+`/webhook`** — nhận đúng `DispatchFormPayload` app đang gửi, nên đổi đường chỉ
+cần sửa ô "Webhook Điều phối" ở `#/settings` sang `…/dispatch-record`; dán lại
+URL cũ là rollback.
+
+> Bảng Điều phối tách mã bàn thành **ba cột** theo khâu (`DS Tư vấn`,
+> `DS Thu cũ`, `DS Backup`) chứ không dùng chung một cột như bảng Master.
+> Route chọn cột theo `phanLoai`; `phanLoai` lạ thì bỏ qua và báo trong
+> `skipped` thay vì đoán bừa. Kiểm tra bằng `/fields?table=dispatch` trước.
 
 **`GET /media/<file_token>`** (2026-08-12) — mở ảnh từ token bằng trình duyệt.
 `file_token` không phải URL; muốn ra ảnh phải gọi API tải của Lark kèm

@@ -72,6 +72,20 @@ export interface StaffActionResult {
   confirmed: boolean;
 }
 
+/** Tiếp nhận/Hoàn tất phải ghi thẳng vào SS_Master qua `/record`. */
+function normalizeStaffActionUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    if (url.pathname.replace(/\/+$/, '') === '/webhook2') {
+      url.pathname = '/record';
+      return url.toString();
+    }
+  } catch {
+    // Giữ nguyên để fetch trả lỗi cấu hình rõ ràng.
+  }
+  return rawUrl;
+}
+
 export async function sendStaffAction(
   url: string,
   payload: StaffActionPayload,
@@ -79,12 +93,13 @@ export async function sendStaffAction(
   if (!url) throw new Error('Chưa cấu hình Webhook Tiếp nhận/Hoàn tất.');
 
   const body = JSON.stringify(payload);
+  const actionUrl = normalizeStaffActionUrl(url);
   const token = adminSessionStore.getSnapshot();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
-    const res = await fetch(url, { method: 'POST', headers, body });
+    const res = await fetch(actionUrl, { method: 'POST', headers, body });
     if (res.status === 401) {
       adminSessionStore.clear();
       throw new Error('Phiên đăng nhập đã hết hạn — đăng nhập lại rồi bấm lại.');
@@ -109,7 +124,7 @@ export async function sendStaffAction(
     // là Error thường → ném tiếp, không gửi lặp lần 2 (tránh tạo record thừa).
     if (!(err instanceof TypeError)) throw err;
 
-    await fetch(url, {
+    await fetch(actionUrl, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
