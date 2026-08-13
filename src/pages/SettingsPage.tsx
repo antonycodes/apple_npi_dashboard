@@ -214,7 +214,7 @@ export default function SettingsPage() {
         </Section>
 
         {/* Ánh xạ trường */}
-        <Section title="3 · Ánh xạ trường (tên cột Lark → trường web)">
+        <Section title="3 · Ánh xạ trường">
           <p className="text-xs text-neutral-500">
             Điền đúng <b>tên cột hiển thị</b> trong Lark cho từng trường. Để trống = dùng mặc định.
           </p>
@@ -277,7 +277,7 @@ export default function SettingsPage() {
         </Section>
 
         {/* Webhook ghi ra Lark — độc lập hoàn toàn với phần đọc dữ liệu ở trên */}
-        <Section title="4 · Webhook Điều phối (ghi ra Lark Base)">
+        <Section title="4 · Webhook Điều phối">
           <Input
             label="Webhook URL"
             placeholder="https://open.larksuite.com/anycross/trigger/callback/..."
@@ -295,12 +295,12 @@ export default function SettingsPage() {
         </Section>
 
         {/* Đẩy cấu hình cho MỌI máy — thứ khiến máy nhân viên live theo admin */}
-        <Section title="5 · Đẩy cấu hình cho mọi máy (live base dùng chung)">
+        <Section title="5 · Đẩy cấu hình cho mọi máy">
           <SharedSettingsPush settings={saved} dirty={dirty} />
         </Section>
 
         {/* Danh tính máy — thứ DUY NHẤT nên khác nhau giữa các máy điều phối */}
-        <Section title="6 · Máy điều phối này là ai">
+        <Section title="6 · Thiết lập Điều phối viên">
           <DeviceIdentityPicker />
         </Section>
 
