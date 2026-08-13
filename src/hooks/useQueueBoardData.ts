@@ -12,6 +12,7 @@ import { DEFAULT_FIELD_CONFIG, toRuntimeConfig, useLarkSettings } from '@/config
 import { mockLarkTables } from '@/data/mockLarkData';
 import { fetchLarkData } from '@/services/larkService';
 import { mapQueueStates, type DeskQueueState } from '@/services/queueMapper';
+import { startSerializedPolling } from './serializedPolling';
 import type { ClusterKey } from '@/types/desk';
 
 export interface UseQueueBoardDataResult {
@@ -71,12 +72,11 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
       }
     }
 
-    void load(true);
-    const timer = setInterval(() => void load(false), cfg.pollMs);
+    const stopPolling = startSerializedPolling(load, cfg.pollMs, () => cancelled);
     return () => {
       cancelled = true;
       controller.abort();
-      clearInterval(timer);
+      stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMock, sig, nonce]);

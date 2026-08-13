@@ -249,6 +249,101 @@ function resolveOptionRefs(records, fieldMaps) {
   }
 }
 
+// Dashboard reads are shared per warm Worker isolate. The short TTL is
+// deliberate: it coalesces a burst of devices without making writes appear
+// permanently stale. POST routes never use this cache.
+let dashboardSnapshotCache = null;
+let dashboardSnapshotInFlight = null;
+const dashboardTableCache = new Map();
+const DASHBOARD_SNAPSHOT_TTL_MS = 4000;
+const DASHBOARD_SNAPSHOT_STALE_MS = 30000;
+const DASHBOARD_TABLES = ['checkin', 'orders', 'master', 'dispatch', 'dsMaster'];
+
+async function readTableRecords(env, host, key, token, appToken) {
+  const envKey = TABLE_ENV[key];
+  const tableId = envKey ? env[envKey] : undefined;
+  if (!envKey || !tableId) throw new Error(`Missing Cloudflare secret for table "${key}"`);
+
+  let items = [];
+  let pageToken;
+  do {
+    const u = new URL(`${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`);
+    u.searchParams.set('page_size', '500');
+    if (pageToken) u.searchParams.set('page_token', pageToken);
+    const response = await fetch(u, { headers: { Authorization: `Bearer ${token}` } });
+    const body = await response.json();
+    if (body.code !== 0) throw new Error(`Lark API error on ${key}: ${body.msg} (code ${body.code})`);
+    items = items.concat(body.data?.items ?? []);
+    pageToken = body.data?.has_more ? body.data.page_token : null;
+  } while (pageToken);
+
+  const fieldMaps = await getFieldOptionMaps(env, host, appToken, token, tableId);
+  resolveOptionRefs(items, fieldMaps);
+  return items;
+}
+
+async function getDashboardSnapshot(env, host) {
+  const now = Date.now();
+  if (dashboardSnapshotCache && now < dashboardSnapshotCache.expiresAt) {
+    return { ...dashboardSnapshotCache.payload, cache: 'hit' };
+  }
+  if (dashboardSnapshotInFlight) return dashboardSnapshotInFlight;
+
+  dashboardSnapshotInFlight = (async () => {
+    const token = await getToken(env, host);
+    const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
+    const results = await Promise.all(DASHBOARD_TABLES.map(async (key) => {
+      try {
+        const items = await readTableRecords(env, host, key, token, appToken);
+        dashboardTableCache.set(key, { items, updatedAt: Date.now() });
+        return { key, items, warning: null };
+      } catch (error) {
+        const cached = dashboardTableCache.get(key);
+        return {
+          key,
+          items: cached?.items ?? [],
+          warning: `${key}: ${String(error?.message || error)}`,
+        };
+      }
+    }));
+    const tables = Object.fromEntries(results.map(({ key, items }) => [key, items]));
+    const warnings = results.map((result) => result.warning).filter(Boolean);
+    const payload = {
+      code: 0,
+      msg: warnings.length ? 'partial snapshot' : 'success',
+      data: { tables, generatedAt: new Date().toISOString(), warnings },
+    };
+    dashboardSnapshotCache = {
+      payload,
+      expiresAt: Date.now() + DASHBOARD_SNAPSHOT_TTL_MS,
+      staleUntil: Date.now() + DASHBOARD_SNAPSHOT_STALE_MS,
+    };
+    return { ...payload, cache: 'miss' };
+  })();
+
+  try {
+    return await dashboardSnapshotInFlight;
+  } catch (error) {
+    // Keep the dashboard usable during a short Lark timeout/rate-limit burst.
+    // Writes still invalidate this cache, so this fallback is only a read-path
+    // resilience measure and is bounded by DASHBOARD_SNAPSHOT_STALE_MS.
+    if (dashboardSnapshotCache && Date.now() < dashboardSnapshotCache.staleUntil) {
+      return {
+        ...dashboardSnapshotCache.payload,
+        cache: 'stale',
+        warning: String(error?.message || error),
+      };
+    }
+    throw error;
+  } finally {
+    dashboardSnapshotInFlight = null;
+  }
+}
+
+function invalidateDashboardSnapshot() {
+  dashboardSnapshotCache = null;
+}
+
 // ── `POST /record`: map payload → cột Bitable ───────────────────────────────
 //
 // Tên cột lấy theo bảng "Master" đang dùng thật. Sai tên KHÔNG làm hỏng
@@ -695,6 +790,7 @@ export default {
             502,
           );
         }
+        invalidateDashboardSnapshot();
         return json({
           code: 0,
           msg: 'success',
@@ -716,6 +812,7 @@ export default {
           body: await request.text(),
         });
         const text = await r.text();
+        if (r.ok) invalidateDashboardSnapshot();
         return json({ code: r.ok ? 0 : -1, msg: r.ok ? 'success' : `Lark HTTP ${r.status}`, data: { body: text } }, r.ok ? 200 : 502);
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);
@@ -724,6 +821,14 @@ export default {
 
     if (table === '' || table === 'health') {
       return json({ code: 0, msg: 'ok', tables: Object.keys(TABLE_ENV) });
+    }
+
+    if (request.method === 'GET' && route === 'dashboard/snapshot') {
+      try {
+        return json(await getDashboardSnapshot(env, host));
+      } catch (e) {
+        return json({ code: -1, msg: String(e?.message || e), data: { tables: {} } }, 500);
+      }
     }
 
     const envKey = TABLE_ENV[table];
@@ -739,22 +844,7 @@ export default {
     try {
       const token = await getToken(env, host);
       const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
-      let items = [];
-      let pageToken;
-      do {
-        const u = new URL(`${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`);
-        u.searchParams.set('page_size', '500');
-        if (pageToken) u.searchParams.set('page_token', pageToken);
-        const r = await fetch(u, { headers: { Authorization: `Bearer ${token}` } });
-        const jj = await r.json();
-        if (jj.code !== 0) return json(jj);
-        items = items.concat(jj.data?.items ?? []);
-        pageToken = jj.data?.has_more ? jj.data.page_token : null;
-      } while (pageToken);
-
-      const fieldMaps = await getFieldOptionMaps(env, host, appToken, token, tableId);
-      resolveOptionRefs(items, fieldMaps);
-
+      const items = await readTableRecords(env, host, table, token, appToken);
       return json({ code: 0, msg: 'success', data: { items, has_more: false, total: items.length } });
     } catch (e) {
       return json({ code: -1, msg: String(e?.message || e), data: { items: [] } }, 500);

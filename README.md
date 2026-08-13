@@ -192,6 +192,34 @@ npm run build    # typecheck + build production
 npm run preview  # xem bản build
 ```
 
+## Stress test hạ tầng
+
+Branch tối ưu hạ tầng/test: `codex/infra-k6-optimization`. Các màn hình đọc
+Lark dùng polling tuần tự để tránh chồng vòng đọc khi Lark phản hồi chậm. Các
+POST Tiếp nhận/Hoàn tất vẫn độc lập và có thể chạy đồng thời giữa TV1/TV2.
+
+Runner chỉ đọc mặc định, kiểm tra `/health` rồi tạo tải đồng thời lên 5 route
+bảng mà dashboard đọc. Ví dụ 30 worker trong 5 phút:
+
+```bash
+npm run stress-test -- --mode read --duration 300 --concurrency 30
+```
+
+Muốn mô phỏng cả điều phối, Tiếp nhận và Hoàn tất thì phải bật ghi live một cách
+tường minh. Các payload đều mang mã synthetic `LOADTEST-...`/STT test và có thể
+tạo record thật trong Lark; nên chạy trên Base/test workflow hoặc có kế hoạch dọn
+dữ liệu sau đó:
+
+```bash
+npm run stress-test -- --mode write --duration 600 --concurrency 32 --allow-live-writes
+```
+
+Có thể đổi `--base-url`, `--dispatch-url`, `--staff-url`, `--interval-ms` và
+`--timeout-ms`. Kết quả cuối gồm tổng request, lỗi/timeout, throughput và p50/p95/p99.
+Runner không tự kết luận sức chịu tải của Lark hay workflow nếu chưa chạy vào môi
+trường live; cần đối chiếu thêm Workers Logs, Lark automation run history và số
+record thực tế sau bài test.
+
 ## Kiến trúc dữ liệu
 
 Ứng dụng đọc **7 bảng** Lark (xem `memory.md §4` để biết chi tiết schema thật):
@@ -234,6 +262,23 @@ tiến độ từng bước.
 Worker nằm tại `cloudflare-worker.js`, cấu hình tại `wrangler.jsonc`.
 Worker cung cấp các route `/checkin`, `/orders`, `/master`,
 `/dispatch` và `/dsMaster` theo schema trong PROJECT_SPEC_LARK_REUSE.md.
+
+**`GET /dashboard/snapshot`** (2026-08-13) — gom **cả 5 bảng vào 1 request**.
+Mọi màn hình đọc Lark đều đi đường này; trước đây mỗi máy bắn 5 request song
+song mỗi 5 giây, nhân với ~38 máy là ~38 request/giây liên tục lên Lark.
+
+Chịu lỗi tạm thời của Lark (`1254607 Data not ready`) theo **từng bảng**: bảng
+nào lỗi thì trả cache riêng của bảng đó (hoặc `[]`) và ghi vào `data.warnings`,
+`msg` thành `"partial snapshot"` — endpoint vẫn **HTTP 200** để dashboard không
+sập vì một bảng chớp nháy. Cache 4 giây, có stale fallback 30 giây, và bị xoá
+ngay sau mỗi `/record`, `/webhook`, `/webhook2` thành công.
+
+> Route đọc bảng lẻ (`/checkin`, `/master`…) **không có** lớp chịu lỗi này —
+> Lark trả `1254607` là nó trả thẳng HTTP 500. Đó chính là nguyên nhân "lỗi đồng
+> bộ" thỉnh thoảng hiện trên dashboard trước khi chuyển sang snapshot.
+
+Cache là biến trong isolate của Worker, **không dùng chung giữa các edge
+isolate** — nên máy ở khu vực khác có thể vẫn phải đọc Lark thật.
 
 **`POST /upload`** (2026-08-12) — nhận ảnh nghiệm thu (multipart, field `file`,
 tối đa 10MB) từ form Hoàn tất khâu Thu cũ/Backup, upload lên Lark bằng
