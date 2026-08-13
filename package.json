@@ -8,7 +8,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "tsc -b --noEmit"
+    "lint": "tsc -b --noEmit",
+    "stress-test": "node scripts/stress-test.mjs",
+    "k6:stress": "k6 run k6/stress-test.js",
+    "k6:journeys": "k6 run k6/live-customer-journeys.js",
+    "k6:peak-live": "k6 run k6/peak-live-40vu.js",
+    "k6:event-paced-live": "k6 run k6/event-paced-live.js",
+    "k6:event-10m-media-live": "k6 run k6/event-10m-media-live.js"
   },
   "dependencies": {
     "react": "^18.3.1",
