@@ -107,12 +107,25 @@ const orders: LarkRecord[] = Array.from({ length: 20 }, (_, i) => ({
 //      vẫn hoạt động đúng dù `BK_TO_DESK` đã có ở trên.
 const master: LarkRecord[] = [
   { record_id: 'ma_1', fields: { 'TV_MãNV': 'TC1', 'Trạng thái': TIEP_NHAN, 'Loại 2': 'Thu cũ', 'Họ và tên': 'Nguyễn Minh Long', 'Người': 'Thịnh_OPs', 'Thời gian': 1000 } },
+  // Kịch bản "Thu máy sau" (2026-08-12, yêu cầu user): khách STT1 đã xong 1 khâu
+  // ở bàn KHÁC (TC2) và được ghi nhận CHƯA thu máy, kèm QR/IMEI/ảnh nhập dở.
+  // Giờ khách đang ở TC1 — mở form Hoàn tất phải thấy 3 trường ĐIỀN SẴN, sửa được.
+  //
+  // Phải đặt ở bàn KHÁC bàn hiện tại: `latestByDeskAndName` dedupe theo cặp
+  // (bàn, khách), nên để dòng "Hoàn tất" này ở TC1 là khách bị đẩy khỏi TC1 và
+  // không còn nút Hoàn tất nào cho họ nữa.
+  { record_id: 'ma_prev', fields: { 'TV_MãNV': 'TC2', 'Trạng thái': HOAN_TAT, 'Họ và tên': 'Nguyễn Minh Long', 'Người': 'Thịnh_OPs', 'Thời gian': 1200, 'STT Input': '1', 'Thu lại máy': 'Thu máy sau', 'Scan QR máy cũ': 'QR-CU-99999', 'Scan IMEI': '351234567890123', 'Hình nghiệm thu máy cũ': [{ file_token: 'MOCKTOKEN1', name: 'anh-cu-1.jpg' }] } },
   { record_id: 'ma_2', fields: { 'TV_MãNV': 'TC1', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Hoàng Anh Tú', 'Người': 'Thịnh_OPs', 'Thời gian': 9000 } },
   // Kịch bản TV1: khách STT2 đang được tiếp nhận. "Hyperlink Master" chính là
   // link nút **Hoàn tất** ở màn hình nhân viên (`#/tv1`) — nút này LUÔN dùng
   // hyperlink, không đi webhook (yêu cầu user 2026-08-12).
   { record_id: 'ma_3', fields: { 'TV_MãNV': 'TV1', 'Trạng thái': TIEP_NHAN, 'Loại 2': 'Tư vấn', 'Họ và tên': 'Huỳnh Ngọc Linh', 'Người': 'Dương Đình Hưng', 'Thời gian': 2000, 'Hyperlink Master': 'https://example.larksuite.com/base/hoan-tat?stt=2' } },
   { record_id: 'ma_4', fields: { 'TV_MãNV': 'BK3', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Ngô Gia Huy', 'Người': 'SơnTrà_AppleMaster_AM&WS', 'Thời gian': 15500 } },
+  // Kịch bản "đủ 3 thứ ở bàn Backup" (2026-08-12, yêu cầu user): khách STT15 đã
+  // được khâu Thu cũ ghi ĐỦ ảnh + QR + IMEI nhưng đánh dấu "Thu máy sau". Mở
+  // form Hoàn tất ở BK3 phải tự mặc định sang "Thu máy ngay" — vì đủ 3 thứ tức
+  // máy đã cầm trên tay. Đặt ở bàn KHÁC BK3 để không đẩy khách khỏi bàn.
+  { record_id: 'ma_prev_bk', fields: { 'TV_MãNV': 'TC3', 'Trạng thái': HOAN_TAT, 'Họ và tên': 'Ngô Gia Huy', 'Người': 'Thịnh_OPs', 'Thời gian': 15400, 'STT Input': '15', 'Thu lại máy': 'Thu máy sau', 'Scan QR máy cũ': 'QR-BK-12345', 'Scan IMEI': '860123456789012', 'Hình nghiệm thu máy cũ': [{ file_token: 'MOCKTOKEN_BK', name: 'bk-cu.jpg' }] } },
   { record_id: 'ma_13', fields: { 'TV_MãNV': 'optZ9fQwLk', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Lý Gia Bảo', 'Người': 'SơnTrà_AppleMaster_AM&WS', 'Thời gian': 14500 } },
   { record_id: 'ma_5', fields: { 'TV_MãNV': 'TV2', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Phạm Đức Dũng', 'Người': 'TIẾN THÀNH_NV_VHWS', 'Thời gian': 3000 } },
   { record_id: 'ma_6', fields: { 'TV_MãNV': 'TV2', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Bùi Thanh Hà', 'Người': 'TIẾN THÀNH_NV_VHWS', 'Thời gian': 10000 } },

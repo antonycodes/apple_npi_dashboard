@@ -21,6 +21,16 @@ export interface LarkTextSegment {
   username?: string;
   email_address?: string;
   type?: string;
+  /**
+   * Ô ĐÍNH KÈM (vd "Hình nghiệm thu máy cũ") trả về mảng object có `file_token`
+   * + metadata file. `file_token` KHÔNG phải URL — muốn ra ảnh phải gọi API tải
+   * của Lark kèm tenant token (worker lo, xem route `/media/<token>`).
+   */
+  file_token?: string;
+  url?: string;
+  tmp_url?: string;
+  size?: number;
+  mime_type?: string;
 }
 
 export type LarkCellValue =

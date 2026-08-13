@@ -62,6 +62,48 @@ interface Pending {
 }
 
 /** Cùng quy ước tô màu với `CustomerPopover` — theo TỪ KHOÁ, không so chuỗi cứng. */
+/**
+ * Phần "máy thu cũ" của form Hoàn tất: giá trị điền sẵn + có khoá nút "Thu máy
+ * sau" hay không.
+ *
+ * Tách riêng vì 2 thứ đó suy từ CÙNG một phép tính — để lặp lại logic ở 2 chỗ
+ * là sớm muộn cũng lệch nhau.
+ */
+function buildDeviceDefaults(
+  customer: StaffCustomer,
+  cluster: ClusterKey,
+  action: 'tiep_nhan' | 'hoan_tat',
+) {
+  const prev = customer.prevDevice;
+  const hoanTat = action === 'hoan_tat';
+
+  // Lần trước ghi "Thu máy sau" = máy chưa thu, khâu này thu nốt → cho NV thấy
+  // lại những gì đã nhập và sửa được chỗ sai.
+  const tiepTuc = hoanTat && prev?.thuLaiMay === 'Thu máy sau';
+
+  // Ở bàn BACKUP, đủ cả 3 (ảnh + QR + IMEI) nghĩa là máy đã cầm trên tay rồi —
+  // mặc định "Thu máy ngay" và KHOÁ luôn nút "Thu máy sau" để NV không bấm
+  // nhầm (yêu cầu user 2026-08-12). Thiếu 1 trong 3 thì không khoá, vì lúc đó
+  // chưa chắc máy đã thu.
+  const duDuLieu = Boolean(
+    prev && prev.images.length > 0 && prev.scanQr?.trim() && prev.imei?.trim(),
+  );
+  const backupDaThuMay = hoanTat && cluster === 'backup' && duDuLieu;
+  const dienSan = tiepTuc || backupDaThuMay;
+
+  return {
+    values: {
+      checkBackup: '',
+      thuLaiMay: backupDaThuMay ? 'Thu máy ngay' : tiepTuc ? prev?.thuLaiMay ?? '' : '',
+      hinhNghiemThu: [] as File[],
+      anhGiuLai: dienSan ? prev?.images ?? [] : [],
+      scanQr: dienSan ? prev?.scanQr ?? '' : '',
+      imei: dienSan ? prev?.imei ?? '' : '',
+    },
+    khoaThuMaySau: backupDaThuMay,
+  };
+}
+
 function checkTone(value: string | null | undefined): string {
   const s = value?.toLowerCase() ?? '';
   if (!s || s.includes('không')) return 'bg-neutral-100 text-neutral-600';
@@ -409,8 +451,11 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
       // sóng, bắn 5 ảnh cùng lúc dễ timeout cả loạt — và khi hỏng thì cũng cần
       // biết đứt ở ảnh thứ mấy để báo cho NV.
       let hinhNghiemThu: string[] | undefined;
-      if (thuLaiMay && values.hinhNghiemThu.length > 0) {
-        const tokens: string[] = [];
+      if (thuLaiMay) {
+        // Ảnh cũ NV giữ lại đi kèm ảnh mới: record này là bản ghi ĐẦY ĐỦ của
+        // lần Hoàn tất, không phải phần bổ sung. Token dùng lại được vì vẫn
+        // trong cùng Base (xem `larkUpload.ts`).
+        const tokens = values.anhGiuLai.map((img) => img.fileToken);
         for (const [i, file] of values.hinhNghiemThu.entries()) {
           try {
             tokens.push(await uploadNghiemThuImage(file));
@@ -639,6 +684,7 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
           deskLabel={view.label}
           cluster={view.cluster}
           action={formAction}
+          khoaThuMaySau={buildDeviceDefaults(formCustomer, view.cluster, formAction).khoaThuMaySau}
           defaults={{
             stt: formCustomer.stt ?? '',
             hoTen: formCustomer.name ?? '',
@@ -647,11 +693,7 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
             phanLoai: STAGE_LABEL[view.cluster],
             nhanSu: view.staffName ?? '',
             submitBy: view.staffId ?? '',
-            checkBackup: '',
-            thuLaiMay: '',
-            hinhNghiemThu: [],
-            scanQr: '',
-            imei: '',
+            ...buildDeviceDefaults(formCustomer, view.cluster, formAction).values,
           }}
           busy={sending}
           error={actionError}

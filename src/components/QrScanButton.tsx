@@ -29,9 +29,19 @@ interface QrScanButtonProps {
    * `BarcodeDetector`; đường dự phòng `jsQR` luôn chỉ đọc được QR.
    */
   formats?: string[];
+  /**
+   * Nhãn nút + tiêu đề hộp thoại. Mặc định là câu của màn Cài đặt; màn hình
+   * nhân viên truyền nhãn riêng ("Quét QR máy cũ" / "Quét IMEI") — để nguyên
+   * mặc định thì NV quét máy lại thấy chữ "link proxy", không hiểu gì.
+   */
+  label?: string;
 }
 
-export default function QrScanButton({ onScan, formats = ['qr_code'] }: QrScanButtonProps) {
+export default function QrScanButton({
+  onScan,
+  formats = ['qr_code'],
+  label = 'Quét QR link proxy',
+}: QrScanButtonProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -39,7 +49,20 @@ export default function QrScanButton({ onScan, formats = ['qr_code'] }: QrScanBu
   const rafRef = useRef<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  /**
+   * `navigator.mediaDevices` CHỈ tồn tại trong secure context (HTTPS hoặc
+   * localhost). Đây là lý do hay gây hiểu nhầm nhất: ô "chụp ảnh" là
+   * `<input type="file" capture>` — nó chỉ nhờ hệ điều hành mở app camera nên
+   * chạy ở mọi nơi, kể cả HTTP. Camera mở được ở đó KHÔNG có nghĩa là quét
+   * được QR.
+   */
   const supported = typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
+
+  /** Nói đúng nguyên nhân thay vì đổ cho "thiết bị" — 2 ca khác hẳn nhau. */
+  const unsupportedReason =
+    typeof window !== 'undefined' && !window.isSecureContext
+      ? 'Trang đang mở qua HTTP nên trình duyệt khoá camera. Mở lại bằng link HTTPS (bản trên Vercel) là quét được.'
+      : 'Trình duyệt trong ứng dụng (Lark, Zalo, Messenger…) không cho dùng camera. Bấm "Mở trong Safari/Chrome" rồi quét lại.';
 
   const stop = () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -145,8 +168,8 @@ export default function QrScanButton({ onScan, formats = ['qr_code'] }: QrScanBu
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title="Quét QR link proxy"
-        aria-label="Quét QR link proxy"
+        title={label}
+        aria-label={label}
         className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded border border-neutral-300 text-neutral-600 transition hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-1"
       >
         <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-none stroke-current stroke-2" strokeLinecap="round" strokeLinejoin="round">
@@ -158,13 +181,15 @@ export default function QrScanButton({ onScan, formats = ['qr_code'] }: QrScanBu
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Quét mã QR">
           <div className="w-full max-w-sm rounded-xl bg-white p-4 shadow-xl">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-neutral-800">Quét QR link proxy</h3>
+              <h3 className="text-sm font-bold text-neutral-800">{label}</h3>
               <button type="button" onClick={close} aria-label="Đóng" className="text-lg leading-none text-neutral-400 hover:text-neutral-700">
                 ×
               </button>
             </div>
             {!supported ? (
-              <p className="text-sm text-red-600">Thiết bị không cho phép camera. Bạn có thể chọn ảnh QR bên dưới.</p>
+              <p className="text-sm text-red-600">
+                {unsupportedReason} Hoặc chụp/chọn ảnh có mã ở nút bên dưới — cách này luôn chạy.
+              </p>
             ) : error ? (
               <p className="text-sm text-red-600">{error}</p>
             ) : (
@@ -172,7 +197,7 @@ export default function QrScanButton({ onScan, formats = ['qr_code'] }: QrScanBu
             )}
             <canvas ref={canvasRef} className="hidden" />
             <label className="mt-3 flex cursor-pointer items-center justify-center rounded border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50">
-              🖼️ Chọn ảnh QR từ thiết bị
+              🖼️ Chụp / chọn ảnh có mã
               <input
                 type="file"
                 accept="image/*"
@@ -184,7 +209,10 @@ export default function QrScanButton({ onScan, formats = ['qr_code'] }: QrScanBu
                 }}
               />
             </label>
-            <p className="mt-2 text-xs text-neutral-400">Đưa mã QR vào khung hình hoặc chọn ảnh QR — link sẽ tự điền khi nhận diện được.</p>
+            <p className="mt-2 text-xs text-neutral-400">
+              Đưa mã vào khung hình, hoặc chụp/chọn ảnh có mã — ô nhập tự điền khi
+              nhận diện được. Đường chụp ảnh đọc được QR, không đọc được mã vạch 1D.
+            </p>
           </div>
         </div>
       )}

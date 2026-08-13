@@ -98,17 +98,37 @@ trống, mapper vẫn xác định đúng bàn qua `TV_MãNV` và tên NV lấy 
 payload KHÔNG chứa key của field không áp dụng (để automation phân biệt "không
 áp dụng" khỏi "có áp dụng nhưng để trống"):
 
-| Field | Tiếp nhận | Hoàn tất · Tư vấn | Hoàn tất · Thu cũ / Backup |
-| --- | --- | --- | --- |
-| `checkBackup` | — | ✅ bắt buộc | ✅ bắt buộc |
-| `thuLaiMay` | — | — | ✅ tuỳ chọn |
-| `hinhNghiemThu` · `scanQr` · `imei` | — | — | ✅ tuỳ chọn, chỉ hiện sau khi chọn `thuLaiMay` |
+| Field | Tiếp nhận | Hoàn tất · Tư vấn | Hoàn tất · Thu cũ | Hoàn tất · Backup |
+| --- | --- | --- | --- | --- |
+| `checkBackup` | — | ✅ bắt buộc | ✅ bắt buộc | — |
+| `thuLaiMay` | — | — | ✅ tuỳ chọn | ✅ tuỳ chọn |
+| `hinhNghiemThu` · `scanQr` · `imei` | — | — | ✅ tuỳ chọn, chỉ hiện sau khi chọn `thuLaiMay` | ✅ như bên trái |
+
+Bàn **Backup không hỏi `checkBackup`** — khách đã ngồi ở bàn Backup thì hỏi "có
+dùng Backup không" là thừa.
 
 - **`checkBackup`**: NV tự xác nhận khách có dùng Backup không — độc lập với
   cột "Backup check" ở Check-in (do khâu khác ghi từ trước, form chỉ hiện nó
   ở phần đối chiếu read-only). Bắt buộc chọn 1 trong 2 mới bấm Gửi được.
 - **`thuLaiMay`** mở ra 3 field máy thu cũ (ảnh / QR / IMEI). Chọn option nào
   cũng mở, kể cả "Thu máy sau". Cả 3 để trống vẫn gửi được.
+- **Điền sẵn khi khách quay lại với trạng thái "Thu máy sau"**: app tra ngược
+  bảng `Master` theo `STT Input`, lấy dòng mới nhất có cột `Thu lại máy`. Nếu
+  dòng đó là **"Thu máy sau"** (máy chưa thu), form Hoàn tất ở khâu sau sẽ điền
+  sẵn `thuLaiMay`, `scanQr`, `imei` và hiện lại ảnh cũ dạng thumbnail — NV bỏ
+  được ảnh chụp hỏng (nút ×), chụp bù ảnh mới, sửa QR/IMEI nếu sai. Dòng cũ là
+  **"Thu máy ngay"** thì máy đã thu xong, form để trắng như ca mới.
+  - **Riêng bàn Backup**: nếu dữ liệu cũ đã đủ **cả 3** (ảnh + QR + IMEI) thì
+    `thuLaiMay` mặc định sang **"Thu máy ngay"**, và nút **"Thu máy sau" bị khoá
+    xám** để NV không bấm nhầm — đủ 3 thứ nghĩa là máy đã cầm trên tay. Thiếu 1
+    trong 3 thì không khoá. Bàn Thu cũ không áp quy tắc này, vẫn bê nguyên giá
+    trị cũ và chọn được cả hai.
+  - Mỗi lần Gửi tạo **record mới**, không sửa đè dòng cũ (Master là bảng log).
+    Ảnh NV giữ lại được gửi kèm token cũ nên record mới có đủ ảnh; dòng cũ vẫn
+    giữ nguyên ảnh của nó. Báo cáo nên lọc dòng mới nhất theo STT.
+  - Thumbnail ảnh cũ tải qua `GET /media/<file_token>` của worker — **route này
+    phải được deploy** thì ảnh mới hiện, vì `file_token` không phải URL và link
+    Lark trả về thì đòi Bearer.
 - **`hinhNghiemThu` là MẢNG `file_token`, không phải ảnh**: cột đính kèm Bitable
   chỉ nhận token do Lark cấp. NV chọn/chụp được **nhiều ảnh một lần**; app
   upload TUẦN TỰ từng ảnh qua `POST /upload` của worker (worker ký bằng
