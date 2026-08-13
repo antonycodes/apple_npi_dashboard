@@ -188,7 +188,7 @@ export default function StaffReceiveFormModal({
           {showDeviceFields && (
             <div className="space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
               <div>
-                <span className="text-xs font-semibold text-neutral-500">Ảnh nghiệm thu sản phẩm</span>
+                <span className="text-xs font-semibold text-neutral-500">Ảnh nghiệm thu sản phẩm (tối đa 3 ảnh)</span>
 
                 {/* Ảnh đã ghi ở lần "Thu máy sau" trước đó. Thumbnail lấy qua
                     `GET /media/<token>` của worker — token KHÔNG phải URL, và
@@ -220,7 +220,7 @@ export default function StaffReceiveFormModal({
                     ))}
                   </div>
                 )}
-                {/* `multiple` = chọn/chụp nhiều ảnh 1 lần (yêu cầu user).
+                {/* `multiple` = chọn/chụp nhiều ảnh 1 lần (tối đa 3 ảnh cả ảnh cũ giữ lại).
                     KHÔNG đặt `capture` cùng `multiple`: trên iOS `capture` ép mở
                     thẳng camera và chỉ nhận ĐÚNG 1 ảnh, mất luôn khả năng chọn
                     nhiều. Bỏ đi thì iOS hiện bảng chọn "Chụp ảnh / Thư viện" —
@@ -229,13 +229,22 @@ export default function StaffReceiveFormModal({
                   type="file"
                   accept="image/*"
                   multiple
-                  onChange={(e) => set('hinhNghiemThu', Array.from(e.target.files ?? []))}
+                  onChange={(e) => {
+                    const remaining = Math.max(0, 3 - values.anhGiuLai.length);
+                    const selected = Array.from(e.target.files ?? []).slice(0, remaining);
+                    set('hinhNghiemThu', selected);
+                    e.currentTarget.value = '';
+                  }}
                   className="mt-1 block w-full text-sm text-neutral-600 file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-neutral-700 file:px-4 file:text-sm file:font-bold file:text-white"
+                  disabled={values.anhGiuLai.length >= 3}
                 />
+                {values.anhGiuLai.length >= 3 && (
+                  <p className="mt-1 text-xs font-semibold text-amber-700">Đã đủ 3 ảnh nghiệm thu.</p>
+                )}
                 {values.hinhNghiemThu.length > 0 && (
                   <div className="mt-1 space-y-0.5">
                     <p className="text-xs font-semibold text-emerald-700">
-                      Đã chọn {values.hinhNghiemThu.length} ảnh
+                      Đã chọn {values.hinhNghiemThu.length + values.anhGiuLai.length}/3 ảnh
                     </p>
                     {values.hinhNghiemThu.map((f, i) => (
                       <p key={`${f.name}-${i}`} className="truncate text-[11px] text-neutral-500">
@@ -275,6 +284,7 @@ export default function StaffReceiveFormModal({
                     onScan={(v) => set('imei', v)}
                     formats={['qr_code', 'code_128', 'code_39', 'ean_13', 'itf']}
                     label="Quét IMEI"
+                    barcodeFrame
                   />
                 </div>
               </div>
@@ -337,7 +347,7 @@ export default function StaffReceiveFormModal({
             type="button"
             onClick={() => onSubmit(values)}
             disabled={!canSubmit}
-            className={`min-h-[56px] flex-[2] rounded-2xl text-base font-bold text-white shadow-sm active:opacity-80 disabled:bg-neutral-200 disabled:text-neutral-700 ${action === 'tiep_nhan' ? 'bg-emerald-600' : 'bg-red-600'}`}
+            className={`min-h-[56px] flex-[2] rounded-2xl text-base font-bold text-white shadow-sm active:opacity-80 disabled:bg-neutral-200 disabled:text-neutral-900 ${action === 'tiep_nhan' ? 'bg-emerald-600' : 'bg-red-600'}`}
           >
             {busy ? 'Đang gửi…' : action === 'tiep_nhan' ? 'Gửi Tiếp nhận' : 'Gửi Hoàn tất'}
           </button>
