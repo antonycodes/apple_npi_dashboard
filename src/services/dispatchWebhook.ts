@@ -50,6 +50,20 @@ export interface DispatchSendResult {
   confirmed: boolean;
 }
 
+/** Điều phối phải ghi thẳng vào bảng dispatch để không mất record khi burst. */
+function normalizeDispatchUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    if (url.pathname.replace(/\/+$/, '') === '/webhook') {
+      url.pathname = `${url.pathname.replace(/\/+$/, '')}-record`;
+      return url.toString();
+    }
+  } catch {
+    // Giữ nguyên để fetch trả lỗi cấu hình rõ ràng.
+  }
+  return rawUrl;
+}
+
 export async function sendDispatchForm(
   url: string,
   payload: DispatchFormPayload,
@@ -59,12 +73,13 @@ export async function sendDispatchForm(
   }
 
   const body = JSON.stringify(payload);
+  const dispatchUrl = normalizeDispatchUrl(url);
   const token = adminSessionStore.getSnapshot();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
-    const res = await fetch(url, { method: 'POST', headers, body });
+    const res = await fetch(dispatchUrl, { method: 'POST', headers, body });
     if (res.status === 401) {
       adminSessionStore.clear();
       throw new Error('Phiên đăng nhập đã hết hạn — đăng nhập lại rồi gửi lại.');
@@ -90,7 +105,7 @@ export async function sendDispatchForm(
     // trên là Error thường → ném tiếp, không gửi lặp lần 2.
     if (!(err instanceof TypeError)) throw err;
 
-    await fetch(url, {
+    await fetch(dispatchUrl, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },

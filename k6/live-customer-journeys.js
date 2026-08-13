@@ -74,7 +74,7 @@ function post(endpoint, payload, tags) {
 }
 
 function dispatch(customer, journey, kind, desk, stageIndex) {
-  post('webhook', {
+  post('dispatch-record', {
     stt: String(customer.stt),
     hoTen: customer.hoTen,
     phanLoai: kind,

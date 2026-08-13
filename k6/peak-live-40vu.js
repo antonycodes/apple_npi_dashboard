@@ -115,7 +115,7 @@ function completeExtra(journey, kind, stageIndex) {
 
 function dispatch(customer, deviceIndex) {
   const dp = (deviceIndex - 36) + 1;
-  request('POST', 'webhook', {
+  request('POST', 'dispatch-record', {
     stt: String(customer.stt), hoTen: customer.hoTen, phanLoai: 'Tư vấn', maBan: `TV${dp}`,
     nhanSu: `${runId}-DP${dp}`, msnv: `LOAD-DP${dp}`, submitBy: `LOAD-DP${dp}`,
     dieuPhoiId: `LOAD-DP${dp}`, dieuPhoiTen: `${runId} DP${dp}`,

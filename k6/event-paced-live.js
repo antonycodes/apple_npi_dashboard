@@ -86,7 +86,7 @@ function completeExtra(journey, kind, stageIndex) {
 
 function dispatch(customer, journey, desk, kind, writerIndex, wave) {
   const dp = (writerIndex % 4) + 1;
-  post('webhook', {
+  post('dispatch-record', {
     stt: String(customer.stt), hoTen: customer.hoTen, phanLoai: kind, maBan: desk,
     nhanSu: `${runId}-${desk}`, msnv: `LOAD-${desk}`, submitBy: `LOAD-DP${dp}`,
     dieuPhoiId: `LOAD-DP${dp}`, dieuPhoiTen: `${runId}-DP${dp}`,

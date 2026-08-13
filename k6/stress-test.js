@@ -111,8 +111,8 @@ function runWriteScenario() {
   const receivePayload = { ...flow.common, action: 'tiep_nhan', trangThai: 'Tiếp nhận' };
   const start = Date.now();
   const firstWave = http.batch([
-    { method: 'POST', url: `${baseUrl}/webhook`, body: JSON.stringify(dispatchPayload), params: { ...jsonParams, tags: { endpoint: 'write:dispatch' } } },
-    { method: 'POST', url: `${baseUrl}/webhook2`, body: JSON.stringify(receivePayload), params: { ...jsonParams, tags: { endpoint: 'write:receive' } } },
+    { method: 'POST', url: `${baseUrl}/dispatch-record`, body: JSON.stringify(dispatchPayload), params: { ...jsonParams, tags: { endpoint: 'write:dispatch' } } },
+    { method: 'POST', url: `${baseUrl}/record`, body: JSON.stringify(receivePayload), params: { ...jsonParams, tags: { endpoint: 'write:receive' } } },
   ]);
   firstWave.forEach((response, index) => {
     const label = index === 0 ? 'dispatch' : 'receive';
@@ -123,7 +123,7 @@ function runWriteScenario() {
   });
 
   sleep(Math.min(1.5, Math.max(0.25, writeIntervalSec)));
-  const completeResponse = http.post(`${baseUrl}/webhook2`, JSON.stringify({
+  const completeResponse = http.post(`${baseUrl}/record`, JSON.stringify({
     ...flow.common,
     action: 'hoan_tat',
     trangThai: 'Hoàn tất',

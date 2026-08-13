@@ -173,7 +173,7 @@ function processStage(instances, wave, stageIndex) {
   });
   const tags = { wave: wave.id, burst: String(wave.size), stage: String(stageIndex + 1) };
 
-  batchPost('webhook', stageRows.map(({ instance, kind, desk }) => dispatchPayload(instance, kind, desk)), { ...tags, action: 'dispatch' });
+  batchPost('dispatch-record', stageRows.map(({ instance, kind, desk }) => dispatchPayload(instance, kind, desk)), { ...tags, action: 'dispatch' });
   sleep(5);
   batchPost('record', stageRows.map(({ instance, kind, desk }) => staffPayload(instance, kind, desk, 'tiep_nhan', stageIndex)), { ...tags, action: 'tiep_nhan' });
   sleep(20);

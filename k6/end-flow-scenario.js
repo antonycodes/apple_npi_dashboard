@@ -56,7 +56,7 @@ function post(label, url, payload) {
 }
 
 function dispatch(customer, kind, desk, coordinator) {
-  return post('dispatch', `${baseUrl}/webhook`, {
+  return post('dispatch', `${baseUrl}/dispatch-record`, {
     stt: customer.stt,
     hoTen: customer.hoTen,
     phanLoai: kind,
@@ -72,7 +72,7 @@ function dispatch(customer, kind, desk, coordinator) {
 }
 
 function staffAction(customer, kind, desk, action, extra = {}) {
-  return post(action === 'tiep_nhan' ? 'receive' : 'complete', `${baseUrl}/webhook2`, {
+  return post(action === 'tiep_nhan' ? 'receive' : 'complete', `${baseUrl}/record`, {
     action,
     trangThai: action === 'tiep_nhan' ? 'Tiếp nhận' : 'Hoàn tất',
     stt: customer.stt,
