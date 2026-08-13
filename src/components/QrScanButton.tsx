@@ -85,12 +85,15 @@ interface QrScanButtonProps {
    * mặc định thì NV quét máy lại thấy chữ "link proxy", không hiểu gì.
    */
   label?: string;
+  /** Hiển thị vùng ngắm ngang cho mã vạch 1D như IMEI. */
+  barcodeFrame?: boolean;
 }
 
 export default function QrScanButton({
   onScan,
   formats = ['qr_code'],
   label = 'Quét QR link proxy',
+  barcodeFrame = false,
 }: QrScanButtonProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -251,7 +254,20 @@ export default function QrScanButton({
             ) : error ? (
               <p className="text-sm text-red-600">{error}</p>
             ) : (
-              <video ref={videoRef} className="aspect-square w-full rounded-lg bg-black object-cover" muted playsInline />
+              <div className="relative overflow-hidden rounded-lg bg-black">
+                <video
+                  ref={videoRef}
+                  className={`${barcodeFrame ? 'aspect-[1.85/1]' : 'aspect-square'} w-full object-cover`}
+                  muted
+                  playsInline
+                />
+                <div
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded border-2 border-emerald-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.28)] ${
+                    barcodeFrame ? 'h-[30%] w-[88%]' : 'h-[62%] w-[62%]'
+                  }`}
+                />
+              </div>
             )}
             <canvas ref={canvasRef} className="hidden" />
             <label className="mt-3 flex cursor-pointer items-center justify-center rounded border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50">
@@ -268,8 +284,8 @@ export default function QrScanButton({
               />
             </label>
             <p className="mt-2 text-xs text-neutral-400">
-              Đưa mã vào khung hình, hoặc chụp/chọn ảnh có mã — ô nhập tự điền khi
-              nhận diện được. Đường chụp ảnh đọc được QR, không đọc được mã vạch 1D.
+              Đưa mã vào khung màu xanh, hoặc chụp/chọn ảnh có mã — ô nhập tự điền khi
+              nhận diện được. Với IMEI, đặt mã vạch nằm ngang trong khung chữ nhật.
             </p>
           </div>
         </div>
