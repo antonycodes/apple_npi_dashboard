@@ -9,6 +9,9 @@ dist/
 !.env.example
 .DS_Store
 
+# File khoá tạm Office tạo khi đang mở tài liệu — không phải nội dung dự án
+~$*
+
 # Local AI/session notes and generated TypeScript metadata
 .claude/
 memory.md

@@ -65,6 +65,26 @@ export interface StaffActionPayload {
   scanQr?: string;
   /** IMEI máy thu cũ. */
   imei?: string;
+  /**
+   * Thời gian phục vụ khách này tại bàn, tính bằng GIÂY — từ lúc bấm Tiếp nhận
+   * tới lúc bấm Hoàn tất. CHỈ gửi khi Hoàn tất và máy này có mốc bắt đầu.
+   *
+   * Đây là số dùng để tính toán; `leadtimeHienThi` chỉ để người đọc.
+   */
+  leadtimeGiay?: number;
+  /** Cùng khoảng thời gian trên, dạng "07:12" hoặc "1:03:44" cho dễ đọc. */
+  leadtimeHienThi?: string;
+  /**
+   * "Có" = mốc bắt đầu là SUY RA, không phải lúc bấm Tiếp nhận thật.
+   *
+   * Xảy ra khi màn hình mở lên và thấy sẵn khách ở bàn — khách được tiếp nhận
+   * từ máy khác, hoặc NV tải lại trang giữa chừng (đồng hồ chỉ nằm trong bộ
+   * nhớ phiên, xem `staffTimers.ts`). Khi đó con số ĐO THIẾU so với thực tế.
+   *
+   * BẮT BUỘC lọc bỏ những dòng này trước khi tính hiệu suất, nếu không trung
+   * bình sẽ thấp hơn sự thật một cách có hệ thống.
+   */
+  leadtimeUocLuong?: 'Có' | 'Không';
 }
 
 export interface StaffActionResult {
