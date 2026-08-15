@@ -88,6 +88,13 @@ type TestResult = { ok: true; desks: number; checkIn: number; orders: number } |
 
 export default function SettingsPage() {
   const saved = useLarkSettings();
+  const session = useAdminInfo();
+  // Che 3 URL worker khi chưa đăng nhập admin. ĐÂY CHỈ LÀ CHE NHÌN LÉN, KHÔNG
+  // PHẢI BẢO MẬT: URL vẫn nằm trong localStorage, vẫn hiện ở tab Network và
+  // vẫn đi kèm mọi request — ai mở DevTools là thấy. Thứ thật sự chặn ghi bậy
+  // vẫn là worker (xem `config/adminSession.ts`). Lý do vẫn làm: máy Cài đặt
+  // hay để mở giữa chỗ đông người ở sự kiện.
+  const locked = session?.role !== 'admin';
   const [draft, setDraft] = useState<LarkSettings>(() => clone(saved));
   const [savedTick, setSavedTick] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -204,12 +211,17 @@ export default function SettingsPage() {
                 placeholder="https://proxy-cua-ban/api/lark"
                 value={draft.apiUrl}
                 onChange={(v) => setTop('apiUrl', v)}
+                locked={locked}
                 hint="Client gọi {URL}/checkin, /orders, /master, /dispatch, /dsMaster — hoặc quét QR bằng biểu tượng bên phải."
               />
             </div>
-            <div className="mt-5">
-              <QrScanButton onScan={(v) => setTop('apiUrl', v.trim())} />
-            </div>
+            {/* Ẩn nút quét khi khoá: quét QR là một đường GHI đè URL, để lại thì
+                lớp khoá thành vô nghĩa. */}
+            {!locked && (
+              <div className="mt-5">
+                <QrScanButton onScan={(v) => setTop('apiUrl', v.trim())} />
+              </div>
+            )}
           </div>
         </Section>
 
@@ -276,21 +288,26 @@ export default function SettingsPage() {
           </MapBlock>
         </Section>
 
-        {/* Webhook ghi ra Lark — độc lập hoàn toàn với phần đọc dữ liệu ở trên */}
+        {/* Hai đường GHI ra Lark, tách hẳn khỏi phần đọc dữ liệu ở trên.
+            Mô tả cố ý KHÔNG liệt kê từng field payload: bản cũ liệt kê rồi để
+            lỗi thời khi payload thêm field, mà chú thích sai nằm ngay cạnh ô
+            nhập thì người sau đọc vào sẽ tin. Danh sách field đầy đủ ở README. */}
         <Section title="4 · Webhook Điều phối">
           <Input
             label="Webhook URL"
-            placeholder="https://open.larksuite.com/anycross/trigger/callback/..."
+            placeholder="https://<worker>.workers.dev/dispatch-record"
             value={draft.dispatchWebhookUrl}
             onChange={(v) => setTop('dispatchWebhookUrl', v)}
-            hint='Nút "Điều phối" trên sơ đồ POST JSON {stt, phanLoai, maBan, nhanSu, msnv, thoiGian} lên URL này. MSNV lấy từ Master_DS.MSNV. Chỉ ghi ra Lark — không đọc lại, không ảnh hưởng dữ liệu dashboard.'
+            locked={locked}
+            hint='Nút "Điều phối" trên sơ đồ gửi bản ghi lên URL này. Nên dùng route /dispatch-record (worker ghi thẳng vào Lark, xác nhận được là đã ghi). Route /webhook cũ đi qua Automation: trả 200 nhưng vẫn mất record khi đông. Bảng Điều phối là nguồn của số "khách đang chờ" ở mỗi bàn và cột Nhân sự trong bảng End Flow — mất record là dashboard hiện thiếu.'
           />
           <Input
             label="Webhook Tiếp nhận / Hoàn tất (màn hình nhân viên)"
-            placeholder="https://<worker>.workers.dev/webhook2"
+            placeholder="https://<worker>.workers.dev/record"
             value={draft.staffActionWebhookUrl}
             onChange={(v) => setTop('staffActionWebhookUrl', v)}
-            hint='2 nút ở màn hình NV (#/tv4…) POST JSON {action, trangThai, stt, hoTen, maBan, phanLoai, nhanSu, thoiGian} lên URL này để Lark tạo record SS_Master. Worker route /webhook2 → secret LARK_WEBHOOK_URL2. ĐỂ TRỐNG = 2 nút giữ chế độ cũ (mở hyperlink Lark).'
+            locked={locked}
+            hint='2 nút ở màn hình NV (#/tv4…) gửi bản ghi lên URL này, ghi vào bảng Master. Nên dùng route /record — worker ghi thẳng, và tự tính leadtime của khâu từ hai mốc Thời gian trong Base. ĐỂ TRỐNG = 2 nút bị khoá, NV không thao tác được.'
           />
         </Section>
 
@@ -325,7 +342,9 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={resetDefaults}
-            className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            disabled={locked}
+            title={locked ? 'Cần đăng nhập admin' : undefined}
+            className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40"
           >
             Khôi phục mặc định
           </button>
@@ -439,6 +458,7 @@ function Input({
   placeholder,
   hint,
   type = 'text',
+  locked = false,
 }: {
   label: string;
   value: string;
@@ -446,7 +466,28 @@ function Input({
   placeholder?: string;
   hint?: string;
   type?: string;
+  /** Che giá trị + cấm sửa khi chưa đăng nhập admin (chỉ chống nhìn lén). */
+  locked?: boolean;
 }) {
+  if (locked) {
+    return (
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-neutral-500">
+          {label} <span className="font-normal text-neutral-400">· cần admin</span>
+        </span>
+        {/* Dựng chuỗi dấu sao ĐỘ DÀI CỐ ĐỊNH, không theo value.length: độ dài
+            thật cũng là manh mối (đoán được route dài/ngắn). Cũng không đưa
+            `value` vào DOM ở nhánh này. */}
+        <div className="select-none rounded border border-neutral-200 bg-neutral-100 px-2 py-1.5 text-sm tracking-widest text-neutral-400">
+          {value.trim() ? '••••••••••••••••••••' : <span className="tracking-normal italic">chưa cấu hình</span>}
+        </div>
+        <span className="text-[10px] text-neutral-400">
+          Đăng nhập admin ở mục 5 để xem và sửa.
+        </span>
+      </label>
+    );
+  }
+
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs font-medium text-neutral-500">{label}</span>

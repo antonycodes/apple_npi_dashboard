@@ -89,8 +89,8 @@ dự phòng mở hyperlink trực tiếp: thiếu webhook thì cả 2 nút xám,
   "imei": "356938035643809",
 
   // ── Chỉ có khi HOÀN TẤT và máy này có mốc bắt đầu ──────────────────────
-  "leadtimeGiay": 412,          // → cột "Number Leadtime"
-  "leadtimeHienThi": "06:52",   // → cột "Leadtime". Có tiền tố `~` khi ước lượng
+  "leadtimeGiay": 412,          // → cột "Brower Leadtime" (số giây)
+  "leadtimeHienThi": "06:52",   // KHÔNG map vào cột nào — chỉ để hiện trên màn NV
   "leadtimeUocLuong": "Không"   // KHÔNG map vào cột nào — xem bên dưới
 }
 ```
@@ -170,14 +170,26 @@ gửi kèm ngay trong payload Hoàn tất. Dùng để đánh giá hiệu suất
 
 | Cột Base | Kiểu | Ai tính | Nội dung |
 | --- | --- | --- | --- |
-| `Leadtime` | Number | **Worker** — từ dữ liệu Base | số giây, **đây là số dùng để đánh giá** |
-| `Number Leadtime` | Text | App — đồng hồ trình duyệt | `"06:52"`, hoặc `"~06:52"` khi ước lượng |
+| `Proxy Leadtime` | Number | **Worker** — từ dữ liệu Base | số giây, **đây là số dùng để đánh giá** |
+| `Brower Leadtime` | Number | App — đồng hồ trình duyệt | số giây, để đối chiếu |
 
-> ⚠️ **Tên hai cột dễ đọc ngược**: cột tên `Number Leadtime` lại là kiểu **Text**,
-> còn cột tên `Leadtime` mới là kiểu **Number**. Worker map theo **kiểu thật**,
-> không theo tên. Đổi kiểu cột bên Lark thì phải sửa lại map ở
-> `RECORD_FIELD_MAP` và `COT_LEADTIME_GIAY`, nếu không giá trị sẽ bị bỏ qua
-> (chuỗi `"06:52"` nhét vào cột Number là rớt, hiện trong `data.skipped`).
+Cùng đơn vị (giây) nên trừ thẳng được: hai số **lệch nhiều** ở ca nào là dấu
+hiệu ca đó có chuyện — bấm Hoàn tất muộn, hoặc Tiếp nhận và Hoàn tất ở hai máy
+khác nhau. Cột app đo còn có thể **trống** khi NV tải lại trang giữa chừng
+(đồng hồ nằm trong bộ nhớ trình duyệt); cột worker thì không.
+
+> ⚠️ **Tên hai cột này hardcode trong worker**, Cài đặt không đổi được. Đổi tên
+> hoặc đổi kiểu bên Lark thì phải sửa `RECORD_FIELD_MAP.leadtimeGiay` và
+> `COT_LEADTIME_GIAY` trong `cloudflare-worker.js` rồi `npx wrangler deploy` —
+> nếu không giá trị bị bỏ qua **im lặng**, record vẫn tạo nhưng 2 ô trống.
+> Kiểm bằng `GET /fields?table=master`: cả hai cột đều nằm trong phần
+> `mapping`, `ok: false` là biết ngay. (Chính tả `Brower` giữ đúng như bên
+> Base — đừng "sửa" thành `Browser` nếu bên Base chưa đổi.)
+
+> Đổi `Brower Leadtime` từ Text sang Number đã **bỏ mất tiền tố `~`** vốn đánh
+> dấu ca có mốc bắt đầu là suy ra chứ không đo được. Payload vẫn gửi
+> `leadtimeUocLuong` (`"Có"`/`"Không"`); muốn phân biệt lại thì tạo thêm 1 cột
+> và map key đó vào `RECORD_FIELD_MAP`.
 
 **Worker tính thế nào**: khi nhận `hoan_tat`, nó tra bảng Master tìm dòng
 `Tiếp nhận` cùng `STT Input` + cùng `Loại 2`, lấy dòng **mới nhất còn nằm trước
