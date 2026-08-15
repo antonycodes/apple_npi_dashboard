@@ -366,7 +366,32 @@ const RECORD_FIELD_MAP = {
   scanQr: 'Scan QR máy cũ',
   imei: 'Scan IMEI',
   hinhNghiemThu: 'Hình nghiệm thu máy cũ',
+  // Leadtime do APP đo — chỉ ghi bản dạng CHỮ, làm ĐỐI CHIẾU.
+  //
+  // ⚠️ Tên hai cột dễ gây hiểu ngược: cột tên `Number Leadtime` lại là kiểu
+  // TEXT, còn cột tên `Leadtime` mới là kiểu NUMBER. Map theo KIỂU THẬT, không
+  // theo tên — chuỗi "06:52" nhét vào cột Number sẽ bị bỏ qua.
+  //
+  // Cột số (`Leadtime`) KHÔNG map ở đây: worker tự tính từ hai mốc `Thời gian`
+  // trong Base (xem `tinhLeadtimeTuBase`) vì con số đó chính xác hơn hẳn —
+  // đồng hồ của app nằm trong bộ nhớ trình duyệt nên mất khi tải lại trang
+  // hoặc khi đổi máy giữa chừng.
+  //
+  // Giữ cả hai để so: lệch nhiều ở ca nào là dấu hiệu ca đó có chuyện (bấm
+  // Hoàn tất muộn, hoặc Tiếp nhận và Hoàn tất ở hai máy khác nhau).
+  //
+  // KHÔNG map `leadtimeUocLuong`: Base không có cột cho nó. Thay vào đó
+  // `leadtimeHienThi` mang tiền tố `~` khi mốc là suy ra — đúng ký hiệu mà
+  // màn hình nhân viên đang hiện, nên đọc báo cáo không phải học quy ước mới.
+  leadtimeHienThi: 'Number Leadtime',
 };
+
+/**
+ * Cột SỐ để worker ghi leadtime tự tính — cột này mới là thứ dùng để tính
+ * trung bình. Nằm ngoài `RECORD_FIELD_MAP` vì giá trị do worker sinh ra, không
+ * đến từ payload.
+ */
+const COT_LEADTIME_GIAY = 'Leadtime';
 
 /**
  * Map cho bảng ĐIỀU PHỐI (`TB_DISPATCH`), dùng bởi `POST /dispatch-record`.
@@ -425,6 +450,80 @@ async function getRecordFieldMeta(env, host, appToken, token, tableId) {
   for (const f of data?.data?.items ?? []) byName.set(f.field_name, { type: f.type, uiType: f.ui_type });
   recordFieldMetaCache.set(tableId, { byName, expiresAt: now + FIELD_CACHE_MS });
   return byName;
+}
+
+/** Đọc ô "Thời gian" (DateTime) ra epoch ms; Lark có thể trả số hoặc chuỗi. */
+function docMocThoiGian(v) {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+    const p = Date.parse(v);
+    if (Number.isFinite(p)) return p;
+  }
+  return null;
+}
+
+/**
+ * Tính leadtime của MỘT KHÂU từ chính dữ liệu Base, thay vì tin đồng hồ của
+ * trình duyệt.
+ *
+ * Mỗi khâu đã có sẵn 2 dòng trong bảng Master, mỗi dòng mang `Thời gian`:
+ * một dòng "Tiếp nhận" và một dòng "Hoàn tất". Hiệu số của chúng là con số
+ * đúng — không phụ thuộc máy nào bấm, sống qua tải lại trang, và tính ngược
+ * được cho dữ liệu cũ.
+ *
+ * Khớp theo cặp (`STT Input`, `Loại 2`) = đúng độ mịn "một khâu của một khách".
+ * Một khách có thể qua cùng một khâu HAI LẦN (vd Thu cũ làm lại), nên lấy dòng
+ * Tiếp nhận MỚI NHẤT còn nằm trước mốc Hoàn tất — cùng quy tắc "dòng mới nhất
+ * thắng" mà dashboard đang dùng.
+ *
+ * Trả `{ giay }` khi tính được, `{ lyDo }` khi không — caller đưa lý do vào
+ * `skipped` để thiếu số liệu thì nhìn thấy được, thay vì im lặng bỏ trống.
+ */
+async function tinhLeadtimeTuBase(host, appToken, token, tableId, fm, { stt, phanLoai, mocHoanTatMs }) {
+  if (!stt || !Number.isFinite(mocHoanTatMs)) return { lyDo: 'thiếu STT hoặc mốc Hoàn tất' };
+
+  const conditions = [
+    { field_name: fm.stt, operator: 'is', value: [String(stt)] },
+    { field_name: fm.trangThai, operator: 'is', value: ['Tiếp nhận'] },
+  ];
+  // `Loại 2` phân biệt khâu. Thiếu thì vẫn tra được nhưng có thể lẫn khâu khác
+  // của cùng khách — nói rõ trong lý do thay vì lặng lẽ nhận số sai.
+  if (phanLoai) conditions.push({ field_name: fm.phanLoai, operator: 'is', value: [String(phanLoai)] });
+
+  let body;
+  try {
+    const r = await fetch(
+      `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/search?page_size=100`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({
+          field_names: [fm.stt, fm.trangThai, fm.phanLoai, fm.thoiGian],
+          filter: { conjunction: 'and', conditions },
+          automatic_fields: false,
+        }),
+      },
+    );
+    body = await r.json();
+  } catch (e) {
+    return { lyDo: `tra dòng Tiếp nhận lỗi: ${String(e?.message || e)}` };
+  }
+  if (body.code !== 0) return { lyDo: `tra dòng Tiếp nhận lỗi: ${body.msg} (code ${body.code})` };
+
+  const moc = (body.data?.items ?? [])
+    .map((r) => docMocThoiGian(r.fields?.[fm.thoiGian]))
+    .filter((t) => Number.isFinite(t) && t <= mocHoanTatMs)
+    .sort((a, b) => b - a)[0];
+
+  if (moc === undefined) return { lyDo: 'không tìm thấy dòng Tiếp nhận tương ứng' };
+
+  const giay = Math.floor((mocHoanTatMs - moc) / 1000);
+  // Âm = đồng hồ hai máy lệch nhau, hoặc dòng Tiếp nhận ghi sai giờ. Bỏ hơn là
+  // đưa số vô nghĩa vào thống kê hiệu suất.
+  if (giay < 0) return { lyDo: 'khoảng thời gian âm — đồng hồ hai máy lệch nhau' };
+  return { giay };
 }
 
 /**
@@ -917,6 +1016,47 @@ export default {
 
         const { fields, written, skipped } = buildRecordFields(payload, RECORD_FIELD_MAP, meta);
 
+        // Leadtime khâu này: worker tự tính từ dữ liệu Base thay vì tin đồng hồ
+        // trình duyệt. Chỉ chạy khi Hoàn tất — lúc Tiếp nhận chưa có gì để trừ.
+        //
+        // Hỏng ở đây KHÔNG chặn việc ghi record: leadtime là số liệu phụ, mất
+        // nó thì tiếc, nhưng mất bản ghi Hoàn tất thì hỏng cả vận hành.
+        let leadtime = null;
+        if (String(payload.action ?? '') === 'hoan_tat') {
+          const cot = meta.get(COT_LEADTIME_GIAY);
+          if (!cot) {
+            skipped.push(`${COT_LEADTIME_GIAY} — bảng không có cột này`);
+          } else if (READONLY_FIELD_TYPES.has(cot.type)) {
+            skipped.push(`${COT_LEADTIME_GIAY} — cột tính toán/hệ thống, không ghi được`);
+          } else {
+            leadtime = await tinhLeadtimeTuBase(
+              host,
+              appToken,
+              bearerToken,
+              recordTableId,
+              {
+                stt: RECORD_FIELD_MAP.stt,
+                trangThai: RECORD_FIELD_MAP.trangThai,
+                phanLoai: RECORD_FIELD_MAP.phanLoai,
+                thoiGian: RECORD_FIELD_MAP.thoiGian,
+              },
+              {
+                stt: String(payload.stt ?? '').trim(),
+                phanLoai: String(payload.phanLoai ?? '').trim(),
+                mocHoanTatMs: Date.parse(String(payload.thoiGian ?? '')),
+              },
+            );
+            if (leadtime.giay === undefined) {
+              skipped.push(`${COT_LEADTIME_GIAY} — ${leadtime.lyDo}`);
+            } else {
+              // Cột đang là Text; `toCellValue` tự chuyển theo kiểu thật, nên
+              // đổi cột sang Number bên Lark là chạy luôn, không phải sửa code.
+              fields[COT_LEADTIME_GIAY] = toCellValue(cot, leadtime.giay);
+              written.push(COT_LEADTIME_GIAY);
+            }
+          }
+        }
+
         if (written.length === 0) {
           return json({ code: -1, msg: `Không map được cột nào. ${skipped.join(' | ')}` }, 400);
         }
@@ -943,7 +1083,13 @@ export default {
         return json({
           code: 0,
           msg: 'success',
-          data: { recordId: j.data?.record?.record_id ?? null, written, skipped },
+          data: {
+            recordId: j.data?.record?.record_id ?? null,
+            written,
+            skipped,
+            // Số worker vừa tính, để soi nhanh mà không phải mở Base.
+            leadtimeGiay: leadtime?.giay ?? null,
+          },
         });
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);

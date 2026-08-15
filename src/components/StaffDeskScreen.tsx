@@ -472,6 +472,28 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
         hinhNghiemThu = tokens;
       }
 
+      // Leadtime khâu này: đọc mốc bắt đầu TRƯỚC khi `completeCustomer()` xoá
+      // đồng hồ. Chỉ có ý nghĩa khi Hoàn tất; lúc Tiếp nhận thì chưa có gì để đo.
+      //
+      // `approx` = mốc suy ra (màn hình mở lên đã thấy sẵn khách, hoặc NV tải
+      // lại trang giữa chừng) — số đo khi đó THIẾU so với thực tế, nên gắn cờ
+      // để bên phân tích lọc ra, thay vì trộn lẫn làm lệch trung bình.
+      const moc = isComplete ? staffTimerStore.get(view.id, stt) : undefined;
+      const leadtimeMs = moc ? Math.max(0, Date.now() - moc.startedAt) : null;
+      const leadtime =
+        leadtimeMs === null
+          ? {}
+          : {
+              // CẮT XUỐNG chứ không làm tròn, để khớp `formatElapsed` — làm
+              // tròn thì báo cáo hiện "30 giây" cạnh "00:29", trông như lỗi.
+              leadtimeGiay: Math.floor(leadtimeMs / 1000),
+              // Tiền tố `~` khi mốc là SUY RA — cùng ký hiệu màn hình NV đang
+              // hiện. Base không có cột riêng cho cờ ước lượng, nên gắn dấu
+              // ngay vào chuỗi để người đọc báo cáo phân biệt được.
+              leadtimeHienThi: (moc?.approx ? '~' : '') + formatElapsed(leadtimeMs),
+              leadtimeUocLuong: (moc?.approx ? 'Có' : 'Không') as 'Có' | 'Không',
+            };
+
       await sendStaffAction(webhookUrl, {
         action: formAction ?? 'tiep_nhan',
         trangThai: formAction === 'hoan_tat' ? 'Hoàn tất' : 'Tiếp nhận',
@@ -489,6 +511,7 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
         ...(hinhNghiemThu?.length ? { hinhNghiemThu } : {}),
         ...(scanQr ? { scanQr } : {}),
         ...(imei ? { imei } : {}),
+        ...leadtime,
       });
       if (formAction === 'hoan_tat') {
         completeCustomer(stt);

@@ -86,7 +86,12 @@ dự phòng mở hyperlink trực tiếp: thiếu webhook thì cả 2 nút xám,
   "thuLaiMay": "Thu máy ngay",  // "Thu máy ngay" | "Thu máy sau"
   "hinhNghiemThu": ["TZsybpKIUo…", "Qlc5bkK5Ko…"], // MẢNG file_token (chọn nhiều ảnh)
   "scanQr": "QR-TEST-12345",    // nội dung QR máy thu cũ
-  "imei": "356938035643809"
+  "imei": "356938035643809",
+
+  // ── Chỉ có khi HOÀN TẤT và máy này có mốc bắt đầu ──────────────────────
+  "leadtimeGiay": 412,          // → cột "Number Leadtime"
+  "leadtimeHienThi": "06:52",   // → cột "Leadtime". Có tiền tố `~` khi ước lượng
+  "leadtimeUocLuong": "Không"   // KHÔNG map vào cột nào — xem bên dưới
 }
 ```
 
@@ -145,6 +150,52 @@ dùng Backup không" là thừa.
   - Module WASM (~1MB, gzip ~448KB) `import()` động, **chỉ tải khi NV mở máy
     quét** — bundle chính không phình. File `.wasm` tự host qua `?url` của Vite
     chứ không lấy từ CDN mặc định của thư viện, để hội trường chặn CDN vẫn chạy.
+
+**Leadtime từng khâu** — đo từ lúc bấm **Tiếp nhận** tới lúc bấm **Hoàn tất**,
+gửi kèm ngay trong payload Hoàn tất. Dùng để đánh giá hiệu suất từng bàn/khâu.
+
+> ⚠️ **`leadtimeUocLuong: "Có"` nghĩa là số đo KHÔNG đáng tin** — phải lọc bỏ
+> trước khi tính trung bình, nếu không kết quả sẽ **thấp hơn thực tế một cách
+> có hệ thống**.
+>
+> Đồng hồ chỉ nằm trong bộ nhớ phiên của trình duyệt (`staffTimers.ts`), không
+> lưu xuống máy. Nên mốc bị "suy ra" trong hai trường hợp thường gặp: màn hình
+> mở lên đã thấy sẵn khách (khách được Tiếp nhận từ máy khác), hoặc **NV tải
+> lại trang giữa lúc đang phục vụ**. Khi đó số đo chỉ tính từ lúc màn hình
+> nhìn thấy khách, không phải lúc bắt đầu phục vụ thật.
+>
+> Muốn số liệu sạch hoàn toàn thì phải để đồng hồ sống qua reload — chưa làm.
+
+**Hai con số, hai nguồn độc lập** — giữ cả hai để đối chiếu:
+
+| Cột Base | Kiểu | Ai tính | Nội dung |
+| --- | --- | --- | --- |
+| `Leadtime` | Number | **Worker** — từ dữ liệu Base | số giây, **đây là số dùng để đánh giá** |
+| `Number Leadtime` | Text | App — đồng hồ trình duyệt | `"06:52"`, hoặc `"~06:52"` khi ước lượng |
+
+> ⚠️ **Tên hai cột dễ đọc ngược**: cột tên `Number Leadtime` lại là kiểu **Text**,
+> còn cột tên `Leadtime` mới là kiểu **Number**. Worker map theo **kiểu thật**,
+> không theo tên. Đổi kiểu cột bên Lark thì phải sửa lại map ở
+> `RECORD_FIELD_MAP` và `COT_LEADTIME_GIAY`, nếu không giá trị sẽ bị bỏ qua
+> (chuỗi `"06:52"` nhét vào cột Number là rớt, hiện trong `data.skipped`).
+
+**Worker tính thế nào**: khi nhận `hoan_tat`, nó tra bảng Master tìm dòng
+`Tiếp nhận` cùng `STT Input` + cùng `Loại 2`, lấy dòng **mới nhất còn nằm trước
+mốc Hoàn tất**, rồi trừ hai cột `Thời gian`. Dùng API search có lọc nên chỉ tốn
+một truy vấn nhỏ, không đọc cả bảng.
+
+Con số này chính xác hơn hẳn đồng hồ app vì nó đọc dữ liệu server: **sống qua
+tải lại trang, qua đổi máy giữa chừng, và tính ngược được cho dữ liệu cũ**.
+
+Không tính được thì **để trống và nêu lý do** trong `data.skipped` (không tìm
+thấy dòng Tiếp nhận, Lark lỗi, khoảng thời gian âm do lệch đồng hồ…) — thà thấy
+lỗ hổng còn hơn nhận số sai. Lỗi ở bước này **không chặn việc ghi record**.
+
+Cột `Leadtime` giữ số app đo làm đối chiếu: lệch nhiều ở ca nào là dấu hiệu ca
+đó có chuyện (bấm Hoàn tất muộn, hoặc Tiếp nhận và Hoàn tất ở hai máy khác
+nhau). Dấu **`~`** đánh dấu mốc suy ra — đúng ký hiệu màn hình nhân viên hiện.
+
+Cột `Leadtime` là kiểu Number nên tính trung bình / tổng ngay trong Base được.
 
 > Cần tự thêm cột trong `SS_Master` + map 5 field mới (`checkBackup`,
 > `thuLaiMay`, `hinhNghiemThu`, `scanQr`, `imei`) trong automation Lark thì giá
