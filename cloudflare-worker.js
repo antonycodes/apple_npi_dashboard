@@ -366,32 +366,35 @@ const RECORD_FIELD_MAP = {
   scanQr: 'Scan QR máy cũ',
   imei: 'Scan IMEI',
   hinhNghiemThu: 'Hình nghiệm thu máy cũ',
-  // Leadtime do APP đo — chỉ ghi bản dạng CHỮ, làm ĐỐI CHIẾU.
+  // Leadtime do APP đo, tính bằng GIÂY — làm ĐỐI CHIẾU cho cột worker tự tính.
   //
-  // ⚠️ Tên hai cột dễ gây hiểu ngược: cột tên `Number Leadtime` lại là kiểu
-  // TEXT, còn cột tên `Leadtime` mới là kiểu NUMBER. Map theo KIỂU THẬT, không
-  // theo tên — chuỗi "06:52" nhét vào cột Number sẽ bị bỏ qua.
+  // ⚠️ Cả hai cột leadtime giờ đều là kiểu NUMBER và đều là SỐ GIÂY, để cộng
+  // trung bình / lọc ca chậm được thẳng trong Base. `leadtimeHienThi` ("06:52")
+  // KHÔNG map nữa: chuỗi nhét vào cột Number sẽ bị bỏ qua im lặng.
   //
-  // Cột số (`Leadtime`) KHÔNG map ở đây: worker tự tính từ hai mốc `Thời gian`
-  // trong Base (xem `tinhLeadtimeTuBase`) vì con số đó chính xác hơn hẳn —
-  // đồng hồ của app nằm trong bộ nhớ trình duyệt nên mất khi tải lại trang
-  // hoặc khi đổi máy giữa chừng.
+  // Đánh đổi đã chấp nhận khi đổi cột này từ Text sang Number: mất tiền tố `~`
+  // vốn đánh dấu ca có mốc bắt đầu là SUY RA chứ không đo được (NV tải lại
+  // trang hoặc đổi máy giữa chừng). Payload vẫn gửi `leadtimeUocLuong`, muốn
+  // phân biệt lại thì tạo thêm 1 cột và map key đó vào.
+  //
+  // Cột worker tự tính KHÔNG map ở đây — xem `COT_LEADTIME_GIAY` bên dưới.
   //
   // Giữ cả hai để so: lệch nhiều ở ca nào là dấu hiệu ca đó có chuyện (bấm
   // Hoàn tất muộn, hoặc Tiếp nhận và Hoàn tất ở hai máy khác nhau).
   //
-  // KHÔNG map `leadtimeUocLuong`: Base không có cột cho nó. Thay vào đó
-  // `leadtimeHienThi` mang tiền tố `~` khi mốc là suy ra — đúng ký hiệu mà
-  // màn hình nhân viên đang hiện, nên đọc báo cáo không phải học quy ước mới.
-  leadtimeHienThi: 'Number Leadtime',
+  // Đổi tên/kiểu cột bên Base là phải sửa hằng ở đây rồi deploy lại; kiểm bằng
+  // `GET /fields?table=master` (cả hai cột đều có trong phần `mapping`).
+  leadtimeGiay: 'Brower Leadtime',
 };
 
 /**
- * Cột SỐ để worker ghi leadtime tự tính — cột này mới là thứ dùng để tính
- * trung bình. Nằm ngoài `RECORD_FIELD_MAP` vì giá trị do worker sinh ra, không
- * đến từ payload.
+ * Cột SỐ để worker ghi leadtime TỰ TÍNH từ hai mốc `Thời gian` trong Base (xem
+ * `tinhLeadtimeTuBase`) — **đây là số dùng để đánh giá hiệu quả**, chính xác
+ * hơn hẳn cột app đo vì không phụ thuộc đồng hồ trong bộ nhớ trình duyệt.
+ * Nằm ngoài `RECORD_FIELD_MAP` vì giá trị do worker sinh ra, không đến từ
+ * payload. Cũng tính bằng GIÂY, cùng đơn vị với `Brower Leadtime`.
  */
-const COT_LEADTIME_GIAY = 'Leadtime';
+const COT_LEADTIME_GIAY = 'Proxy Leadtime';
 
 /**
  * Map cho bảng ĐIỀU PHỐI (`TB_DISPATCH`), dùng bởi `POST /dispatch-record`.
@@ -794,7 +797,18 @@ export default {
                   ? { key: `maBan (${loai})`, column, ok: !READONLY_FIELD_TYPES.has(m.type), type: m.type, uiType: m.uiType ?? null }
                   : { key: `maBan (${loai})`, column, ok: false, reason: 'bảng không có cột này' };
               })
-            : [];
+            : // Cột SỐ leadtime cũng nằm ngoài map (worker tự sinh giá trị) —
+              // không đưa vào đây thì đổi tên cột bên Base sẽ âm thầm mất số
+              // mà `/fields` vẫn báo mọi thứ OK. Đã dính đúng bẫy này một lần.
+              [
+                (() => {
+                  const m = meta.get(COT_LEADTIME_GIAY);
+                  if (!m) return { key: 'leadtimeGiay (worker tính)', column: COT_LEADTIME_GIAY, ok: false, reason: 'bảng không có cột này' };
+                  if (READONLY_FIELD_TYPES.has(m.type)) return { key: 'leadtimeGiay (worker tính)', column: COT_LEADTIME_GIAY, ok: false, reason: 'cột tính toán/hệ thống' };
+                  if (m.type !== LARK_FIELD_NUMBER) return { key: 'leadtimeGiay (worker tính)', column: COT_LEADTIME_GIAY, ok: false, reason: `cột phải là kiểu Number, đang là type ${m.type}` };
+                  return { key: 'leadtimeGiay (worker tính)', column: COT_LEADTIME_GIAY, ok: true, type: m.type, uiType: m.uiType ?? null };
+                })(),
+              ];
         const mapping = Object.entries(activeMap).map(([key, column]) => {
           const m = meta.get(column);
           if (!m) return { key, column, ok: false, reason: 'bảng không có cột này' };
