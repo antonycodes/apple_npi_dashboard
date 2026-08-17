@@ -15,7 +15,7 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import type { WaitingZoneKey } from '@/types/desk';
 
 export default function DashboardPage() {
-  const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, loading, error, lastUpdated, isMock, refresh } =
+  const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, loading, error, lastUpdated, isMock, refresh } =
     useDashboardData();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -118,6 +118,21 @@ export default function DashboardPage() {
         {error && (
           <p className="mt-2 truncate text-xs text-red-600" title={error}>
             {error}
+          </p>
+        )}
+        {/* Bản ghi Master không suy ra được bàn — bị bỏ khỏi sơ đồ.
+            Trước đây bỏ IM LẶNG, và chính sự im lặng đó giấu bug "Lark form suy
+            bàn từ `Người`": dòng vẫn vào Base, dashboard vẫn xanh mượt, không ai
+            biết đang thiếu. Vàng chứ không đỏ: dashboard vẫn dùng được, đây là
+            cảnh báo dữ liệu chứ không phải lỗi kết nối. */}
+        {unresolvedDeskNames.length > 0 && (
+          <p
+            className="mt-2 truncate text-xs text-amber-700"
+            title={`Không xác định được bàn cho: ${unresolvedDeskNames.join(', ')}.\nDòng Master thiếu cả 3: mã bàn (TV_MãNV), MSNV người gửi (Submit by), và bản ghi Điều phối của khách.`}
+          >
+            ⚠ {unresolvedDeskNames.length} khách không xác định được bàn, không hiện trên sơ đồ:{' '}
+            {unresolvedDeskNames.slice(0, 3).join(', ')}
+            {unresolvedDeskNames.length > 3 && ` +${unresolvedDeskNames.length - 3} khách nữa`}
           </p>
         )}
       </header>

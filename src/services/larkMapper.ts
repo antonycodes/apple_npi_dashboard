@@ -28,25 +28,30 @@
  * loại trừ — 1 khách có thể vừa hiện ở khu chung, vừa hiện trong badge của
  * đúng bàn được gán, cho tới lúc NV bấm nhận.
  *
- * **Mã bàn dự phòng qua NV** (2026-08-06, tiếp — bug thật user báo: dòng
- * "Hoàn tất" trong `Master` bị bỏ trống `TV_MãNV`, khiến cả occupancy lẫn
- * "Chờ điều phối" bỏ sót dòng đó vì trước giờ bắt buộc phải có mã bàn mới xử
- * lý; sau đó lộ thêm ca `TV_MãNV` CÓ giá trị nhưng là mã option Lark thô chưa
- * resolve). Nếu `TV_MãNV` trống/không hợp lệ nhưng `Người` có giá trị, suy mã
- * bàn từ NV đó qua `DS Master` (xem `indexDeskCodeByStaffName`). Không khớp
- * được NV nào (hoặc NV đó không có dòng "Tư vấn"/"Thu cũ" trong `DS Master`)
- * thì vẫn bỏ qua dòng như cũ.
+ * **Mã bàn dự phòng — CHỈ theo MÃ, không theo tên người** (sửa 2026-08-17).
+ * `Master` nhận dữ liệu từ HAI nguồn: web app (`/record`, có `TV_MãNV`) và
+ * Lark form (`TV_MãNV` trống, `Người` = người bấm form làm trigger automation).
+ * Bản cũ suy bàn từ `Người` nên mọi dòng vào qua Lark form đều tô đỏ bàn của
+ * người vận hành — SAI VỊ TRÍ. Thứ tự hiện tại, xem `latestByDeskAndName`:
+ *
+ *   1. `TV_MãNV` trên dòng
+ *   2. `Submit by` (MSNV) → `DS Master` (`indexDeskCodeByStaffId`) — cứu khách
+ *      vào thẳng bàn, không qua Điều phối
+ *   3. Bảng Điều phối theo TÊN KHÁCH + ĐÚNG KHÂU (`Loại 2`)
+ *
+ * Trượt cả ba thì bỏ dòng như cũ — không đoán bừa. Dòng `TV_MãNV` là mã option
+ * Lark thô chưa resolve cũng coi như trống (`normalizeDeskCode` trả `null`).
  *
  * **Backup giao cho cả Tư vấn lẫn Thu cũ** (2026-08-06): Backup không phải
  * vị trí vật lý riêng, nhưng mã Backup vẫn phải được giữ để theo dõi đủ khâu.
  * BK1..BK8 thuộc TV1..TV8; BK11..BK13 thuộc TC1..TC3. Khi tính trạng thái
  * bàn, `normalizeDeskCode` quy mã BK về bàn chính tương ứng. Khi hiển thị
  * dòng "Nhân sự", mã BK vẫn giữ nguyên, không gộp thành TV/TC.
- * Khi build map dự phòng qua tên NV,
- * `indexDeskCodeByStaffName` CHỈ lấy dòng `DS Master` có "Loại" = "Tư
- * vấn"/"Thu cũ" (bàn chính, vật lý) — bỏ qua dòng "Loại" = "Backup"/"Kho",
- * để 1 khách "Backup" được ghi Tiếp nhận sẽ tính đúng vào bàn CHÍNH thường
- * ngày của NV đó (Tư vấn hoặc Thu cũ), không phải 1 vị trí Backup riêng.
+ * Khi build map dự phòng qua MSNV, `indexDeskCodeByStaffId` CHỈ lấy dòng
+ * `DS Master` có "Loại" = "Tư vấn"/"Thu cũ" (bàn chính, vật lý) — bỏ qua dòng
+ * "Loại" = "Backup"/"Kho", để 1 khách "Backup" được ghi Tiếp nhận sẽ tính đúng
+ * vào bàn CHÍNH thường ngày của NV đó (Tư vấn hoặc Thu cũ), không phải 1 vị
+ * trí Backup riêng.
  */
 import {
   PRIMARY_DESK_LOAI,
@@ -176,6 +181,17 @@ export interface MappedData {
    * phần nào của dashboard đọc tới (xem `RosterEntry`).
    */
   roster: RosterEntry[];
+  /**
+   * Tên khách ở các dòng `Master` KHÔNG xác định được bàn (trượt cả 3 nấc, xem
+   * `latestByDeskAndName`) — những dòng bị bỏ hẳn.
+   *
+   * Có mặt ở đây để dashboard NÓI RA thay vì bỏ im lặng. Chính sự im lặng đó
+   * đã giấu bug "Lark form suy bàn từ `Người`" (2026-08-17): dòng vẫn vào Base,
+   * dashboard vẫn xanh mượt, không ai biết đang thiếu.
+   *
+   * Trùng tên đã gộp; sắp theo thứ tự gặp để danh sách ổn định giữa các lần poll.
+   */
+  unresolvedDeskNames: string[];
 }
 
 const END_FLOW_DONE = 'end flow';
@@ -332,7 +348,6 @@ function clusterFromDeskCode(code: string | null): ClusterKey | null {
 
 interface DeskGroup {
   customers: DeskCustomer[];
-  staff: string | null;
 }
 
 /** 1 dòng `Master`, giữ nguyên field thô cần cho bước "chỉ lấy dòng mới nhất". */
@@ -341,7 +356,6 @@ interface MasterRow {
   name: string;
   time: number;
   status: string | null;
-  staff: string | null;
 }
 
 /**
@@ -352,29 +366,52 @@ interface MasterRow {
  * 2026-08-05: STT4 đã Hoàn tất nhưng vẫn hiện ở bàn Tư vấn). Gom theo cặp
  * (mã bàn, tên khách), chỉ giữ dòng có `Thời gian` LỚN NHẤT cho mỗi cặp.
  *
- * `deskCodeByStaffName` (2026-08-06, tiếp) là DỰ PHÒNG: nếu dòng `Master`
- * không có `TV_MãNV` (bug thật user báo — dòng "Hoàn tất" bị bỏ trống mã bàn)
- * nhưng CÓ `Người`, suy mã bàn từ NV đó qua `DS Master` (mỗi NV Tư vấn gắn 1
- * bàn cố định, xem `indexDeskCodeByStaffName`). Không tìm được thì bỏ qua
- * dòng như cũ (không đoán bừa).
+ * **Vị trí KHÔNG BAO GIỜ suy từ cột `Người`** (bỏ 2026-08-17, thay cho fallback
+ * `deskCodeByStaffName` cũ). Dữ liệu vào bảng này từ HAI nguồn:
+ *
+ * - Web app (`/record`): có `TV_MãNV` = mã bàn thật, `Người` để trống.
+ * - Lark form: `TV_MãNV` trống, `Người` là NGƯỜI BẤM FORM (dùng làm trigger cho
+ *   automation bên Lark) — không phải NV ngồi bàn.
+ *
+ * Suy bàn từ `Người` nên tô đỏ đúng bàn của người vận hành trong `DS Master`,
+ * tức SAI VỊ TRÍ mỗi khi khách vào qua Lark form. Giờ chỉ còn hai nguồn, cả
+ * hai đều khoá theo đúng đối tượng cần biết:
+ *
+ * 1. `TV_MãNV` ghi thẳng trên dòng — mã bàn.
+ * 2. `Submit by` (MSNV) → roster `DS Master`. Cứu khách VÀO THẲNG bàn không
+ *    qua Điều phối: dòng đó không có gì bên Điều phối để tra. Đặt TRƯỚC nấc 3
+ *    vì dữ liệu của chính dòng đó đáng tin hơn tra chéo bảng khác (phân công
+ *    cũ có thể đã đổi).
+ * 3. Bảng Điều phối, tra theo TÊN KHÁCH **và ĐÚNG KHÂU** (`Loại 2`): một khách
+ *    có thể lần lượt qua TV, TC rồi BK, nên không được lấy bừa cột đầu tiên
+ *    khác rỗng.
+ *
+ * Cả ba trượt thì bỏ dòng như cũ — không đoán bừa.
  */
 function latestByDeskAndName(
   rows: LarkRecord[],
   fm: MasterFieldMap,
-  deskCodeByStaffName: Map<string, string>,
-  dispatchDeskByName: Map<string, string>,
-): MasterRow[] {
+  dispatchDetailByName: Map<string, DispatchDetail>,
+  deskCodeByStaffId: Map<string, string>,
+): { rows: MasterRow[]; unresolvedNames: string[] } {
   const latest = new Map<string, MasterRow>();
+  // Set để tên trùng chỉ đếm 1 lần (1 khách thường có cả dòng Tiếp nhận lẫn
+  // Hoàn tất), nhưng vẫn giữ thứ tự gặp — danh sách ổn định giữa các lần poll.
+  const unresolved = new Set<string>();
   for (const r of rows) {
     const name = cellToString(fieldValue(r.fields, fm.name));
     if (!name) continue;
-    const staff = cellToString(fieldValue(r.fields, fm.staff));
+    const stage = normalizedStage(cellToString(fieldValue(r.fields, fm.stage)));
+    const msnv = cellToString(fieldValue(r.fields, fm.submitBy))?.trim().toUpperCase();
     const deskCode =
       normalizeDeskCode(cellToString(fieldValue(r.fields, fm.deskCode))) ??
-      (staff ? deskCodeByStaffName.get(staff) ?? null : null) ??
-      dispatchDeskByName.get(name) ??
+      (msnv ? deskCodeByStaffId.get(msnv) ?? null : null) ??
+      normalizeDeskCode(deskCodeFromDispatch(dispatchDetailByName.get(name), stage)) ??
       null;
-    if (!deskCode) continue;
+    if (!deskCode) {
+      unresolved.add(name);
+      continue;
+    }
     const time = cellToNumber(fieldValue(r.fields, fm.time));
     const key = `${deskCode} ${name}`;
     const prev = latest.get(key);
@@ -384,19 +421,39 @@ function latestByDeskAndName(
         name,
         time,
         status: cellToString(fieldValue(r.fields, fm.status)),
-        staff,
       });
     }
   }
-  return [...latest.values()];
+  return { rows: [...latest.values()], unresolvedNames: [...unresolved] };
+}
+
+/**
+ * Mã bàn đã điều phối cho khách này Ở ĐÚNG KHÂU của dòng `Master`.
+ *
+ * `Loại 2` trống/không nhận ra thì mới rơi về thứ tự ưu tiên cũ (Backup → Thu
+ * cũ → Tư vấn) — chấp nhận đoán, nhưng chỉ khi thật sự không có gì để phân
+ * biệt, thay vì đoán mặc định như trước.
+ */
+function deskCodeFromDispatch(
+  detail: DispatchDetail | undefined,
+  stage: 'consult' | 'tradein' | 'backup' | null,
+): string | null {
+  if (!detail) return null;
+  if (stage === 'backup') return detail.dsBackup;
+  if (stage === 'tradein') return detail.dsThuCu;
+  if (stage === 'consult') return detail.dsTuVan;
+  return detail.dsBackup ?? detail.dsThuCu ?? detail.dsTuVan;
 }
 
 /**
  * Gom khách đang "Tiếp nhận" (bảng `Master`) theo MÃ BÀN (`TV_MãNV`, khớp
  * thẳng `TablePosition.id`), từ danh sách ĐÃ dedupe theo dòng mới nhất mỗi
- * cặp (bàn, khách) — xem `latestByDeskAndName`. Sắp theo "Thời gian" tăng
- * dần. Cũng lấy luôn tên NV (`Người`) — dòng nào có giá trị trước thì dùng
- * (nhiều dòng cùng bàn nên luôn cùng 1 NV trong thực tế).
+ * cặp (bàn, khách) — xem `latestByDeskAndName`. Sắp theo "Thời gian" tăng dần.
+ *
+ * KHÔNG còn lấy tên NV từ cột `Người`: dòng vào qua Lark form mang tên người
+ * bấm form, hiện lên node bàn là sai người. Tên NV giờ lấy từ roster
+ * `DS Master` theo mã bàn (`staffNameByDeskCode`), nguồn duy nhất biết ai ngồi
+ * bàn nào.
  */
 function indexMasterByDeskCode(
   latestRows: MasterRow[],
@@ -404,7 +461,7 @@ function indexMasterByDeskCode(
   dispatchDetailByName: Map<string, DispatchDetail>,
   hyperlinkByName: Map<string, string>,
 ): Map<string, DeskGroup> {
-  const entries: Array<{ deskCode: string; time: number; staff: string | null; customer: DeskCustomer }> = [];
+  const entries: Array<{ deskCode: string; time: number; customer: DeskCustomer }> = [];
 
   for (const row of latestRows) {
     if (row.status !== STATUS_RECEIVED) continue;
@@ -413,7 +470,6 @@ function indexMasterByDeskCode(
     entries.push({
       deskCode: row.deskCode,
       time: row.time,
-      staff: row.staff,
       customer: {
         stt: ci?.stt ?? null,
         name: row.name,
@@ -434,9 +490,8 @@ function indexMasterByDeskCode(
   entries.sort((a, b) => a.time - b.time);
   const result = new Map<string, DeskGroup>();
   for (const e of entries) {
-    const g = result.get(e.deskCode) ?? { customers: [], staff: null };
+    const g = result.get(e.deskCode) ?? { customers: [] };
     g.customers.push(e.customer);
-    if (!g.staff && e.staff) g.staff = e.staff;
     result.set(e.deskCode, g);
   }
   return result;
@@ -527,12 +582,16 @@ function normalizedStage(raw: string | null): 'consult' | 'tradein' | 'backup' |
  * Ghi đè dữ liệu Điều phối bằng người/bàn THỰC TẾ đã tiếp nhận trong
  * SS_Master. Chỉ ghi đè đúng khâu của từng record (`Loại 2`), vì cùng một
  * khách có thể lần lượt qua TV, TC và BK ở các thời điểm khác nhau.
+ *
+ * Cũng KHÔNG suy bàn từ `Người` nữa — cùng lý do ở `latestByDeskAndName`: dòng
+ * vào qua Lark form mang tên người bấm form, suy ra là ghi nhầm bàn vào chi
+ * tiết phân công của khách.
  */
 function mergeReceivedDetailByName(
   dispatchDetails: Map<string, DispatchDetail>,
   rows: LarkRecord[],
   fm: MasterFieldMap,
-  deskCodeByStaffName: Map<string, string>,
+  deskCodeByStaffId: Map<string, string>,
 ): Map<string, DispatchDetail> {
   const result = new Map<string, DispatchDetail>();
   for (const [name, detail] of dispatchDetails) result.set(name, { ...detail });
@@ -546,16 +605,12 @@ function mergeReceivedDetailByName(
     const stage = normalizedStage(cellToString(fieldValue(row.fields, fm.stage)));
     if (!name || (status !== STATUS_RECEIVED && status !== STATUS_COMPLETED)) continue;
 
-    const staff = cellToString(fieldValue(row.fields, fm.staff));
     const rawDeskCode = cellToString(fieldValue(row.fields, fm.deskCode));
-    const dispatchDetail = dispatchDetails.get(name);
-    const dispatchDeskCode = normalizeDeskCode(
-      dispatchDetail?.dsBackup ?? dispatchDetail?.dsThuCu ?? dispatchDetail?.dsTuVan ?? null,
-    );
+    const msnv = cellToString(fieldValue(row.fields, fm.submitBy))?.trim().toUpperCase();
     const primaryDeskCode =
       normalizeDeskCode(rawDeskCode) ??
-      dispatchDeskCode ??
-      (staff ? deskCodeByStaffName.get(staff) ?? null : null);
+      (msnv ? deskCodeByStaffId.get(msnv) ?? null : null) ??
+      normalizeDeskCode(deskCodeFromDispatch(dispatchDetails.get(name), stage));
     const previous = result.get(name) ?? { dsTuVan: null, dsThuCu: null, dsBackup: null };
 
     // BK.X/BK.X2 are standalone Backup nodes. Once SS_Master records the
@@ -603,23 +658,51 @@ function indexWaitingCountByDeskCode(rows: LarkRecord[], fm: DsMasterFieldMap): 
 }
 
 /**
- * Tên NV → mã bàn CHÍNH (bảng `DS Master`'s "NV Tư vấn"/"STT bàn", lọc theo
- * "Loại" — 2026-08-06, tiếp: 1 NV có thể có NHIỀU dòng trong `DS Master` —
- * bàn chính (Tư vấn HOẶC Thu cũ) VÀ riêng 1 dòng "Backup" (không phải vị trí
- * vật lý, giờ giao được cho cả NV Tư vấn lẫn Thu cũ) — CHỈ lấy dòng
- * `PRIMARY_DESK_LOAI` ("Tư vấn"/"Thu cũ"), bỏ qua "Backup"/"Kho". 1 NV có ≥ 2
- * dòng bàn chính (hiếm, roster test data) thì lấy dòng ĐẦU TIÊN gặp — ổn định
- * nhưng không phân biệt được ca nào đang thật sự áp dụng, chấp nhận được vì
- * đây chỉ là dự phòng khi `TV_MãNV` không tự resolve được.
+ * Mã bàn → tên NV ngồi bàn đó (`DS Master`: "STT bàn" → "NV Tư vấn").
+ *
+ * Đây là nguồn DUY NHẤT cho tên NV hiện trên node bàn. Trước đây tên lấy từ
+ * cột `Người` của bảng `Master`, nhưng dòng vào qua Lark form đặt ở đó tên
+ * NGƯỜI BẤM FORM (trigger automation) chứ không phải NV ngồi bàn — hiện lên
+ * sơ đồ là sai người. Roster thì luôn đúng theo định nghĩa.
+ *
+ * KHÔNG lọc `PRIMARY_DESK_LOAI` ở đây, khác với `indexDeskCodeByStaffId`: bộ
+ * lọc đó cần cho chiều NGƯỢC (1 người có nhiều dòng nên phải chọn dòng bàn
+ * chính), còn chiều này khoá là MÃ BÀN — vốn duy nhất mỗi dòng. Lọc chỉ làm
+ * các node Backup mất tên NV. Trùng mã bàn (đổi ca) → lấy dòng đầu tiên, cùng
+ * quy ước với các index khác trong file này.
  */
-function indexDeskCodeByStaffName(rows: LarkRecord[], fm: DsMasterFieldMap): Map<string, string> {
+function indexStaffNameByDeskCode(rows: LarkRecord[], fm: DsMasterFieldMap): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const r of rows) {
+    const staffName = cellToString(r.fields[fm.staff]);
+    const deskCode = normalizeDeskCode(cellToString(r.fields[fm.code]));
+    if (staffName && deskCode && !result.has(deskCode)) result.set(deskCode, staffName);
+  }
+  return result;
+}
+
+/**
+ * MSNV → mã bàn CHÍNH (`DS Master`: "MSNV" → "STT bàn").
+ *
+ * Đây là đường cứu khách VÀO THẲNG bàn, không qua Điều phối: dòng đó không có
+ * gì trong bảng Điều phối để tra, nên nếu `TV_MãNV` cũng trống thì MSNV ở cột
+ * `Submit by` là manh mối DUY NHẤT còn lại.
+ *
+ * Khác hẳn fallback theo `Người` đã bỏ: MSNV là MÃ NHÂN VIÊN cố định, không
+ * phải tên người bấm form. Vẫn phải là mã của NV NGỒI BÀN — Lark form để người
+ * vận hành điền MSNV của chính họ thì lại sai bàn y như cũ.
+ *
+ * Chỉ lấy dòng `PRIMARY_DESK_LOAI` (bỏ "Backup"/"Kho" — không phải vị trí vật
+ * lý). 1 NV có ≥ 2 dòng bàn chính → lấy dòng đầu tiên gặp.
+ */
+function indexDeskCodeByStaffId(rows: LarkRecord[], fm: DsMasterFieldMap): Map<string, string> {
   const result = new Map<string, string>();
   for (const r of rows) {
     const loai = cellToString(r.fields[fm.loai]);
     if (!loai || !PRIMARY_DESK_LOAI.has(loai)) continue;
-    const staffName = cellToString(r.fields[fm.staff]);
+    const staffId = cellToString(r.fields[fm.staffId])?.trim().toUpperCase();
     const deskCode = normalizeDeskCode(cellToString(r.fields[fm.code]));
-    if (staffName && deskCode && !result.has(staffName)) result.set(staffName, deskCode);
+    if (staffId && deskCode && !result.has(staffId)) result.set(staffId, deskCode);
   }
   return result;
 }
@@ -627,8 +710,8 @@ function indexDeskCodeByStaffName(rows: LarkRecord[], fm: DsMasterFieldMap): Map
 /**
  * Roster nhân sự từ `Master_DS`, giữ NGUYÊN VĂN cột "Loại" (kể cả "Kho" —
  * không có trên sơ đồ) và giữ cả dòng chưa gán NV. Khác hẳn
- * `indexDeskCodeByStaffName` (lọc `PRIMARY_DESK_LOAI`, khoá theo TÊN NV, phục
- * vụ việc suy mã bàn): ở đây khoá là MÃ BÀN nên các loại không đụng nhau, và
+ * `indexDeskCodeByStaffId` (lọc `PRIMARY_DESK_LOAI`, khoá theo MSNV, phục vụ
+ * việc suy mã bàn): ở đây khoá là MÃ BÀN nên các loại không đụng nhau, và
  * form Điều phối cần đúng bộ giá trị "Loại" thật của Lark để khớp field
  * single-select bên Base. Trùng mã bàn (đổi ca) → lấy dòng đầu tiên, cùng quy
  * ước với các index khác trong file này.
@@ -655,23 +738,24 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
   const { checkin, master, dispatch, dsMaster } = fields;
   const checkinByName = indexCheckinByName(tables.checkin, checkin);
   const hyperlinkByName = indexMasterHyperlinkByName(tables.master, master);
-  const deskCodeByStaffName = indexDeskCodeByStaffName(tables.dsMaster, dsMaster);
+  const staffNameByDeskCode = indexStaffNameByDeskCode(tables.dsMaster, dsMaster);
+  const deskCodeByStaffId = indexDeskCodeByStaffId(tables.dsMaster, dsMaster);
   const dispatchDetailByName = indexDispatchDetailByName(tables.dispatch, dispatch);
-  const dispatchDeskByName = new Map<string, string>();
-  for (const [name, detail] of dispatchDetailByName) {
-    const code = normalizeDeskCode(detail.dsBackup ?? detail.dsThuCu ?? detail.dsTuVan);
-    if (code) dispatchDeskByName.set(name, code);
-  }
   const personnelDetailByName = mergeReceivedDetailByName(
     dispatchDetailByName,
     tables.master,
     master,
-    deskCodeByStaffName,
+    deskCodeByStaffId,
   );
   // Dedupe 1 LẦN — dùng chung cho cả occupancy (dưới) lẫn "Chờ điều phối"
   // (xa hơn), tránh 1 dòng "Tiếp nhận" cũ chưa xoá đè lên dòng "Hoàn tất" mới
   // hơn cho cùng cặp (bàn, khách) — xem `latestByDeskAndName`.
-  const latestMasterRows = latestByDeskAndName(tables.master, master, deskCodeByStaffName, dispatchDeskByName);
+  const { rows: latestMasterRows, unresolvedNames: unresolvedDeskNames } = latestByDeskAndName(
+    tables.master,
+    master,
+    dispatchDetailByName,
+    deskCodeByStaffId,
+  );
   const activeByDeskCode = indexMasterByDeskCode(latestMasterRows, checkinByName, personnelDetailByName, hyperlinkByName);
   const nextSttByDeskCode = indexNextSttByDeskCode(tables.dsMaster, dsMaster);
   const waitingCountByDeskCode = indexWaitingCountByDeskCode(tables.dsMaster, dsMaster);
@@ -728,7 +812,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
 
     const primary = receivedCustomers[0];
     statesById[code] = {
-      staffName: group?.staff ?? null,
+      staffName: staffNameByDeskCode.get(code) ?? null,
       waiting,
       nextWaitingStt: nextSttByDeskCode.get(code) ?? null,
       currentStatus: occupied ? 'Đang tiếp nhận' : 'Rảnh',
@@ -848,5 +932,6 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
     waitingDispatch,
     endFlow,
     roster: buildRoster(tables.dsMaster, dsMaster),
+    unresolvedDeskNames,
   };
 }

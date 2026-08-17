@@ -126,7 +126,7 @@ const master: LarkRecord[] = [
   // form Hoàn tất ở BK3 phải tự mặc định sang "Thu máy ngay" — vì đủ 3 thứ tức
   // máy đã cầm trên tay. Đặt ở bàn KHÁC BK3 để không đẩy khách khỏi bàn.
   { record_id: 'ma_prev_bk', fields: { 'TV_MãNV': 'TC3', 'Trạng thái': HOAN_TAT, 'Họ và tên': 'Ngô Gia Huy', 'Người': 'Thịnh_OPs', 'Thời gian': 15400, 'STT Input': '15', 'Thu lại máy': 'Thu máy sau', 'Scan QR máy cũ': 'QR-BK-12345', 'Scan IMEI': '860123456789012', 'Hình nghiệm thu máy cũ': [{ file_token: 'MOCKTOKEN_BK', name: 'bk-cu.jpg' }] } },
-  { record_id: 'ma_13', fields: { 'TV_MãNV': 'optZ9fQwLk', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Lý Gia Bảo', 'Người': 'SơnTrà_AppleMaster_AM&WS', 'Thời gian': 14500 } },
+  { record_id: 'ma_13', fields: { 'TV_MãNV': 'optZ9fQwLk', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Lý Gia Bảo', 'Người': 'Thịnh_OPs', 'Submit by': 'S00002', 'Thời gian': 14500 } },
   { record_id: 'ma_5', fields: { 'TV_MãNV': 'TV2', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Phạm Đức Dũng', 'Người': 'TIẾN THÀNH_NV_VHWS', 'Thời gian': 3000 } },
   { record_id: 'ma_6', fields: { 'TV_MãNV': 'TV2', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Bùi Thanh Hà', 'Người': 'TIẾN THÀNH_NV_VHWS', 'Thời gian': 10000 } },
   // "Hyperlink Master" = link nút Hoàn tất trên màn hình nhân viên `#/nv`.
@@ -145,15 +145,19 @@ const master: LarkRecord[] = [
   { record_id: 'ma_9', fields: { 'TV_MãNV': 'TV1', 'Trạng thái': TIEP_NHAN, 'Họ và tên': 'Đặng Gia Hân', 'Người': 'Dương Đình Hưng', 'Thời gian': 11500 } },
   { record_id: 'ma_10', fields: { 'TV_MãNV': 'TV1', 'Trạng thái': HOAN_TAT, 'Họ và tên': 'Đặng Gia Hân', 'Người': 'Dương Đình Hưng', 'Thời gian': 12000 } },
   // Demo bug thật user báo 2026-08-06: NV ghi "Hoàn tất" nhưng bỏ trống cột
-  // "TV_MãNV" (không có key này luôn, giống hệt JSON thật user gửi) — CHỈ có
-  // "Người". Phải suy mã bàn qua `dsMaster` (staff "Đình Bảo_NV_VHWS" → TV8).
-  { record_id: 'ma_11', fields: { 'Trạng thái': HOAN_TAT, 'Họ và tên': 'Lâm Bảo Ngọc', 'Người': 'Đình Bảo_NV_VHWS', 'Thời gian': 12800 } },
+  // "TV_MãNV" (không có key này luôn, giống hệt JSON thật user gửi). Phải suy
+  // mã bàn qua MSNV ở "Submit by" → `dsMaster` ("S00008" → TV8).
+  //
+  // "Người" ở đây CỐ Ý để tên KHÁC (người bấm form Lark, xem module doc
+  // `larkMapper`): nếu mapper lỡ dùng lại `Người` để suy bàn thì dòng này nhảy
+  // sang bàn khác và test sẽ bắt được ngay.
+  { record_id: 'ma_11', fields: { 'Trạng thái': HOAN_TAT, 'Họ và tên': 'Lâm Bảo Ngọc', 'Người': 'Thịnh_OPs', 'Submit by': 'S00008', 'Thời gian': 12800 } },
   // Demo bug thật user báo 2026-08-06 (tiếp): NV ghi nhận đầy đủ, "TV_MãNV"
   // CÓ giá trị nhưng là mã option Lark thô (field single-select dùng options
   // ĐỘNG, xem `larkMapper.ts`'s `isUnresolvedOptionId`) — phải coi như KHÔNG
-  // có giá trị rồi rơi về fallback qua NV "THIỆU NHÂN_NV_VHWS" → TV5
-  // (`dsm_4` bên dưới), KHÔNG được dùng thẳng "opt6TDHxPP" làm khoá bàn.
-  { record_id: 'ma_12', fields: { 'TV_MãNV': 'opt6TDHxPP', 'Trạng thái': TIEP_NHAN, 'Loại 2': 'Backup', 'Họ và tên': 'Trịnh Bảo Châu', 'Người': 'THIỆU NHÂN_NV_VHWS', 'Thời gian': 13500 } },
+  // có giá trị rồi rơi về fallback qua MSNV "S00005" → TV5 (`dsm_4` bên dưới),
+  // KHÔNG được dùng thẳng "opt6TDHxPP" làm khoá bàn.
+  { record_id: 'ma_12', fields: { 'TV_MãNV': 'opt6TDHxPP', 'Trạng thái': TIEP_NHAN, 'Loại 2': 'Backup', 'Họ và tên': 'Trịnh Bảo Châu', 'Người': 'Thịnh_OPs', 'Submit by': 'S00005', 'Thời gian': 13500 } },
 ];
 
 // "Master Điều phối" — khách đã được gán vào 1 bàn cụ thể, CHƯA có dòng
@@ -185,23 +189,24 @@ const dispatch: LarkRecord[] = [
 
 // "DS Master" — CHỈ đọc 3 field: "STT tiếp theo" mỗi bàn, "NV Tư vấn" +
 // "Loại" (dự phòng suy mã bàn CHÍNH — 2026-08-06, xem larkMapper.ts's
-// `indexDeskCodeByStaffName`, CHỈ lấy dòng "Loại"="Tư vấn"/"Thu cũ", bỏ qua
+// `indexDeskCodeByStaffId`, CHỈ lấy dòng "Loại"="Tư vấn"/"Thu cũ", bỏ qua
 // "Backup"). Mọi field khác của bảng này không dùng, xem larkConfig.ts's
 // module doc. Demo đúng 2 bàn đang có khách chờ (TV4/TV6) — giá trị khớp STT
 // của khách đang chờ ở `dispatch`. `dsm_3`/`dsm_4` demo NV↔bàn chính dùng cho
-// `ma_11`/`ma_12` ở trên. `dsm_5`+`dsm_6` demo ĐÚNG 1 NV có CẢ bàn chính (Thu
-// cũ, TC2) lẫn 1 dòng Backup riêng (BK2) — dùng cho `ma_13` (Lý Gia Bảo, mã
-// option thô) phải quy về TC2 (dòng Thu cũ), TUYỆT ĐỐI không lấy "BK2" — xác
-// nhận đúng cơ chế lọc "Loại", không phải trùng hợp do chỉ có 1 dòng.
+// `ma_11`/`ma_12` ở trên. `dsm_5`+`dsm_6` demo ĐÚNG 1 NV (CÙNG MSNV "S00002")
+// có CẢ bàn chính (Thu cũ, TC2) lẫn 1 dòng Backup riêng (BK2) — dùng cho
+// `ma_13` (Lý Gia Bảo, mã option thô) phải quy về TC2 (dòng Thu cũ), TUYỆT ĐỐI
+// không lấy "BK2" — xác nhận đúng cơ chế lọc "Loại", không phải trùng hợp do
+// chỉ có 1 dòng.
 const dsMaster: LarkRecord[] = [
   { record_id: 'dsm_1', fields: { 'STT bàn': 'TV4', 'STT tiếp theo': '7', 'Sl khách chờ': 1, 'NV Tư vấn': 'M Thành_CV_VHWS&AM', 'Loại': 'Tư vấn' } },
   // TV6 KHÔNG có link theo khách (xem `ci_8`) — demo nút Tiếp nhận/Hoàn tất
   // rơi về link cấp BÀN của màn hình nhân viên `#/nv`.
   { record_id: 'dsm_2', fields: { 'STT bàn': 'TV6', 'STT tiếp theo': '8', 'Sl khách chờ': 1, 'Hyperlink Tiếp nhận': 'https://example.larksuite.com/base/tiep-nhan?ban=TV6', 'Hyperlink Hoàn tất': 'https://example.larksuite.com/base/hoan-tat?ban=TV6' } },
-  { record_id: 'dsm_3', fields: { 'STT bàn': 'TV8', 'NV Tư vấn': 'Đình Bảo_NV_VHWS', 'Loại': 'Tư vấn' } },
-  { record_id: 'dsm_4', fields: { 'STT bàn': 'TV5', 'NV Tư vấn': 'THIỆU NHÂN_NV_VHWS', 'Loại': 'Tư vấn' } },
-  { record_id: 'dsm_5', fields: { 'STT bàn': 'TC2', 'NV Tư vấn': 'SơnTrà_AppleMaster_AM&WS', 'Loại': 'Thu cũ' } },
-  { record_id: 'dsm_6', fields: { 'STT bàn': 'BK2', 'NV Tư vấn': 'SơnTrà_AppleMaster_AM&WS', 'Loại': 'Backup' } },
+  { record_id: 'dsm_3', fields: { 'STT bàn': 'TV8', 'NV Tư vấn': 'Đình Bảo_NV_VHWS', MSNV: 'S00008', 'Loại': 'Tư vấn' } },
+  { record_id: 'dsm_4', fields: { 'STT bàn': 'TV5', 'NV Tư vấn': 'THIỆU NHÂN_NV_VHWS', MSNV: 'S00005', 'Loại': 'Tư vấn' } },
+  { record_id: 'dsm_5', fields: { 'STT bàn': 'TC2', 'NV Tư vấn': 'SơnTrà_AppleMaster_AM&WS', MSNV: 'S00002', 'Loại': 'Thu cũ' } },
+  { record_id: 'dsm_6', fields: { 'STT bàn': 'BK2', 'NV Tư vấn': 'SơnTrà_AppleMaster_AM&WS', MSNV: 'S00002', 'Loại': 'Backup' } },
   // Kịch bản TV1 (2026-08-12): STT tiếp theo = 4, đang có 1 khách chờ.
   { record_id: 'dsm_7', fields: { 'STT bàn': 'TV1', 'STT tiếp theo': '4', 'Sl khách chờ': 1, 'NV Tư vấn': 'Dương Đình Hưng', MSNV: 'NV001', Username: 'duong.dinh.hung', 'Loại': 'Tư vấn' } },
 ];
