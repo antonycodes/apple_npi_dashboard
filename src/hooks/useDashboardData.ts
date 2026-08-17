@@ -29,6 +29,7 @@ interface RawState {
   waitingDispatch: WaitingCustomer[];
   endFlow: WaitingCustomer[];
   roster: RosterEntry[];
+  unresolvedDeskNames: string[];
 }
 
 const EMPTY: RawState = {
@@ -39,6 +40,7 @@ const EMPTY: RawState = {
   waitingDispatch: [],
   endFlow: [],
   roster: [],
+  unresolvedDeskNames: [],
 };
 
 export interface UseDashboardDataResult {
@@ -52,6 +54,8 @@ export interface UseDashboardDataResult {
   endFlow: WaitingCustomer[];
   /** Roster nhân sự (`Master_DS`) — chỉ form Điều phối dùng, không vẽ gì lên sơ đồ. */
   roster: RosterEntry[];
+  /** Tên khách ở các dòng `Master` không xác định được bàn — bị bỏ khỏi sơ đồ. */
+  unresolvedDeskNames: string[];
   loading: boolean;
   error: string | null;
   lastUpdated: Date | null;
@@ -129,6 +133,7 @@ export function useDashboardData(): UseDashboardDataResult {
     waitingDispatch: raw.waitingDispatch,
     endFlow: raw.endFlow,
     roster: raw.roster,
+    unresolvedDeskNames: raw.unresolvedDeskNames,
     loading,
     error,
     lastUpdated,

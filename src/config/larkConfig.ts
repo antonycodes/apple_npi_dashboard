@@ -76,8 +76,17 @@ export interface MasterFieldMap {
   /** "Tiếp nhận" = đang phục vụ · "Hoàn tất" = đã xong (bỏ qua). */
   status: string;
   name: string;
-  /** NV đang tiếp nhận khách này (person field) — hiện lên popover "Tên NV". */
+  /**
+   * Person field "Người". CHỈ dùng làm trigger cho automation bên Lark —
+   * KHÔNG dùng để suy vị trí bàn: dòng vào qua Lark form đặt ở đây tên NGƯỜI
+   * BẤM FORM, không phải NV ngồi bàn (xem `larkMapper.latestByDeskAndName`).
+   */
   staff: string;
+  /**
+   * MSNV người gửi bản ghi. Web app ghi thẳng; Lark form nên điền để dòng
+   * không có `deskCode` vẫn suy được bàn qua roster `DS Master` (cột `MSNV`).
+   */
+  submitBy: string;
   /** Phân loại khâu của bản ghi SS_Master: "Tư vấn" / "Thu cũ" / "Backup". */
   stage: string;
   hyperlink: string;
@@ -116,7 +125,7 @@ export interface DispatchFieldMap {
  * `DS Master` — QUAY LẠI (2026-08-05, tiếp) nhưng CHỈ đọc đúng 3 field: "STT
  * tiếp theo" mỗi bàn, "NV Tư vấn" + "Loại" (2026-08-06, tiếp — dùng để suy mã
  * bàn CHÍNH khi `Master`'s `TV_MãNV` bị bỏ trống/không hợp lệ, xem
- * larkMapper.ts's `indexDeskCodeByStaffName`). Bảng này KHÔNG dùng cho bất cứ
+ * larkMapper.ts's `indexDeskCodeByStaffId`). Bảng này KHÔNG dùng cho bất cứ
  * việc gì khác (occupancy/staff/status chính vẫn đọc từ `Master` như trước,
  * xem module doc). `code` là khoá join theo mã bàn, giống `MasterFieldMap.deskCode`.
  */
@@ -180,6 +189,7 @@ export const DEFAULT_MASTER_FIELDS: MasterFieldMap = {
   status: 'Trạng thái',
   name: 'Họ và tên',
   staff: 'Người',
+  submitBy: 'Submit by',
   stage: 'Loại 2',
   hyperlink: 'Hyperlink Master',
   time: 'Thời gian',
@@ -211,7 +221,7 @@ export const DEFAULT_DS_MASTER_FIELDS: DsMasterFieldMap = {
 /** Giá trị `Master.Trạng thái` nghĩa là "đang được tiếp nhận". */
 export const STATUS_RECEIVED = 'Tiếp nhận';
 
-/** `DS Master.Loại` — 2 giá trị coi là "bàn chính" (vật lý, có trên sơ đồ), dùng ở `indexDeskCodeByStaffName`. */
+/** `DS Master.Loại` — 2 giá trị coi là "bàn chính" (vật lý, có trên sơ đồ), dùng ở `indexDeskCodeByStaffId`. */
 export const PRIMARY_DESK_LOAI = new Set(['Tư vấn', 'Thu cũ']);
 
 /** Giá trị `Master.Trạng thái` nghĩa là NV vừa xong 1 khách — nguồn "Chờ điều phối". */
