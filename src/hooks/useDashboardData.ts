@@ -11,6 +11,7 @@ import { mockLarkTables } from '@/data/mockLarkData';
 import { DEFAULT_FIELD_CONFIG } from '@/config/larkSettings';
 import { fetchLarkData } from '@/services/larkService';
 import { mapDeskStates } from '@/services/larkMapper';
+import { mapPendingDevices, type StaffCustomer } from '@/services/staffMapper';
 import { startSerializedPolling } from './serializedPolling';
 import {
   computeSummary,
@@ -30,6 +31,7 @@ interface RawState {
   endFlow: WaitingCustomer[];
   roster: RosterEntry[];
   unresolvedDeskNames: string[];
+  pendingDevice: StaffCustomer[];
 }
 
 const EMPTY: RawState = {
@@ -41,6 +43,7 @@ const EMPTY: RawState = {
   endFlow: [],
   roster: [],
   unresolvedDeskNames: [],
+  pendingDevice: [],
 };
 
 export interface UseDashboardDataResult {
@@ -56,6 +59,8 @@ export interface UseDashboardDataResult {
   roster: RosterEntry[];
   /** Tên khách ở các dòng `Master` không xác định được bàn — bị bỏ khỏi sơ đồ. */
   unresolvedDeskNames: string[];
+  /** Khách còn máy cũ chưa thu (`Thu lại máy` = "Thu máy sau" ở dòng mới nhất). */
+  pendingDevice: StaffCustomer[];
   loading: boolean;
   error: string | null;
   lastUpdated: Date | null;
@@ -83,7 +88,10 @@ export function useDashboardData(): UseDashboardDataResult {
 
     if (isMock) {
       // Mock uses default column names.
-      setRaw(mapDeskStates(mockLarkTables, DEFAULT_FIELD_CONFIG));
+      setRaw({
+        ...mapDeskStates(mockLarkTables, DEFAULT_FIELD_CONFIG),
+        pendingDevice: mapPendingDevices(mockLarkTables, DEFAULT_FIELD_CONFIG),
+      });
       setError(null);
       setLoading(false);
       setLastUpdated(new Date());
@@ -97,7 +105,7 @@ export function useDashboardData(): UseDashboardDataResult {
       try {
         const tables = await fetchLarkData(cfg, controller.signal);
         if (cancelled) return;
-        setRaw(mapDeskStates(tables));
+        setRaw({ ...mapDeskStates(tables), pendingDevice: mapPendingDevices(tables) });
         setError(null);
         setLastUpdated(new Date());
       } catch (err) {
@@ -134,6 +142,7 @@ export function useDashboardData(): UseDashboardDataResult {
     endFlow: raw.endFlow,
     roster: raw.roster,
     unresolvedDeskNames: raw.unresolvedDeskNames,
+    pendingDevice: raw.pendingDevice,
     loading,
     error,
     lastUpdated,

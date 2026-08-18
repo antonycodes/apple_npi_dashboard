@@ -6,6 +6,7 @@ import CustomerPopover from '@/components/CustomerPopover';
 import DeskPopover from '@/components/DeskPopover';
 import DispatchFormModal from '@/components/DispatchFormModal';
 import EndFlowTable from '@/components/EndFlowTable';
+import PendingDeviceTable from '@/components/PendingDeviceTable';
 import FilterBar from '@/components/FilterBar';
 import LayoutDashboard from '@/components/LayoutDashboard';
 import Sidebar from '@/components/Sidebar';
@@ -15,13 +16,14 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import type { WaitingZoneKey } from '@/types/desk';
 
 export default function DashboardPage() {
-  const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, loading, error, lastUpdated, isMock, refresh } =
+  const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, pendingDevice, loading, error, lastUpdated, isMock, refresh } =
     useDashboardData();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<{ deskId: string; index: number } | null>(null);
   const [selectedWaiting, setSelectedWaiting] = useState<{ zone: WaitingZoneKey; index: number } | null>(null);
   const [showEndFlow, setShowEndFlow] = useState(false);
+  const [showPendingDevice, setShowPendingDevice] = useState(false);
   // Form Điều phối — chỉ POST lên webhook Lark, không nối vào state dashboard.
   const [showDispatchForm, setShowDispatchForm] = useState(false);
   /** STT điền sẵn khi mở form từ nút "DP" trong popup khách chờ ('' = mở tay từ nút trên thanh lọc). */
@@ -149,6 +151,9 @@ export default function DashboardPage() {
               setDispatchStt(''); // mở tay từ thanh lọc → form trống
               setShowDispatchForm((v) => !v);
             }}
+            pendingDeviceCount={pendingDevice.length}
+            pendingDeviceOpen={showPendingDevice}
+            onTogglePendingDevice={() => setShowPendingDevice((v) => !v)}
           />
         </div>
 
@@ -192,6 +197,9 @@ export default function DashboardPage() {
       </main>
 
       {showEndFlow && <EndFlowTable customers={endFlow} onClose={() => setShowEndFlow(false)} />}
+      {showPendingDevice && (
+        <PendingDeviceTable customers={pendingDevice} onClose={() => setShowPendingDevice(false)} />
+      )}
       {showDispatchForm && (
         <DispatchFormModal
           desks={desks}
