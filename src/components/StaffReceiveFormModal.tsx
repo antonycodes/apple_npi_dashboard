@@ -30,7 +30,7 @@ export interface ReceiveFormValues {
   submitBy: string;
   /** "Có" | "Không" | "" (chưa chọn) — chỉ có ý nghĩa khi Hoàn tất (mọi khâu). */
   checkBackup: string;
-  /** "Thu máy ngay" | "Thu máy sau" | "" — chỉ có ý nghĩa khi Hoàn tất (mọi khâu). */
+  /** "Thu máy ngay" | "Thu máy sau" | "" — chỉ Hoàn tất ở khâu Thu cũ/Backup. */
   thuLaiMay: string;
   /** Ảnh nghiệm thu NV vừa chụp/chọn (chọn được NHIỀU) — upload lấy `file_token` lúc submit. */
   hinhNghiemThu: File[];
@@ -89,37 +89,10 @@ export default function StaffReceiveFormModal({
   // Check Backup khi HOÀN TẤT, TRỪ chính bàn Backup (yêu cầu user 2026-08-12,
   // tiếp): hỏi "khách có dùng Backup không" ngay tại bàn Backup là thừa.
   const showBackupCheck = action === 'hoan_tat' && cluster !== 'backup';
-  // "Thu lại máy" + 3 field máy thu cũ khi Hoàn tất. Thu cũ/Backup thì luôn
-  // hiện; riêng TƯ VẤN chỉ hiện khi NV vừa chọn Check Backup = "Không"
-  // (2026-08-18, luồng thật user mô tả):
-  //   - Không backup → Tư vấn là khâu CUỐI, máy phải thu ngay tại đây.
-  //   - Có backup    → giấu hẳn, máy sẽ thu ở bàn Backup. Hỏi ở đây chỉ tổ
-  //     làm NV nhập trùng hai lần cho cùng một cái máy.
-  const hetKhauTaiTuVan = cluster === 'consult' && values.checkBackup === 'Không';
-  const showThuLaiMay = action === 'hoan_tat' && (cluster !== 'consult' || hetKhauTaiTuVan);
+  // "Thu lại máy" + 3 field máy thu cũ: CHỈ Hoàn tất ở khâu Thu cũ/Backup.
+  const showThuLaiMay = action === 'hoan_tat' && (cluster === 'tradein' || cluster === 'backup');
   // 3 field chỉ bung ra sau khi chọn 1 trong 2 option (yêu cầu user).
   const showDeviceFields = showThuLaiMay && values.thuLaiMay.length > 0;
-
-  // Khoá "Thu máy sau" khi máy CHẮC CHẮN phải thu ngay bây giờ:
-  //   - Bàn Backup + đã đủ 3 thứ → `khoaThuMaySau` tính sẵn từ ngoài.
-  //   - Bàn Tư vấn: hễ khối này hiện ra thì đã là ca không-backup rồi, tức
-  //     không còn khâu nào phía sau thu hộ — "sau" là vô nghĩa, không cần xét
-  //     đã đủ 3 thứ hay chưa.
-  const khoaSau = khoaThuMaySau || hetKhauTaiTuVan;
-
-  useEffect(() => {
-    // Đổi ý sang "Có backup" → khối biến mất, PHẢI xoá lựa chọn cũ. Để lại thì
-    // `thuLaiMay` vẫn nằm trong payload và ghi vào Base một khâu thu máy không
-    // hề xảy ra — NV không thấy gì để mà sửa.
-    if (!showThuLaiMay) {
-      if (values.thuLaiMay) set('thuLaiMay', '');
-      return;
-    }
-    // Khoá mà vẫn để trống lựa chọn thì NV kẹt: nút còn lại chưa chọn, nút kia
-    // bấm không được. Tự chốt "Thu máy ngay" ngay khi khoá bật.
-    if (khoaSau && values.thuLaiMay !== 'Thu máy ngay') set('thuLaiMay', 'Thu máy ngay');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showThuLaiMay, khoaSau]);
   // Check Backup VẪN bắt buộc (quyết định 2026-08-12, giờ áp cho mọi khâu);
   // riêng "Thu lại máy" + 3 field máy thu cũ thì KHÔNG bắt buộc (yêu cầu user).
   const canSubmit =
@@ -187,7 +160,7 @@ export default function StaffReceiveFormModal({
               <span className="text-xs font-semibold text-neutral-500">Thu lại máy</span>
               <div className="mt-1 flex gap-2">
                 {(['Thu máy ngay', 'Thu máy sau'] as const).map((opt) => {
-                  const khoa = khoaSau && opt === 'Thu máy sau';
+                  const khoa = khoaThuMaySau && opt === 'Thu máy sau';
                   return (
                     <button
                       key={opt}
