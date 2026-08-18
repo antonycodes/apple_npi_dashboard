@@ -244,7 +244,21 @@ export function mapStaffDeskView(
   });
 
   // Tư vấn không thu máy nên không cần danh sách này.
-  const pendingDevice = pos.cluster === 'consult' ? [] : mapPendingDevices(tables, fields);
+  //
+  // Loại khách ĐANG được phục vụ tại CHÍNH bàn này. Lý do là kỹ thuật, không
+  // phải quy trình: `larkMapper` gom dòng `Master` theo cặp (mã bàn, khách) rồi
+  // giữ dòng mới nhất — ghi thêm một dòng "Hoàn tất" tại đúng bàn đó sẽ ĐẨY
+  // KHÁCH KHỎI BÀN giữa chừng, bàn hoá xanh và nút Hoàn tất biến mất.
+  //
+  // Không mất đường nào: khách đang ngồi đó thì NV dùng nút Hoàn tất bình
+  // thường, form đó đã có sẵn "Thu lại máy" điền sẵn từ khâu trước.
+  const dangOBanNay = new Set(
+    (state?.receivedCustomers ?? []).map((c) => c.stt).filter((x): x is string => Boolean(x)),
+  );
+  const pendingDevice =
+    pos.cluster === 'consult'
+      ? []
+      : mapPendingDevices(tables, fields).filter((c) => !c.stt || !dangOBanNay.has(c.stt));
 
   return {
     id: pos.id,

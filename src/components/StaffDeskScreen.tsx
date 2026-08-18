@@ -390,6 +390,9 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
 
   // Bỏ khách vừa thu máy xong trên máy này (xem `vuaThu`). Mốc quá hạn thì thả
   // ra lại — gửi hỏng nửa chừng mà ẩn vĩnh viễn là mất luôn việc phải làm.
+  // Chỉ còn phần lạc quan (`vuaThu`) ở đây — việc loại khách đang ngồi bàn này
+  // nằm trong `staffMapper`, vì đó là logic dữ liệu chứ không phải trạng thái
+  // màn hình.
   const pendingDevice = useMemo(
     () =>
       view.pendingDevice.filter((c) => {
@@ -480,7 +483,10 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
       }
 
       await sendStaffAction(webhookUrl, {
-        action: 'hoan_tat',
+        // `thu_may` chứ không phải `hoan_tat`: worker chỉ tính leadtime cho
+        // `hoan_tat`, mà thao tác này không có mốc bắt đầu nào để trừ — xem
+        // `StaffActionPayload.action`.
+        action: 'thu_may',
         trangThai: 'Hoàn tất',
         stt,
         hoTen: khach.name ?? '',

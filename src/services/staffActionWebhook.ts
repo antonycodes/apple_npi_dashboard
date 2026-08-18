@@ -19,8 +19,18 @@ import { adminSessionStore } from '@/config/adminSession';
 
 /** Payload gửi lên webhook — key ASCII không dấu, để map trong Lark cho gọn. */
 export interface StaffActionPayload {
-  /** Nhánh xử lý bên Lark automation. */
-  action: 'tiep_nhan' | 'hoan_tat';
+  /**
+   * Nhánh xử lý bên worker/automation. KHÔNG ghi vào cột nào của Base.
+   *
+   * `thu_may` = thao tác "chỉ thu máy cũ" (xem `ThuMayModal`). Vẫn ghi
+   * `trangThai: 'Hoàn tất'` như thường, nhưng để `action` riêng vì worker chỉ
+   * tính leadtime khi `action === 'hoan_tat'` — thao tác thu máy KHÔNG phải một
+   * khâu phục vụ, để nó rơi vào nhánh đó là worker đi tìm dòng "Tiếp nhận"
+   * cùng khâu rồi ghi ra một con số vô nghĩa (khoảng cách từ lúc nhận khách ở
+   * khâu trước tới lúc cầm máy), làm hỏng chính số liệu leadtime dùng để đánh
+   * giá hiệu quả.
+   */
+  action: 'tiep_nhan' | 'hoan_tat' | 'thu_may';
   /** Trạng thái ghi vào `SS_Master."Trạng thái"` — gửi luôn để automation khỏi tự nối. */
   trangThai: 'Tiếp nhận' | 'Hoàn tất';
   /** STT khách (từ `Master_Check in`). */
