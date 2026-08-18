@@ -484,10 +484,13 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
 
       await sendStaffAction(webhookUrl, {
         // `thu_may` chứ không phải `hoan_tat`: worker chỉ tính leadtime cho
-        // `hoan_tat`, mà thao tác này không có mốc bắt đầu nào để trừ — xem
-        // `StaffActionPayload.action`.
+        // `hoan_tat`, mà thao tác này không có mốc bắt đầu nào để trừ.
+        //
+        // KHÔNG gửi `trangThai`: cột đó là đầu vào của `Status in backup` và
+        // `Done in Flow` bên Lark — ghi "Hoàn tất" vào đây là khách chỉ ghé gửi
+        // máy bị tính thành đã qua Backup, và "khâu vừa xong" báo sai. Xem
+        // `StaffActionPayload.trangThai`.
         action: 'thu_may',
-        trangThai: 'Hoàn tất',
         stt,
         hoTen: khach.name ?? '',
         maBan: view.id,
