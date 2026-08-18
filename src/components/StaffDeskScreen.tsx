@@ -433,10 +433,20 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
       const checkBackup =
         isComplete && values.checkBackup ? (values.checkBackup as 'Có' | 'Không') : undefined;
 
-      // Nhóm "Thu lại máy" + 3 field máy thu cũ: CHỈ Hoàn tất ở Thu cũ/Backup.
-      const isDeviceStage = view.cluster === 'tradein' || view.cluster === 'backup';
+      // Nhóm "Thu lại máy" + 3 field máy thu cũ: MỌI khâu, miễn là Hoàn tất.
+      //
+      // Tư vấn thêm vào 2026-08-18 (luồng thật user mô tả): khách có thu cũ →
+      // Thu cũ chọn "Thu máy sau" vì khách còn cần máy → sang Tư vấn dùng chính
+      // máy đó thanh toán → không backup → TƯ VẤN thu máy rồi khách về. Tức Tư
+      // vấn là điểm thu cuối của luồng đó; không có nhóm này thì không khâu nào
+      // ghi nhận được máy đã thu.
+      //
+      // Cố ý KHÔNG liệt kê lại 3 cụm ở đây: bên `StaffReceiveFormModal` cũng
+      // phải có điều kiện y hệt để hiện form, mà hai danh sách cụm song song là
+      // đúng chỗ để lệch nhau — lệch thì NV nhập được nhưng dữ liệu rơi mất
+      // không báo gì. Cả hai giờ chỉ còn xét "đang Hoàn tất".
       const thuLaiMay =
-        isComplete && isDeviceStage && values.thuLaiMay
+        isComplete && values.thuLaiMay
           ? (values.thuLaiMay as 'Thu máy ngay' | 'Thu máy sau')
           : undefined;
       const scanQr = thuLaiMay ? values.scanQr.trim() : '';
