@@ -22,8 +22,8 @@ export interface StaffActionPayload {
   /**
    * Nhánh xử lý bên worker/automation. KHÔNG ghi vào cột nào của Base.
    *
-   * `thu_may` = thao tác "chỉ thu máy cũ" (xem `ThuMayModal`), KHÔNG kèm
-   * `trangThai`. Để `action` riêng vì worker chỉ tính leadtime khi
+   * `thu_may` = thao tác "chỉ thu máy cũ" (xem `ThuMayModal`). Để `action`
+   * riêng vì worker chỉ tính leadtime khi
    * `action === 'hoan_tat'` — thao tác thu máy không phải một khâu phục vụ, để
    * nó rơi vào nhánh đó là worker đi tìm dòng "Tiếp nhận" cùng khâu rồi ghi ra
    * một con số vô nghĩa (khoảng cách từ lúc nhận khách ở khâu trước tới lúc
@@ -34,14 +34,19 @@ export interface StaffActionPayload {
    * Trạng thái ghi vào `SS_Master."Trạng thái"` — gửi luôn để automation khỏi
    * tự nối.
    *
-   * BỎ TRỐNG với `action: 'thu_may'` (quyết định user 2026-08-18): thao tác thu
-   * máy không phải một khâu phục vụ, mà cột này lại là đầu vào của nhiều công
-   * thức bên Lark. Ghi "Hoàn tất" vào đó sẽ làm `Status in backup` thành hoàn
-   * tất (khách chỉ ghé gửi máy bị tính là đã qua Backup) và làm `Done in Flow`
-   * — vốn lấy `Loại 2` của dòng "Hoàn tất" MỚI NHẤT — báo sai khâu vừa xong.
-   * Cột `Check nghiệm thu` không lọc theo trạng thái nên bỏ trống vẫn tính đủ.
+   * `Thu máy nhanh` (option user thêm bên Lark 2026-08-18) dành cho thao tác
+   * chỉ-thu-máy. PHẢI là giá trị thứ ba, KHÔNG dùng lại "Hoàn tất": thao tác đó
+   * không phải một khâu phục vụ, mà cột này là đầu vào của nhiều công thức —
+   * ghi "Hoàn tất" sẽ làm `Status in backup` thành hoàn tất (khách chỉ ghé gửi
+   * máy bị tính là đã qua Backup) và làm `Done in Flow` — vốn lấy `Loại 2` của
+   * dòng "Hoàn tất" MỚI NHẤT — báo sai khâu vừa xong.
+   *
+   * Mọi công thức đang lọc `= "Hoàn tất"` hoặc `= "Tiếp nhận"` đều không khớp
+   * giá trị này, nên nó vô hại y như bỏ trống — chỉ khác là đọc Base thì hiểu
+   * ngay dòng đó là gì. Cột `Check nghiệm thu` không lọc theo trạng thái nên
+   * vẫn tính đủ.
    */
-  trangThai?: 'Tiếp nhận' | 'Hoàn tất';
+  trangThai?: 'Tiếp nhận' | 'Hoàn tất' | 'Thu máy nhanh';
   /** STT khách (từ `Master_Check in`). */
   stt: string;
   /** Họ và tên khách — khoá join của mọi bảng bên Lark. */
