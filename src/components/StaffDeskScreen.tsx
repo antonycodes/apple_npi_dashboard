@@ -31,6 +31,7 @@ import { uploadNghiemThuImage } from '@/services/larkUpload';
 import { sendStaffAction } from '@/services/staffActionWebhook';
 import type { StaffCustomer, StaffDeskView } from '@/services/staffMapper';
 import StaffReceiveFormModal, { type ReceiveFormValues } from './StaffReceiveFormModal';
+import ThuMayModal, { type ThuMayValues } from './ThuMayModal';
 import type { ClusterKey } from '@/types/desk';
 
 /** Trạng thái lạc quan tự huỷ sau 2 phút (NV mở link rồi bỏ ngang). */
@@ -373,6 +374,34 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
   const extras = current.slice(1);
   const busy = Boolean(primary || ghost);
 
+  /**
+   * STT vừa thu máy xong trên MÁY NÀY → mốc thời gian. Ẩn khách khỏi danh sách
+   * "Chờ thu máy" ngay lập tức, không đợi Lark cập nhật.
+   *
+   * Vì sao cần: công thức `Check nghiệm thu` bên Lark dùng `SUM()` trên MỌI
+   * dòng "Thu máy ngay" của khách đó. Thu 2 lần là báo cáo hiện "Đã nghiệm thu
+   * (2) / (1) máy". Danh sách chỉ tự sạch sau nhịp poll kế tiếp (5s) — thừa
+   * thời gian để NV bấm lại lần nữa vì tưởng chưa ăn.
+   *
+   * CHỈ chặn trên cùng 1 máy. Hai bàn khác nhau cùng bấm trong 5 giây đó thì
+   * vẫn lọt — chặn triệt để phải đếm duy nhất bên công thức Lark.
+   */
+  const [vuaThu, setVuaThu] = useState<Record<string, number>>({});
+
+  // Bỏ khách vừa thu máy xong trên máy này (xem `vuaThu`). Mốc quá hạn thì thả
+  // ra lại — gửi hỏng nửa chừng mà ẩn vĩnh viễn là mất luôn việc phải làm.
+  // Chỉ còn phần lạc quan (`vuaThu`) ở đây — việc loại khách đang ngồi bàn này
+  // nằm trong `staffMapper`, vì đó là logic dữ liệu chứ không phải trạng thái
+  // màn hình.
+  const pendingDevice = useMemo(
+    () =>
+      view.pendingDevice.filter((c) => {
+        const at = c.stt ? vuaThu[c.stt] : undefined;
+        return !at || Date.now() - at > PENDING_TTL_MS;
+      }),
+    [view.pendingDevice, vuaThu],
+  );
+
   // ── Đồng hồ phục vụ ────────────────────────────────────────────────────
   const timers = useStaffTimers();
   const now = useNow(busy || Boolean(pending));
@@ -413,6 +442,77 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
   const [formAction, setFormAction] = useState<'tiep_nhan' | 'hoan_tat' | null>(null);
   const [formCustomer, setFormCustomer] = useState<StaffCustomer | null>(null);
   const [lockedReceiveStt, setLockedReceiveStt] = useState<string | null>(null);
+  /** Sheet "chỉ thu máy" đang mở hay không (NV gõ STT bên trong sheet). */
+  const [thuMayOpen, setThuMayOpen] = useState(false);
+
+  /**
+   * Gửi record "chỉ thu máy" — không đi qua Tiếp nhận, không cần Điều phối.
+   *
+   * Ghi 1 dòng `Hoàn tất` với `Thu lại máy = "Thu máy ngay"` cùng ảnh/QR/IMEI,
+   * `Loại 2` theo ĐÚNG bàn đang thao tác (quyết định user 2026-08-18): thu ở
+   * BK ghi "Backup", thu ở TC ghi "Thu cũ".
+   *
+   * Hai điều đã kiểm và chấp nhận:
+   * - Dòng này KHÔNG làm bàn đỏ: nó là "Hoàn tất", chỉ "Tiếp nhận" mới tính
+   *   occupancy (xem `larkMapper.indexMasterByDeskCode`).
+   * - Worker KHÔNG tính được leadtime vì không có dòng "Tiếp nhận" tương ứng.
+   *   Nó chỉ ghi lý do vào `data.skipped`, record vẫn tạo bình thường. Đúng
+   *   vậy: thao tác này không phải một khâu phục vụ nên không có gì để đo.
+   */
+  const submitThuMay = async (khach: StaffCustomer, values: ThuMayValues) => {
+    const stt = khach.stt?.trim();
+    if (!stt || sending) return;
+    setActionError(null);
+    setSending(true);
+    try {
+      // Upload TUẦN TỰ như đường Hoàn tất — sóng hội trường hay nghẽn, bắn
+      // cùng lúc dễ timeout cả loạt và không biết đứt ở ảnh thứ mấy.
+      const tokens = values.anhGiuLai.map((img) => img.fileToken);
+      for (const [i, file] of values.anhMoi.entries()) {
+        try {
+          tokens.push(await uploadNghiemThuImage(file));
+        } catch (err) {
+          setActionError(
+            `Upload ảnh ${i + 1}/${values.anhMoi.length} thất bại: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          setSending(false);
+          return;
+        }
+      }
+
+      await sendStaffAction(webhookUrl, {
+        // `thu_may` chứ không phải `hoan_tat`: worker chỉ tính leadtime cho
+        // `hoan_tat`, mà thao tác này không có mốc bắt đầu nào để trừ.
+        //
+        // `Thu máy nhanh` — option RIÊNG bên Lark, không dùng lại "Hoàn tất":
+        // cột đó là đầu vào của `Status in backup` và `Done in Flow`, ghi
+        // "Hoàn tất" vào đây là khách chỉ ghé gửi máy bị tính thành đã qua
+        // Backup và "khâu vừa xong" báo sai. Xem `StaffActionPayload.trangThai`.
+        action: 'thu_may',
+        trangThai: 'Thu máy nhanh',
+        stt,
+        hoTen: khach.name ?? '',
+        maBan: view.id,
+        msnv: view.staffId ?? '',
+        phanLoai: STAGE_LABEL[view.cluster],
+        nhanSu: view.staffName ?? '',
+        submitBy: view.staffId ?? '',
+        thoiGian: new Date().toISOString(),
+        thuLaiMay: 'Thu máy ngay',
+        ...(tokens.length ? { hinhNghiemThu: tokens } : {}),
+        ...(values.scanQr.trim() ? { scanQr: values.scanQr.trim() } : {}),
+        ...(values.imei.trim() ? { imei: values.imei.trim() } : {}),
+      });
+      setVuaThu((p) => ({ ...p, [stt]: Date.now() }));
+      setThuMayOpen(false);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSending(false);
+    }
+  };
 
   /**
    * Gửi thao tác Tiếp nhận (giá trị lấy từ form NV vừa xác nhận). Cập nhật lạc
@@ -657,6 +757,30 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
           </p>
         </section>
 
+        {/* ── Thu máy cũ (chỉ Thu cũ / Backup) ──────────────────────────
+            Nút chứ không phải danh sách (yêu cầu user 2026-08-18): NV bàn chỉ
+            cần xử đúng người đang đứng trước mặt, gõ STT là ra. Bức tranh toàn
+            cảnh "còn bao nhiêu máy chưa thu" là việc của Điều phối, xem nút
+            "Chờ thu máy" trên dashboard. */}
+        {view.cluster !== 'consult' && (
+          <button
+            type="button"
+            onClick={() => {
+              setActionError(null);
+              setThuMayOpen(true);
+            }}
+            disabled={!webhookMode}
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-3xl border-2 border-amber-400 bg-amber-50 text-base font-bold text-amber-800 active:bg-amber-100 disabled:opacity-40"
+          >
+            Thu máy cũ
+            {pendingDevice.length > 0 && (
+              <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs text-white">
+                {pendingDevice.length} chờ
+              </span>
+            )}
+          </button>
+        )}
+
         {/* ── Lịch sử khách đã tiếp nhận · hoàn tất (sổ xuống) ─────────── */}
         <CompletedHistorySection customers={view.completedHistory} />
       </main>
@@ -700,6 +824,21 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
           />
         </div>
       </div>
+
+      {thuMayOpen && (
+        <ThuMayModal
+          candidates={pendingDevice}
+          deskLabel={view.label}
+          busy={sending}
+          error={actionError}
+          onSubmit={(khach, values) => void submitThuMay(khach, values)}
+          onClose={() => {
+            if (sending) return;
+            setThuMayOpen(false);
+            setActionError(null);
+          }}
+        />
+      )}
 
       {formAction && formCustomer && (
         <StaffReceiveFormModal

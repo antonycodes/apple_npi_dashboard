@@ -77,6 +77,15 @@ export interface StaffDeskView {
    * ở cuối màn hình (`StaffDeskScreen`), KHÔNG tính vào `current`/`busy`.
    */
   completedHistory: StaffCustomer[];
+  /**
+   * Khách có máy cũ CHƯA THU: dòng `Master` mới nhất ghi `Thu lại máy` của họ
+   * là "Thu máy sau". Chỉ dựng cho bàn Thu cũ/Backup — Tư vấn không thu máy.
+   *
+   * KHÔNG lọc theo bàn: danh sách này dùng chung cho mọi bàn TC/BK, ai còn chỗ
+   * để máy thì thu (quyết định user 2026-08-18). Khách không cần được Điều phối
+   * sang bàn nào cả — thao tác này chỉ là cầm cái máy, không phải phục vụ.
+   */
+  pendingDevice: StaffCustomer[];
   /** Link Tiếp nhận cấp bàn — dự phòng khi khách kế tiếp không có link riêng. */
   deskReceiveUrl: string | null;
   /** Link Hoàn tất cấp bàn — dự phòng khi khách đang tiếp nhận không có Hyperlink Master. */
@@ -182,6 +191,29 @@ function indexRosterStaffByDesk(rows: LarkRecord[], fm: DsMasterFieldMap): Map<s
 }
 
 /**
+ * Khách còn máy cũ CHƯA THU — dòng `Master` mới nhất ghi `Thu lại máy` của họ
+ * là "Thu máy sau".
+ *
+ * Dùng chung cho MÀN HÌNH NV (nút "Thu máy") và DASHBOARD điều phối (nút "Chờ
+ * thu máy"): cùng một câu hỏi thì phải cùng một câu trả lời, tách ra 2 chỗ tính
+ * là sớm muộn cũng lệch.
+ *
+ * Sắp theo STT tăng dần cho khớp thứ tự khách vào — danh sách nhảy loạn giữa
+ * các nhịp poll thì người dùng mất dấu chỗ vừa nhìn.
+ */
+export function mapPendingDevices(
+  tables: LarkTables,
+  fields: FieldConfig = toFieldConfig(),
+): StaffCustomer[] {
+  const prevByStt = indexPrevDeviceByStt(tables.master, fields.master);
+  const checkinByStt = indexCheckinByStt(tables.checkin, fields.checkin);
+  return [...prevByStt.entries()]
+    .filter(([, d]) => d.thuLaiMay === 'Thu máy sau')
+    .map(([stt, d]) => ({ ...(checkinByStt.get(stt) ?? { stt, name: null }), prevDevice: d }))
+    .sort((a, b) => Number(a.stt ?? 0) - Number(b.stt ?? 0));
+}
+
+/**
  * Dựng view cho ĐÚNG 1 bàn. Bàn không có trong `ALL_POSITIONS` (mã lạ trong
  * localStorage) → trả `null` để UI bắt chọn lại bàn.
  */
@@ -211,6 +243,23 @@ export function mapStaffDeskView(
     prevDevice: c.stt ? prevByStt.get(c.stt) ?? null : null,
   });
 
+  // Tư vấn không thu máy nên không cần danh sách này.
+  //
+  // Loại khách ĐANG được phục vụ tại CHÍNH bàn này. Lý do là kỹ thuật, không
+  // phải quy trình: `larkMapper` gom dòng `Master` theo cặp (mã bàn, khách) rồi
+  // giữ dòng mới nhất — ghi thêm một dòng "Hoàn tất" tại đúng bàn đó sẽ ĐẨY
+  // KHÁCH KHỎI BÀN giữa chừng, bàn hoá xanh và nút Hoàn tất biến mất.
+  //
+  // Không mất đường nào: khách đang ngồi đó thì NV dùng nút Hoàn tất bình
+  // thường, form đó đã có sẵn "Thu lại máy" điền sẵn từ khâu trước.
+  const dangOBanNay = new Set(
+    (state?.receivedCustomers ?? []).map((c) => c.stt).filter((x): x is string => Boolean(x)),
+  );
+  const pendingDevice =
+    pos.cluster === 'consult'
+      ? []
+      : mapPendingDevices(tables, fields).filter((c) => !c.stt || !dangOBanNay.has(c.stt));
+
   return {
     id: pos.id,
     label: pos.label,
@@ -222,6 +271,7 @@ export function mapStaffDeskView(
     next: next ? withPrev(next) : null,
     waiting: state?.waiting ?? 0,
     completedHistory: state?.completedCustomers ?? [],
+    pendingDevice,
     deskReceiveUrl: urls?.receive ?? null,
     deskCompleteUrl: urls?.complete ?? null,
   };

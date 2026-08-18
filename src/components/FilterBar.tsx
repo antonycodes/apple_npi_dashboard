@@ -11,6 +11,10 @@ interface FilterBarProps {
   /** Form Điều phối (ghi ra Lark qua webhook) đang mở hay không. */
   dispatchFormOpen: boolean;
   onToggleDispatchForm: () => void;
+  /** Số khách còn máy cũ chưa thu — badge trên nút "Chờ thu máy". */
+  pendingDeviceCount: number;
+  pendingDeviceOpen: boolean;
+  onTogglePendingDevice: () => void;
 }
 
 export default function FilterBar({
@@ -19,6 +23,9 @@ export default function FilterBar({
   onToggleEndFlow,
   dispatchFormOpen,
   onToggleDispatchForm,
+  pendingDeviceCount,
+  pendingDeviceOpen,
+  onTogglePendingDevice,
 }: FilterBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -33,6 +40,13 @@ export default function FilterBar({
       <Chip active={endFlowOpen} onClick={onToggleEndFlow}>
         End Flow{endFlowCount > 0 ? ` (${endFlowCount})` : ''}
       </Chip>
+      {/* Ẩn hẳn khi không còn máy nào chờ: nút số 0 chỉ tổ làm điều phối bấm
+          vào rồi thấy bảng rỗng. */}
+      {pendingDeviceCount > 0 && (
+        <Chip active={pendingDeviceOpen} onClick={onTogglePendingDevice}>
+          Chờ thu máy ({pendingDeviceCount})
+        </Chip>
+      )}
     </div>
   );
 }
