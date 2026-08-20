@@ -133,7 +133,7 @@ function cellToAttachments(v: unknown): PrevImage[] {
  * nhiều dòng `Master` (Tiếp nhận, Hoàn tất, nhiều khâu), chỉ dòng nào thật sự
  * ghi trạng thái thu máy mới đáng dùng để điền lại form.
  */
-function indexPrevDeviceByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<string, PrevDeviceData> {
+export function indexPrevDeviceByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<string, PrevDeviceData> {
   const best = new Map<string, { time: number; data: PrevDeviceData }>();
   for (const r of rows) {
     const stt = cellToString(r.fields[fm.sttInput]);

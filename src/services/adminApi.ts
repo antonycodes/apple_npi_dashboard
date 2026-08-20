@@ -9,7 +9,12 @@
  * Token trả về có hạn 12h, giữ trong `config/adminSession.ts`. Hết hạn thì
  * worker từ chối và UI bắt đăng nhập lại — client không tự phán đoán quyền.
  */
-import { adminSessionStore } from '@/config/adminSession';
+import {
+  adminSessionStore,
+  type SessionRole,
+  type StoredSession,
+  type Workspace,
+} from '@/config/adminSession';
 import { larkSettingsStore } from '@/config/larkSettings';
 import type { CoordinatorConfig } from '@/types/coordinator';
 
@@ -30,16 +35,39 @@ async function parse(res: Response): Promise<{ data?: unknown }> {
   return body;
 }
 
-export async function login(username: string, password: string): Promise<string> {
+/**
+ * Đăng nhập. Tài khoản `admin` so với secret của worker; mọi tài khoản khác so
+ * với `NPI_AIO_User`/`NPI_AIO_Pass` trong `Master_DS` — user đổi mật khẩu bên
+ * Base là có hiệu lực sau tối đa 1 phút, không cần deploy lại.
+ */
+export async function login(username: string, password: string): Promise<StoredSession> {
   const res = await fetch(`${workerBaseUrl()}/admin/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   });
   const body = await parse(res);
-  const data = body.data as { token: string; ttlMs: number; role?: 'admin' | 'staff'; desk?: string };
-  adminSessionStore.set(data.token, data.ttlMs, data.role ?? 'admin', data.desk ?? '');
-  return data.token;
+  const data = body.data as {
+    token: string;
+    ttlMs: number;
+    role?: SessionRole;
+    desk?: string;
+    desks?: string[];
+    workspaces?: Workspace[];
+    username?: string;
+    msnv?: string;
+    name?: string;
+  };
+  adminSessionStore.set(data.token, data.ttlMs, data.role ?? 'admin', data.desk ?? '', {
+    desks: data.desks,
+    workspaces: data.workspaces,
+    username: data.username,
+    msnv: data.msnv,
+    name: data.name,
+  });
+  const session = adminSessionStore.getInfo();
+  if (!session) throw new Error('Không lưu được phiên đăng nhập trên máy này.');
+  return session;
 }
 
 /** Đọc công khai — máy điều phối gọi được mà không cần đăng nhập admin. */

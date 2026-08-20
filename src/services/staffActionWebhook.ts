@@ -22,6 +22,10 @@ export interface StaffActionPayload {
   /**
    * Nhánh xử lý bên worker/automation. KHÔNG ghi vào cột nào của Base.
    *
+   * `ban_giao` = kho giao MÁY MỚI cho nhân viên Tư vấn (xem `KhoHandoverForm`).
+   * Cùng lý do với `thu_may`: không phải một khâu phục vụ nên không có mốc bắt
+   * đầu nào để trừ ra leadtime — worker chỉ tính leadtime khi `hoan_tat`.
+   *
    * `thu_may` = thao tác "chỉ thu máy cũ" (xem `ThuMayModal`). Để `action`
    * riêng vì worker chỉ tính leadtime khi
    * `action === 'hoan_tat'` — thao tác thu máy không phải một khâu phục vụ, để
@@ -29,7 +33,7 @@ export interface StaffActionPayload {
    * một con số vô nghĩa (khoảng cách từ lúc nhận khách ở khâu trước tới lúc
    * cầm máy), làm hỏng chính số liệu leadtime dùng để đánh giá hiệu quả.
    */
-  action: 'tiep_nhan' | 'hoan_tat' | 'thu_may';
+  action: 'tiep_nhan' | 'hoan_tat' | 'thu_may' | 'ban_giao';
   /**
    * Trạng thái ghi vào `SS_Master."Trạng thái"` — gửi luôn để automation khỏi
    * tự nối.
@@ -46,7 +50,7 @@ export interface StaffActionPayload {
    * ngay dòng đó là gì. Cột `Check nghiệm thu` không lọc theo trạng thái nên
    * vẫn tính đủ.
    */
-  trangThai?: 'Tiếp nhận' | 'Hoàn tất' | 'Thu máy nhanh';
+  trangThai?: 'Tiếp nhận' | 'Hoàn tất' | 'Thu máy nhanh' | 'Bàn giao kho';
   /** STT khách (từ `Master_Check in`). */
   stt: string;
   /** Họ và tên khách — khoá join của mọi bảng bên Lark. */
@@ -55,7 +59,14 @@ export interface StaffActionPayload {
   maBan: string;
   /** MSNV lấy từ Master_DS, không cho sửa trên form nhân viên. */
   msnv: string;
-  /** "Tư vấn" | "Thu cũ" | "Backup" — cùng bộ giá trị với `SS_Master."Loại 2"`. */
+  /**
+   * "Tư vấn" | "Thu cũ" | "Backup" — cùng bộ giá trị với `SS_Master."Loại 2"`.
+   *
+   * Gửi chuỗi RỖNG để không ghi cột này (worker bỏ qua key rỗng). Dùng cho
+   * thao tác bàn giao của kho: đó không phải một khâu phục vụ, mà `Loại 2` là
+   * đầu vào của `Done in Flow` — nhét một giá trị vào đây chỉ để "cho có" là
+   * mở đường cho báo cáo đọc sai khâu.
+   */
   phanLoai: string;
   /** Tên NV đang ngồi bàn đó (rỗng nếu dashboard chưa biết). */
   nhanSu: string;
@@ -85,7 +96,13 @@ export interface StaffActionPayload {
    * có ảnh nào thì key này biến mất khỏi payload.
    */
   hinhNghiemThu?: string[];
-  /** Nội dung QR máy thu cũ NV vừa quét (hoặc gõ tay). */
+  /**
+   * Nội dung QR NV vừa quét (hoặc gõ tay) — cột `Scan QR máy cũ`.
+   *
+   * Dùng CHUNG cho 2 việc (quyết định user 2026-08-19): QR máy thu cũ ở khâu
+   * Thu cũ, và QR nhân viên Tư vấn nhận máy ở thao tác bàn giao của kho. Phân
+   * biệt bằng `Trạng thái` của dòng ("Bàn giao kho"), không phải bằng cột riêng.
+   */
   scanQr?: string;
   /** IMEI máy thu cũ. */
   imei?: string;

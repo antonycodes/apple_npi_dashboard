@@ -74,9 +74,6 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div>
             <h1 className="text-lg font-bold md:text-xl">NPI Event · Coordinator Dashboard</h1>
-            <p className="hidden text-sm text-neutral-500 md:block">
-              Sơ đồ tương tác điều phối luồng khách — đồng bộ trạng thái bàn từ Lark Base.
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">

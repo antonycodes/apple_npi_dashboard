@@ -10,7 +10,10 @@
  * `LARK_WEBHOOK_URL2` = URL webhook của workflow Lark tạo record SS_Master.
  * `ADMIN_PASSWORD` = mật khẩu tài khoản `admin` (BẮT BUỘC — thiếu thì mọi lần
  * đăng nhập admin trả 500 kèm thông báo rõ, KHÔNG rơi về chế độ không mật khẩu).
- * `STAFF_PASSWORD` = mật khẩu dùng chung cho tài khoản con TV/TC/BK (đặt 0000).
+ * `STAFF_PASSWORD` = mật khẩu dùng chung cho tài khoản con TV/TC/BK (đặt 0000)
+ * — chỉ còn để đỡ link riêng từng bàn đã phát ra ngoài. Từ 2026-08-19 tài khoản
+ * THẬT nằm ở `Master_DS` (`NPI_AIO_User`/`NPI_AIO_Pass`, xem `readRoster`), user
+ * tự đổi mật khẩu trong Base không cần deploy. Xoá secret này là tắt hẳn đường cũ.
  * App trỏ ô "Webhook Tiếp nhận / Hoàn tất" vào `https://<worker>/webhook2`.
  *
  * `POST /upload` (2026-08-12, tiếp) — ảnh nghiệm thu ở form Hoàn tất khâu Thu
@@ -74,12 +77,64 @@ const TABLE_ENV = {
   dsMaster: 'TB_DS_MASTER',
 };
 
+/**
+ * Hạn giờ cho MỘT lượt gọi Lark (2026-08-19).
+ *
+ * Vì sao cần: `fetch` không có hạn mặc định, nên một request Lark treo là treo
+ * theo cả snapshot. Đo thực tế hôm nay: đọc từng bảng tuần tự 1.7–2.9 giây,
+ * nhưng bắn 5 bảng SONG SONG thì 4/6 lần không trả về trong 25 giây. Phía
+ * trình duyệt, vòng poll chỉ hẹn lượt sau khi lượt hiện tại xong → màn hình
+ * đứng im ở dữ liệu cũ, không báo lỗi, phải tải lại trang mới sống.
+ *
+ * 8 giây là gấp ~3 lần lượt đọc chậm nhất đo được, đủ rộng để không cắt nhầm
+ * lượt đọc bình thường.
+ */
+const LARK_FETCH_TIMEOUT_MS = 8000;
+
+async function fetchCoHanGio(url, init = {}, timeoutMs = LARK_FETCH_TIMEOUT_MS) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: ctl.signal });
+  } catch (error) {
+    if (ctl.signal.aborted) throw new Error(`Lark không trả lời trong ${timeoutMs / 1000}s`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 let cachedToken = null;
 let tokenExpiresAt = 0;
 
+/**
+ * Hạn giờ + thử lại 1 lần cho 2 lượt gọi CHUẨN BỊ (lấy token, giải app_token).
+ *
+ * Vì sao tách riêng khỏi `LARK_FETCH_TIMEOUT_MS` (2026-08-19, sau khi đo lại):
+ * đặt hạn 8 giây cho phần đọc bảng vẫn còn 2/8 lượt snapshot treo quá 30 giây,
+ * mà `warnings` rỗng — tức chỗ treo KHÔNG nằm trong phần đọc bảng. Còn đúng 2
+ * lượt gọi chưa có hạn là ở đây, và chúng cache theo ISOLATE của Cloudflare
+ * (mỗi isolate mới là gọi lại), khớp đúng kiểu treo ngẫu nhiên quan sát được.
+ *
+ * **An toàn cho cả đường GHI** dù `getToken` cũng phục vụ ghi: cắt ở bước lấy
+ * token là cắt TRƯỚC khi có bất kỳ record nào được tạo, nên không có nguy cơ
+ * ghi trùng — chỉ đổi "quay vòng vô tận" thành "báo lỗi rõ để bấm lại".
+ */
+const LARK_AUTH_TIMEOUT_MS = 6000;
+
+async function fetchAuthCoHanGio(url, init) {
+  try {
+    return await fetchCoHanGio(url, init, LARK_AUTH_TIMEOUT_MS);
+  } catch {
+    // Thử lại đúng 1 lần: đây là lượt gọi chặn TẤT CẢ việc khác, mà lỗi hay gặp
+    // là một cú chậm nhất thời chứ không phải hỏng thật.
+    return fetchCoHanGio(url, init, LARK_AUTH_TIMEOUT_MS);
+  }
+}
+
 async function getToken(env, host) {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
-  const r = await fetch(`${host}/open-apis/auth/v3/tenant_access_token/internal`, {
+  const r = await fetchAuthCoHanGio(`${host}/open-apis/auth/v3/tenant_access_token/internal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ app_id: env.LARK_APP_ID, app_secret: env.LARK_APP_SECRET }),
@@ -98,9 +153,10 @@ async function resolveAppToken(env, host, token) {
   if (cachedAppToken) return cachedAppToken;
   try {
     const bearer = await getToken(env, host);
-    const r = await fetch(`${host}/open-apis/wiki/v2/spaces/get_node?token=${encodeURIComponent(token)}`, {
-      headers: { Authorization: `Bearer ${bearer}` },
-    });
+    const r = await fetchAuthCoHanGio(
+      `${host}/open-apis/wiki/v2/spaces/get_node?token=${encodeURIComponent(token)}`,
+      { headers: { Authorization: `Bearer ${bearer}` } },
+    );
     const j = await r.json();
     if (j.code === 0 && j.data?.node?.obj_type === 'bitable' && j.data.node.obj_token) {
       cachedAppToken = j.data.node.obj_token;
@@ -186,7 +242,7 @@ async function verifyToken(env, token) {
   const [role, desk, exp] = String(payload || '').split(':');
   const signedPayload = `${role}:${desk}:${exp}`;
   if (!role || !sig || !/^\d+$/.test(exp) || Number(exp) < Date.now()) return null;
-  if (role === 'staff' && !desk) return null;
+  if ((role === 'staff' || role === 'dieuphoi') && !desk) return null;
   if (!safeEqual(sig, await hmacHex(env.ADMIN_SESSION_SECRET, signedPayload))) return null;
   return { role, desk };
 }
@@ -204,6 +260,214 @@ function isStaffDesk(username) {
 function bearer(request) {
   const h = request.headers.get('Authorization') || '';
   return h.startsWith('Bearer ') ? h.slice(7) : '';
+}
+
+// ── Roster tài khoản đọc từ `Master_DS` (2026-08-19) ─────────────────────────
+//
+// Trước đây tài khoản là danh sách CỨNG trong code (`isStaffDesk`) + một mật
+// khẩu dùng chung (`STAFF_PASSWORD`). Giờ mỗi nhân sự có dòng riêng trong
+// `Master_DS` với `NPI_AIO_User`/`NPI_AIO_Pass`, nên nguồn tài khoản là chính
+// bảng đó: user đổi mật khẩu trong Base là có hiệu lực sau tối đa
+// `ROSTER_TTL_MS`, KHÔNG cần deploy lại worker.
+//
+// Đường cũ vẫn giữ (xem `/admin/login`) để link riêng từng bàn đã phát ra
+// ngoài không chết giữa sự kiện — nhưng chỉ sống khi `STAFF_PASSWORD` còn đặt.
+
+/**
+ * Cột tài khoản/mật khẩu app trong `Master_DS` (user tạo 2026-08-19).
+ *
+ * `NPI_AIO_User` là cột FORMULA (thường trả MSNV), `NPI_AIO_Pass` là cột chữ
+ * user tự sửa trong Base. Đây là NGUỒN DUY NHẤT của danh sách tài khoản — web
+ * và worker không có bảng tài khoản nào khác ngoài `admin`.
+ */
+// ⚠️ TÊN CỘT VIẾT THẲNG, KHÔNG qua hằng trung gian (bài học 2026-08-19): bản
+// trước đặt `user: AIO_USER_FIELD` với hằng khai báo ở CUỐI file. Node ném lỗi
+// TDZ ngay, nhưng bundler của wrangler biến nó thành `undefined` LẶNG LẼ —
+// worker vẫn chạy, chỉ là đi tìm cột tên `undefined`, nên MỌI lần đăng nhập
+// đều báo "sai tài khoản hoặc mật khẩu" mà log không có lỗi nào. Chuỗi viết
+// tại chỗ thì không có thứ tự khai báo nào để mà sai.
+
+/** Các cột của `Master_DS` mà việc đăng nhập cần. Đổi tên cột bên Base là phải sửa ở đây. */
+const ROSTER_FIELDS = {
+  user: 'NPI_AIO_User',
+  pass: 'NPI_AIO_Pass',
+  desk: 'STT bàn',
+  loai: 'Loại',
+  msnv: 'MSNV',
+  name: 'NV Tư vấn',
+};
+
+/**
+ * Các cột KHÔNG BAO GIỜ được rời khỏi worker theo đường đọc dashboard.
+ * Cũng viết thẳng chuỗi, vì `stripSecretFields` là hàng rào chặn rò mật khẩu —
+ * nó mà đọc phải `undefined` thì rò toàn bộ roster ra mọi máy khách.
+ */
+const SECRET_DS_FIELDS = ['NPI_AIO_User', 'NPI_AIO_Pass'];
+
+/**
+ * Ô Bitable → chuỗi. Mỗi kiểu cột trả một hình dạng khác nhau: text là mảng
+ * đoạn `[{text}]`, formula là `{type, value:[…]}`, person là `[{name,…}]`,
+ * số là number. Không chuẩn hoá thì `NPI_AIO_User` (cột formula) đọc ra
+ * `[object Object]` và không ai đăng nhập được.
+ */
+function cellText(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    // Mảng đoạn văn bản phải nối LIỀN ("S08" + "380"); mảng người/option thì
+    // nối bằng khoảng trắng cho dễ đọc.
+    const allSegments = value.every((p) => p && typeof p === 'object' && typeof p.text === 'string');
+    const parts = value.map(cellText).filter(Boolean);
+    return (allSegments ? parts.join('') : parts.join(' ')).trim();
+  }
+  if (typeof value === 'object') {
+    if (Array.isArray(value.value)) return cellText(value.value);
+    for (const k of ['text', 'name', 'en_name', 'value', 'full_name']) {
+      if (typeof value[k] === 'string') return value[k].trim();
+      if (typeof value[k] === 'number') return String(value[k]);
+    }
+  }
+  return '';
+}
+
+/** Bỏ dấu + viết thường, để so "Kho"/"KHO"/"kho " như nhau. */
+function normalizeLoai(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0111/gi, 'd')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Lấy ô theo tên cột, CHỊU ĐƯỢC lệch nhẹ: khớp đúng tên trước, không có thì
+ * khớp bỏ qua hoa/thường và khoảng trắng thừa.
+ *
+ * Cột trong Base do người dùng tự tạo, và một dấu cách vô hình ở cuối tên cột
+ * đủ để cả roster đọc ra rỗng — tức KHÔNG AI đăng nhập được, với thông báo
+ * "sai mật khẩu" không hé lộ nguyên nhân thật.
+ */
+function pickField(fields, wanted) {
+  if (wanted in fields) return fields[wanted];
+  const target = String(wanted).trim().toLowerCase();
+  for (const key of Object.keys(fields)) {
+    if (key.trim().toLowerCase() === target) return fields[key];
+  }
+  return undefined;
+}
+
+const ROSTER_TTL_MS = 60 * 1000;
+let rosterCache = null;
+
+/**
+ * Danh sách tài khoản từ `Master_DS`, cache 60 giây.
+ *
+ * Cache ngắn cố ý: đủ để một đợt đăng nhập đầu giờ không bắn 300 request vào
+ * Lark, mà vẫn đảm bảo user sửa mật khẩu trong Base là chậm nhất 1 phút sau có
+ * hiệu lực — đúng như đã hứa trong bản kế hoạch.
+ */
+async function readRoster(env, host) {
+  if (rosterCache && Date.now() < rosterCache.expiresAt) return rosterCache.rows;
+
+  const token = await getToken(env, host);
+  const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
+  // `includeSecrets` — ĐÂY là chỗ duy nhất trong worker được đọc cột mật khẩu.
+  const items = await readTableRecords(env, host, 'dsMaster', token, appToken, { includeSecrets: true });
+
+  const rows = [];
+  for (const item of items) {
+    const f = item?.fields ?? {};
+    const user = cellText(pickField(f, ROSTER_FIELDS.user));
+    if (!user) continue;
+    rows.push({
+      user,
+      pass: cellText(pickField(f, ROSTER_FIELDS.pass)),
+      desk: cellText(pickField(f, ROSTER_FIELDS.desk)).toUpperCase().replace(/\s+/g, ''),
+      loai: cellText(pickField(f, ROSTER_FIELDS.loai)),
+      msnv: cellText(pickField(f, ROSTER_FIELDS.msnv)),
+      name: cellText(pickField(f, ROSTER_FIELDS.name)),
+    });
+  }
+  rosterCache = { rows, expiresAt: Date.now() + ROSTER_TTL_MS };
+  return rows;
+}
+
+/**
+ * Vai trò của MỘT DÒNG roster, suy từ cột `Loại`; `Loại` bỏ trống thì suy tiếp
+ * từ tiền tố mã bàn.
+ *
+ * Roster thật có 4 nhóm: Tư vấn/Thu cũ/Backup (bàn phục vụ), Kho, và Điều phối
+ * (DP1–DP4, có dòng bỏ trống `Loại`). Đoán sai nhóm là mở nhầm cả màn hình,
+ * nên chỗ này đọc cả hai nguồn thay vì tin mỗi cột `Loại`.
+ */
+function roleFromRosterRow(loai, desk) {
+  const l = normalizeLoai(loai);
+  if (l === 'kho') return 'kho';
+  if (l.startsWith('dieu phoi')) return 'dieuphoi';
+  const code = String(desk || '').toUpperCase();
+  if (code.startsWith('KHO')) return 'kho';
+  if (code.startsWith('DP')) return 'dieuphoi';
+  return 'staff';
+}
+
+/**
+ * Tra tài khoản + mật khẩu trong roster.
+ *
+ * Trả về DANH SÁCH CHỖ LÀM VIỆC, không phải một vai trò duy nhất: trong roster
+ * thật, cùng một MSNV nằm ở nhiều dòng thuộc nhiều nhóm khác nhau (vd S12504 =
+ * TV4 + TC4 + BK4 + KHO1). Bản trước gộp thành một vai trò và ưu tiên "kho" —
+ * hậu quả là người đó đăng nhập vào là rơi thẳng vào màn kho, KHÔNG bao giờ
+ * mở được bàn TV4 của mình. Giờ app hỏi họ đang trực chỗ nào.
+ *
+ * Trả `null` khi không khớp — caller trả về đúng một thông báo chung cho cả
+ * "sai user" lẫn "sai mật khẩu", không tiết lộ MSNV nào có thật.
+ */
+function matchRosterAccount(rows, username, password) {
+  const wanted = String(username || '').trim().toUpperCase();
+  if (!wanted) return null;
+  const sameUser = rows.filter((r) => r.user.toUpperCase() === wanted);
+  if (sameUser.length === 0) return null;
+
+  // Mật khẩu: khớp với BẤT KỲ dòng nào của tài khoản này là hợp lệ.
+  const hopLe = sameUser.some((r) => r.pass && safeEqual(String(password ?? ''), r.pass));
+  if (!hopLe) return null;
+
+  // …nhưng CHỖ LÀM VIỆC thì lấy TẤT CẢ các dòng của tài khoản, không chỉ dòng
+  // có mật khẩu khớp (sửa 2026-08-19). Trong roster thật, các dòng của cùng một
+  // MSNV không nhất thiết cùng giá trị ở cột `NPI_AIO_Pass` — S12196 có 5 dòng
+  // (TV3, TC3, BK3, KHO3, DP2) mà chỉ dòng DP2 khớp, nên người này đăng nhập
+  // vào là rơi thẳng vào dashboard điều phối, không bao giờ thấy bàn TV3 của
+  // mình. Tài khoản là CON NGƯỜI, không phải từng dòng bàn.
+  const matched = sameUser;
+
+  const workspaces = [];
+  for (const r of matched) {
+    // Dấu phẩy là ký tự phân tách trong token nên mã bàn không được chứa nó.
+    const desk = r.desk.replace(/,/g, '');
+    if (!desk || workspaces.some((w) => w.desk === desk)) continue;
+    // Tên và MSNV lấy theo ĐÚNG DÒNG của chỗ đó (sửa 2026-08-19): mỗi dòng
+    // roster là một bàn với cột `NV Tư vấn` riêng, nên lấy tên ở dòng đầu tiên
+    // rồi dùng cho mọi chỗ là hiện tên người khác — và tên đó đi thẳng vào cột
+    // `Người` của mọi record app ghi ra.
+    workspaces.push({
+      desk,
+      loai: r.loai,
+      role: roleFromRosterRow(r.loai, desk),
+      name: r.name,
+      msnv: r.msnv || r.user,
+    });
+  }
+  const withInfo = matched.find((r) => r.msnv || r.name) ?? matched[0];
+  return {
+    workspaces,
+    username: withInfo.user,
+    // Mức tài khoản chỉ còn là giá trị dự phòng cho lúc CHƯA chọn chỗ; sau khi
+    // chọn thì app dùng tên/MSNV của chính chỗ đó.
+    msnv: withInfo.msnv || withInfo.user,
+    name: withInfo.name,
+  };
 }
 
 function json(body, status = 200) {
@@ -225,7 +489,9 @@ async function getFieldOptionMaps(env, host, appToken, token, tableId) {
   if (hit && now < hit.expiresAt) return hit.maps;
 
   const url = `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/fields?page_size=200`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  // Cùng đường ĐỌC nên cũng có hạn giờ — treo ở đây thì treo cả snapshot y hệt
+  // treo ở lượt đọc bản ghi. (Đường GHI — `getRecordFieldMeta` — giữ nguyên.)
+  const res = await fetchCoHanGio(url, { headers: { Authorization: `Bearer ${token}` } });
   const data = await res.json();
 
   const maps = {};
@@ -255,11 +521,41 @@ function resolveOptionRefs(records, fieldMaps) {
 let dashboardSnapshotCache = null;
 let dashboardSnapshotInFlight = null;
 const dashboardTableCache = new Map();
-const DASHBOARD_SNAPSHOT_TTL_MS = 4000;
+// Cache RAM chỉ để gộp các request rơi vào CÙNG isolate. Cache dùng chung cho
+// các isolate ở một data center nằm ở `caches.default` bên dưới.
+const DASHBOARD_SNAPSHOT_TTL_MS = 500;
 const DASHBOARD_SNAPSHOT_STALE_MS = 30000;
 const DASHBOARD_TABLES = ['checkin', 'orders', 'master', 'dispatch', 'dsMaster'];
+const EDGE_SNAPSHOT_FRESH_MS = 500;
+const EDGE_SNAPSHOT_TTL_SECONDS = 60;
+const EDGE_SNAPSHOT_CACHE_PATH = '/__npi-cache/dashboard-snapshot-v1';
 
-async function readTableRecords(env, host, key, token, appToken) {
+/**
+ * Xoá cột bí mật khỏi các record sắp trả về máy khách.
+ *
+ * Bắt buộc vì `/api/lark` trả NGUYÊN các cột của `Master_DS` cho MỌI máy đang
+ * mở app (dashboard, màn hình STT, điện thoại NV) — để nguyên thì mật khẩu của
+ * cả roster nằm sẵn trong response, mở DevTools là đọc được, và cổng đăng nhập
+ * thành vô nghĩa. Quyền của bảng bên Lark KHÔNG cứu được chuyện này: máy khách
+ * đọc bằng tenant token của worker chứ không bằng tài khoản Lark của người dùng.
+ *
+ * Chỉ đúng 1 chỗ trong worker được đọc 2 cột đó: `/admin/login`, qua
+ * `readRoster(..., { includeSecrets: true })`.
+ */
+function stripSecretFields(items) {
+  const targets = SECRET_DS_FIELDS.map((n) => n.trim().toLowerCase());
+  for (const item of items) {
+    if (!item?.fields) continue;
+    // So theo tên đã chuẩn hoá: một dấu cách thừa trong tên cột KHÔNG được
+    // phép biến thành đường rò mật khẩu ra mọi máy khách.
+    for (const key of Object.keys(item.fields)) {
+      if (targets.includes(key.trim().toLowerCase())) delete item.fields[key];
+    }
+  }
+  return items;
+}
+
+async function readTableRecords(env, host, key, token, appToken, { includeSecrets = false } = {}) {
   const envKey = TABLE_ENV[key];
   const tableId = envKey ? env[envKey] : undefined;
   if (!envKey || !tableId) throw new Error(`Missing Cloudflare secret for table "${key}"`);
@@ -270,7 +566,7 @@ async function readTableRecords(env, host, key, token, appToken) {
     const u = new URL(`${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`);
     u.searchParams.set('page_size', '500');
     if (pageToken) u.searchParams.set('page_token', pageToken);
-    const response = await fetch(u, { headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetchCoHanGio(u, { headers: { Authorization: `Bearer ${token}` } });
     const body = await response.json();
     if (body.code !== 0) throw new Error(`Lark API error on ${key}: ${body.msg} (code ${body.code})`);
     items = items.concat(body.data?.items ?? []);
@@ -279,12 +575,13 @@ async function readTableRecords(env, host, key, token, appToken) {
 
   const fieldMaps = await getFieldOptionMaps(env, host, appToken, token, tableId);
   resolveOptionRefs(items, fieldMaps);
+  if (key === 'dsMaster' && !includeSecrets) stripSecretFields(items);
   return items;
 }
 
-async function getDashboardSnapshot(env, host) {
+async function getDashboardSnapshot(env, host, forceRefresh = false) {
   const now = Date.now();
-  if (dashboardSnapshotCache && now < dashboardSnapshotCache.expiresAt) {
+  if (!forceRefresh && dashboardSnapshotCache && now < dashboardSnapshotCache.expiresAt) {
     return { ...dashboardSnapshotCache.payload, cache: 'hit' };
   }
   if (dashboardSnapshotInFlight) return dashboardSnapshotInFlight;
@@ -338,6 +635,85 @@ async function getDashboardSnapshot(env, host) {
   } finally {
     dashboardSnapshotInFlight = null;
   }
+}
+
+/**
+ * Snapshot nhanh cho trình duyệt: trả cache edge NGAY, rồi làm mới Lark ở nền.
+ *
+ * Cache RAM phía trên bị chia theo Worker isolate nên production liên tục
+ * `cache=miss` (đo 2026-08-20: 2.6–6.25 giây/lượt). `caches.default` dùng
+ * chung trong data center, đúng với mô hình 38 máy cùng ở một hội trường.
+ * Payload được giữ 60 giây để luôn có bản dự phòng, nhưng chỉ coi là "tươi"
+ * trong 0.5 giây; quá mốc đó request vẫn nhận bản gần nhất ngay và `waitUntil`
+ * kéo dữ liệu mới ở nền. Đường GHI không đi qua cache này.
+ */
+function edgeSnapshotCacheKey(request) {
+  const url = new URL(request.url);
+  url.pathname = EDGE_SNAPSHOT_CACHE_PATH;
+  url.search = '';
+  return new Request(url.toString(), { method: 'GET' });
+}
+
+function snapshotResponse(request, payload, edgeState, ageMs = 0) {
+  const generatedAt = String(payload?.data?.generatedAt ?? 'unknown');
+  const etag = `"npi-${generatedAt}"`;
+  const commonHeaders = {
+    'Cache-Control': 'no-cache',
+    ETag: etag,
+    'X-NPI-Snapshot-Cache': edgeState,
+    'X-NPI-Snapshot-Age-Ms': String(Math.max(0, Math.round(ageMs))),
+    ...CORS,
+  };
+
+  // Poll 1 giây nhưng snapshot Lark chưa đổi thì chỉ gửi response 304 rất nhỏ;
+  // trình duyệt tự ghép lại body 200 đã cache. Không làm vậy, 38 máy sẽ tải
+  // lại toàn bộ JSON ~220 KB mỗi giây dù dữ liệu không thay đổi.
+  if (request.headers.get('If-None-Match') === etag) {
+    return new Response(null, { status: 304, headers: commonHeaders });
+  }
+
+  return new Response(JSON.stringify({ ...payload, cache: edgeState }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      ...commonHeaders,
+    },
+  });
+}
+
+async function refreshEdgeSnapshot(cache, cacheKey, env, host) {
+  const payload = await getDashboardSnapshot(env, host, true);
+  if (!payload?.data?.tables) return payload;
+  const cached = new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': `public, max-age=${EDGE_SNAPSHOT_TTL_SECONDS}`,
+    },
+  });
+  await cache.put(cacheKey, cached);
+  return payload;
+}
+
+async function getFastDashboardSnapshotResponse(request, env, host, ctx) {
+  const cache = caches.default;
+  const cacheKey = edgeSnapshotCacheKey(request);
+  const hit = await cache.match(cacheKey);
+
+  if (hit) {
+    const payload = await hit.json();
+    const generatedAt = Date.parse(String(payload?.data?.generatedAt ?? ''));
+    const ageMs = Number.isFinite(generatedAt) ? Date.now() - generatedAt : Infinity;
+    if (ageMs > EDGE_SNAPSHOT_FRESH_MS) {
+      ctx.waitUntil(refreshEdgeSnapshot(cache, cacheKey, env, host).catch(() => undefined));
+      return snapshotResponse(request, payload, 'edge-stale-refreshing', ageMs);
+    }
+    return snapshotResponse(request, payload, 'edge-hit', ageMs);
+  }
+
+  // Cold start của data center: chưa có gì để trả nhanh, phải đọc Lark một lần.
+  const payload = await refreshEdgeSnapshot(cache, cacheKey, env, host);
+  return snapshotResponse(request, payload, 'edge-miss', 0);
 }
 
 function invalidateDashboardSnapshot() {
@@ -605,7 +981,7 @@ function toCellValue(meta, raw) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
     const segments = new URL(request.url).pathname.split('/').filter(Boolean);
@@ -615,6 +991,97 @@ export default {
     // chế với việc lấy tên bảng ở segment cuối bên dưới.
     const route = segments.slice(-2).join('/');
     const host = (env.LARK_HOST || 'https://open.larksuite.com').replace(/\/+$/, '');
+
+    // ── `GET /roster-check` — soi danh sách tài khoản mà worker ĐỌC ĐƯỢC ───
+    //
+    // Có route này vì lỗi "Sai tài khoản hoặc mật khẩu" không phân biệt được 3
+    // nguyên nhân hoàn toàn khác nhau: worker chưa deploy, tên cột lệch (thừa
+    // dấu cách, khác hoa/thường), hay ô công thức trả về hình dạng lạ. Route
+    // này trả lời cả ba trong một lần mở.
+    //
+    // **KHÔNG trả về mật khẩu** — chỉ nói có/không, và chỉ trả tên tài khoản
+    // (vốn là MSNV, đã nằm sẵn trong dữ liệu công khai của dashboard).
+    if (request.method === 'GET' && (route.endsWith('roster-check') || table === 'roster-check')) {
+      try {
+        const token = await getToken(env, host);
+        const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
+        const items = await readTableRecords(env, host, 'dsMaster', token, appToken, {
+          includeSecrets: true,
+        });
+
+        // Mọi tên cột worker NHÌN THẤY — đối chiếu với tên trong Base để phát
+        // hiện dấu cách thừa hoặc khác hoa/thường.
+        const allColumns = new Set();
+        for (const it of items) for (const k of Object.keys(it?.fields ?? {})) allColumns.add(k);
+
+        const rows = [];
+        let coPass = 0;
+        for (const it of items) {
+          const f = it?.fields ?? {};
+          const user = cellText(pickField(f, ROSTER_FIELDS.user));
+          if (!user) continue;
+          const pass = cellText(pickField(f, ROSTER_FIELDS.pass));
+          if (pass) coPass += 1;
+          rows.push({
+            user,
+            coMatKhau: Boolean(pass),
+            ten: cellText(pickField(f, ROSTER_FIELDS.name)),
+            msnv: cellText(pickField(f, ROSTER_FIELDS.msnv)),
+            ban: cellText(pickField(f, ROSTER_FIELDS.desk)).toUpperCase().replace(/\s+/g, ''),
+            loai: cellText(pickField(f, ROSTER_FIELDS.loai)),
+            vaiTro: roleFromRosterRow(
+              cellText(pickField(f, ROSTER_FIELDS.loai)),
+              cellText(pickField(f, ROSTER_FIELDS.desk)),
+            ),
+          });
+        }
+
+        // Hình dạng THÔ của ô công thức ở dòng đầu — để biết `cellText` có đọc
+        // đúng kiểu dữ liệu Lark trả về hay không.
+        const mauThoUser = items.length ? pickField(items[0]?.fields ?? {}, ROSTER_FIELDS.user) ?? null : null;
+
+        // `NPI_AIO_User` lệch `MSNV` của CHÍNH dòng đó = công thức đang kéo mã
+        // từ nơi khác. Khi đó mọi thứ tra theo tài khoản (tên NV, mã bàn, vai
+        // trò) đều lấy nhầm dòng của người khác — sai âm thầm, không có lỗi.
+        const dongLech = rows.filter((r) => r.msnv && r.user.toUpperCase() !== r.msnv.toUpperCase());
+
+        // Cùng một tài khoản mà các dòng ghi mật khẩu khác nhau — người dùng
+        // đổi mật khẩu ở một dòng rồi quên các dòng còn lại là ra tình trạng
+        // này. Không chặn đăng nhập (khớp 1 dòng là đủ), nhưng nên biết.
+        const soChoTheoTaiKhoan = new Map();
+        for (const r of rows) {
+          const key = r.user.toUpperCase();
+          if (!soChoTheoTaiKhoan.has(key)) soChoTheoTaiKhoan.set(key, []);
+          soChoTheoTaiKhoan.get(key).push(r.ban);
+        }
+        const taiKhoanNhieuCho = [...soChoTheoTaiKhoan]
+          .filter(([, bans]) => bans.length > 1)
+          .map(([user, bans]) => ({ user, cho: bans }));
+
+        return json({
+          code: 0,
+          msg: 'success',
+          data: {
+            phienBan: 'roster-check-v5',
+            soDong: items.length,
+            soDongUserLechMsnv: dongLech.length,
+            viDuLech: dongLech.slice(0, 5),
+            taiKhoanNhieuCho,
+            tenCotDangTim: { user: ROSTER_FIELDS.user, pass: ROSTER_FIELDS.pass },
+            timThayCotUser: allColumns.has(ROSTER_FIELDS.user),
+            timThayCotPass: allColumns.has(ROSTER_FIELDS.pass),
+            cotGanGiong: [...allColumns].filter((c) => /aio|npi/i.test(c)),
+            soTaiKhoanDocDuoc: rows.length,
+            soTaiKhoanCoMatKhau: coPass,
+            mauThoUser,
+            taiKhoan: rows.slice(0, 50),
+            tatCaTenCot: [...allColumns].sort(),
+          },
+        });
+      } catch (e) {
+        return json({ code: -1, msg: String(e?.message || e) }, 500);
+      }
+    }
 
     // ── Admin login ────────────────────────────────────────────────────────
     if (request.method === 'POST' && route === 'admin/login') {
@@ -628,6 +1095,54 @@ export default {
         return json({ code: -1, msg: 'Body không phải JSON' }, 400);
       }
       const username = String(body.username ?? '').trim();
+      const password = String(body.password ?? '');
+
+      // ── Đường CHÍNH: tài khoản trong `Master_DS` ────────────────────────
+      //
+      // Đặt TRƯỚC hai đường cũ để roster luôn là nguồn sự thật. Đọc Lark hỏng
+      // (mạng, token, sai table id) thì KHÔNG chặn đăng nhập admin — rơi xuống
+      // các nhánh dưới, vì admin là đường vào Cài đặt để sửa chính chỗ hỏng đó.
+      if (username.toLowerCase() !== 'admin') {
+        let account = null;
+        try {
+          account = matchRosterAccount(await readRoster(env, host), username, password);
+        } catch (e) {
+          return json({ code: -1, msg: `Không đọc được danh sách tài khoản (Master_DS): ${String(e?.message || e)}` }, 502);
+        }
+        if (account) {
+          if (account.workspaces.length === 0) {
+            // Nói thẳng nguyên nhân: dòng roster thiếu mã bàn thì có cho vào
+            // cũng không mở được màn hình nào.
+            return json(
+              { code: -1, msg: `Tài khoản ${account.username} chưa có "STT bàn" trong Master_DS — báo quản trị điền mã bàn.` },
+              403,
+            );
+          }
+          const desks = account.workspaces.map((w) => w.desk);
+          // Vai trò trong TOKEN chỉ để phân biệt với `admin` (quyền ghi cấu
+          // hình); chỗ làm việc cụ thể do app chọn từ `workspaces`.
+          const tokenRole = account.workspaces[0].role;
+          return json({
+            code: 0,
+            msg: 'success',
+            data: {
+              token: await issueToken(env, tokenRole, desks.join(',')),
+              ttlMs: SESSION_TTL_MS,
+              role: tokenRole,
+              // `desk` + `role` giữ tên cũ (chỗ đầu tiên) để bản web cũ còn
+              // đang chạy ngoài sự kiện không vỡ khi worker deploy trước.
+              desk: desks.length === 1 ? desks[0] : '',
+              desks,
+              workspaces: account.workspaces,
+              username: account.username,
+              msnv: account.msnv,
+              name: account.name,
+            },
+          });
+        }
+        // Không khớp roster → thử nốt đường cũ (TV4 + STAFF_PASSWORD) bên dưới.
+      }
+
       let role = 'admin';
       let desk = '';
       let valid = false;
@@ -642,9 +1157,12 @@ export default {
         if (!env.ADMIN_PASSWORD) {
           return json({ code: -1, msg: 'Chưa cấu hình ADMIN_PASSWORD trên worker' }, 500);
         }
-        valid = safeEqual(String(body.password ?? ''), env.ADMIN_PASSWORD);
+        valid = safeEqual(password, env.ADMIN_PASSWORD);
       } else if (isStaffDesk(username) && env.STAFF_PASSWORD) {
-        valid = safeEqual(String(body.password ?? ''), env.STAFF_PASSWORD);
+        // Đường CŨ, giữ để link riêng từng bàn (`#/tv4`) đã phát ra ngoài không
+        // chết giữa sự kiện: đăng nhập bằng chính mã bàn + mật khẩu dùng chung.
+        // Xoá secret `STAFF_PASSWORD` là đường này tự tắt, còn lại đúng roster.
+        valid = safeEqual(password, env.STAFF_PASSWORD);
         role = 'staff';
         desk = username.toUpperCase();
       }
@@ -653,7 +1171,20 @@ export default {
       if (!valid) {
         return json({ code: -1, msg: 'Sai tài khoản hoặc mật khẩu' }, 401);
       }
-      return json({ code: 0, msg: 'success', data: { token: await issueToken(env, role, desk), ttlMs: SESSION_TTL_MS, role, desk } });
+      return json({
+        code: 0,
+        msg: 'success',
+        data: {
+          token: await issueToken(env, role, desk),
+          ttlMs: SESSION_TTL_MS,
+          role,
+          desk,
+          desks: desk ? [desk] : [],
+          username: role === 'admin' ? 'admin' : desk,
+          msnv: '',
+          name: '',
+        },
+      });
     }
 
     // ── Danh sách điều phối viên (cấu hình dùng chung) ──────────────────────
@@ -1134,7 +1665,7 @@ export default {
 
     if (request.method === 'GET' && route === 'dashboard/snapshot') {
       try {
-        return json(await getDashboardSnapshot(env, host));
+        return await getFastDashboardSnapshotResponse(request, env, host, ctx);
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e), data: { tables: {} } }, 500);
       }

@@ -35,10 +35,6 @@ export default function StaffDeskPicker({
   return (
     <div className="mx-auto w-full max-w-[430px] px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3">
       <h2 className="text-lg font-bold text-neutral-900">Chọn bàn của bạn</h2>
-      <p className="mt-1 text-sm text-neutral-500">
-        Chọn 1 lần — máy này sẽ luôn mở đúng bàn đó. Đổi lại bất cứ lúc nào ở nút “Đổi bàn”.
-      </p>
-
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}

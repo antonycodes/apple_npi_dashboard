@@ -166,9 +166,6 @@ export default function SettingsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">Cài đặt · Kết nối Lark Base</h1>
-            <p className="text-sm text-neutral-500">
-              Nhập key kết nối và ánh xạ tên cột Lark ↔ trường trong web để đồng bộ dữ liệu.
-            </p>
           </div>
           <a
             href="#/"

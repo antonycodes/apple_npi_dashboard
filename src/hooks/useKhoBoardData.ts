@@ -1,22 +1,22 @@
 /**
- * useStaffDeskData — nguồn dữ liệu cho màn hình điện thoại của 1 nhân viên
- * (`#/nv`). Cùng vòng đời fetch/poll/mock với `useQueueBoardData`, nhưng map
- * qua `staffMapper` và chỉ trả về ĐÚNG 1 bàn.
+ * useKhoBoardData — nguồn dữ liệu polling cho màn hình Kho (`#/khoview`).
  *
- * `deskId` rỗng (chưa chọn bàn) → không fetch gì cả, để màn hình chọn bàn
- * không tốn request.
+ * Cùng vòng đời fetch/poll/mock với `useQueueBoardData` nhưng map qua
+ * `khoMapper` và trả về TẤT CẢ các bàn (mặc định) hoặc lọc theo `cluster`,
+ * vì kho cần nhìn nhiều cụm cùng lúc.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ALL_POSITIONS } from '@/config/layoutConfig';
 import { DEFAULT_FIELD_CONFIG, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { mockLarkTables } from '@/data/mockLarkData';
 import { fetchLarkData } from '@/services/larkService';
-import { mapStaffDeskView, type StaffDeskView } from '@/services/staffMapper';
+import { mapKhoStates, type DeskKhoState } from '@/services/khoMapper';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
+import type { ClusterKey } from '@/types/desk';
 
-export interface UseStaffDeskDataResult {
-  /** null = chưa chọn bàn, mã bàn không hợp lệ, hoặc chưa tải xong lần đầu. */
-  view: StaffDeskView | null;
+export interface UseKhoBoardDataResult {
+  desks: DeskKhoState[];
   loading: boolean;
   error: string | null;
   lastUpdated: Date | null;
@@ -24,13 +24,28 @@ export interface UseStaffDeskDataResult {
   refresh: () => void;
 }
 
-export function useStaffDeskData(deskId: string): UseStaffDeskDataResult {
+function emptyState(id: string, label: string, cluster: ClusterKey): DeskKhoState {
+  return { id, label, cluster, staffName: null, customers: [] };
+}
+
+/**
+ * @param cluster  chỉ lấy bàn của 1 cụm; bỏ trống = tất cả.
+ * @param enabled  `false` = KHÔNG fetch/poll. Dùng cho màn kho trên điện thoại
+ *   (`KhoAppPage`), nơi bảng kanban nằm ở tab thứ hai: kho để máy ở tab Bàn
+ *   giao suốt buổi, không việc gì phải map lại 36 bàn mỗi 5 giây.
+ */
+export function useKhoBoardData(cluster?: ClusterKey, enabled = true): UseKhoBoardDataResult {
   const settings = useLarkSettings();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
   const isMock = cfg.useMock;
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
 
-  const [view, setView] = useState<StaffDeskView | null>(null);
+  // Kèm nguồn sinh ra dữ liệu — xem ghi chú dài ở `useKhoHandoverData`: bảng
+  // của chế độ mẫu mà hiện dưới nhãn "Lark (live)" là đọc sai toàn bộ mặt bàn.
+  const [snapshot, setSnapshot] = useState<{ states: Record<string, DeskKhoState>; fromMock: boolean }>({
+    states: {},
+    fromMock: false,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -41,8 +56,7 @@ export function useStaffDeskData(deskId: string): UseStaffDeskDataResult {
     let cancelled = false;
     const controller = new AbortController();
 
-    if (!deskId) {
-      setView(null);
+    if (!enabled) {
       setLoading(false);
       return () => {
         cancelled = true;
@@ -50,7 +64,7 @@ export function useStaffDeskData(deskId: string): UseStaffDeskDataResult {
     }
 
     if (isMock) {
-      setView(mapStaffDeskView(mockLarkTables, deskId, DEFAULT_FIELD_CONFIG));
+      setSnapshot({ states: mapKhoStates(mockLarkTables, DEFAULT_FIELD_CONFIG), fromMock: true });
       setError(null);
       setLoading(false);
       setLastUpdated(new Date());
@@ -66,7 +80,7 @@ export function useStaffDeskData(deskId: string): UseStaffDeskDataResult {
       try {
         const tables = await fetchLarkData(cfg, req.signal);
         if (cancelled) return;
-        setView(mapStaffDeskView(tables, deskId));
+        setSnapshot({ states: mapKhoStates(tables), fromMock: false });
         setError(null);
         setLastUpdated(new Date());
       } catch (err) {
@@ -85,7 +99,13 @@ export function useStaffDeskData(deskId: string): UseStaffDeskDataResult {
       stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deskId, isMock, sig, nonce]);
+  }, [isMock, sig, nonce, enabled]);
 
-  return { view, loading, error, lastUpdated, isMock, refresh };
+  const khopCheDo = snapshot.fromMock === isMock;
+  const statesById = khopCheDo ? snapshot.states : {};
+  const desks = ALL_POSITIONS.filter((p) => !cluster || p.cluster === cluster).map(
+    (p) => statesById[p.id] ?? emptyState(p.id, p.label, p.cluster),
+  );
+
+  return { desks, loading: loading || !khopCheDo, error, lastUpdated, isMock, refresh };
 }

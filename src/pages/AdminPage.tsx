@@ -49,9 +49,6 @@ export default function AdminPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">Admin · Danh sách điều phối viên</h1>
-            <p className="text-sm text-neutral-500">
-              Cấu hình dùng chung cho mọi máy — lưu trên server, không phải trên từng máy.
-            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
