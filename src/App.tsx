@@ -58,6 +58,11 @@ function useHashRoute(): Route {
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
   const path = hashPath(hash);
+  // Direct URL production `https://.../app` phải mở cùng màn hình với
+  // `/#/app`. Vercel rewrite chỉ giúp trả `index.html`; router phía client vẫn
+  // cần nhận diện pathname, nếu không hash rỗng sẽ rơi về Dashboard.
+  const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+  if (pathname === 'app' || pathname.startsWith('app/')) return { kind: 'app' };
   if (path.startsWith('admin')) return { kind: 'admin' };
   if (path.startsWith('settings')) return { kind: 'settings' };
   if (path.startsWith('tuvanview')) return { kind: 'tuvanview' };
