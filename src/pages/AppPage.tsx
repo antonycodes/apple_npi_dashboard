@@ -1,5 +1,5 @@
 /**
- * AppPage — "NPI-APPLE All in One" (`#/app`): MỘT link phát cho toàn bộ nhân
+ * AppPage — "NPI-CPS All in One" (`#/app`): MỘT link phát cho toàn bộ nhân
  * sự, đăng nhập một lần, app tự mở đúng màn hình của người đang cầm máy.
  *
  * Luồng: đăng nhập (`AppLogin`) → worker trả vai trò + danh sách bàn từ
@@ -16,6 +16,7 @@
  */
 import { useState } from 'react';
 import AppLogin from '@/components/AppLogin';
+import { ArrowLeftIcon, ChevronRightIcon, LogOutIcon } from '@/components/AppShellIcons';
 import DashboardPage from '@/pages/DashboardPage';
 import KhoAppPage from '@/pages/KhoAppPage';
 import StaffPage from '@/pages/StaffPage';
@@ -25,7 +26,7 @@ import { useLarkSettings } from '@/config/larkSettings';
 /** Khung chung: nền sáng, cột hẹp canh giữa, chừa safe area trên cùng. */
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-full bg-neutral-100 pt-[env(safe-area-inset-top)] text-neutral-800">
+    <div className="min-h-full bg-[#f5f5f7] pt-[env(safe-area-inset-top)] text-neutral-800">
       {children}
     </div>
   );
@@ -61,53 +62,77 @@ function DeskChoice({
 }) {
   return (
     <Shell>
-      <div className="mx-auto w-full max-w-[430px] px-4 py-8">
-        <h1 className="text-2xl font-black text-neutral-900">Chọn khu vực</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          {name ? `${name} · ` : ''}tài khoản này có {workspaces.length} khu vực trong Master_DS.
-        </p>
-        <div className="mt-5 space-y-2">
+      <main className="mx-auto flex min-h-[calc(100dvh-env(safe-area-inset-top))] w-full max-w-[430px] flex-col px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-8">
+        <div>
+          <img
+            src="/cellphones-logo.png"
+            alt="CellphoneS"
+            className="h-11 w-auto max-w-[174px]"
+          />
+          {name && (
+            <p className="mt-6 truncate text-[15px] font-bold text-neutral-500">{name}</p>
+          )}
+          <h1 className={[
+            'text-[30px] font-black leading-tight tracking-[-0.025em] text-neutral-950',
+            name ? 'mt-1' : 'mt-6',
+          ].join(' ')}>
+            Chọn khu vực
+          </h1>
+        </div>
+
+        <div className="mt-7 space-y-3">
           {workspaces.map((ws) => (
             <button
               key={ws.desk}
               type="button"
               onClick={() => onPick(ws.desk)}
               className={[
-                'flex min-h-[64px] w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 text-left active:scale-[0.99]',
+                'group flex min-h-[72px] w-full items-center gap-4 rounded-2xl px-4 text-left transition-[transform,background-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:scale-[0.985]',
                 ws.desk === current
-                  ? 'border-brand bg-brand text-white'
-                  : 'border-neutral-200 bg-white text-neutral-800',
+                  ? 'bg-neutral-900 text-white shadow-[0_10px_30px_rgba(17,24,39,0.16)]'
+                  : 'bg-white text-neutral-900 shadow-[0_8px_24px_rgba(17,24,39,0.06)] hover:bg-neutral-50',
               ].join(' ')}
             >
-              <span className="text-xl font-bold">{ws.desk}</span>
               <span
                 className={[
-                  'text-sm font-semibold',
-                  ws.desk === current ? 'text-white/80' : 'text-neutral-500',
+                  'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black',
+                  ws.desk === current ? 'bg-white/15 text-white' : 'bg-neutral-100 text-neutral-700',
                 ].join(' ')}
               >
-                {loaiLabel(ws)}
+                {ws.desk}
               </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-base font-bold">{loaiLabel(ws)}</span>
+                <span className={ws.desk === current ? 'text-xs text-white/65' : 'text-xs text-neutral-400'}>
+                  Khu vực {ws.desk}
+                </span>
+              </span>
+              <ChevronRightIcon className={ws.desk === current ? 'h-5 w-5 text-white/70' : 'h-5 w-5 text-neutral-300 group-hover:text-neutral-500'} />
             </button>
           ))}
         </div>
-        {onCancel && current && (
+
+        <div className="mt-auto pt-8">
+          {onCancel && current && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-bold text-neutral-700 shadow-[0_6px_20px_rgba(17,24,39,0.05)] transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:bg-neutral-100"
+            >
+              <ArrowLeftIcon />
+              Giữ khu vực {current}
+            </button>
+          )}
           <button
             type="button"
-            onClick={onCancel}
-            className="mt-5 min-h-[52px] w-full rounded-2xl border border-neutral-300 bg-white text-base font-semibold text-neutral-600"
+            onClick={() => adminSessionStore.clear()}
+            className="mt-3 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl px-4 text-base font-bold text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 active:bg-red-100"
           >
-            Huỷ, giữ {current}
+            <LogOutIcon />
+            Đăng xuất
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => adminSessionStore.clear()}
-          className="mt-3 min-h-[52px] w-full rounded-2xl text-base font-semibold text-neutral-400"
-        >
-          Đăng nhập tài khoản khác
-        </button>
-      </div>
+        </div>
+      </main>
     </Shell>
   );
 }
@@ -135,9 +160,11 @@ function SessionBar({
         <button
           type="button"
           onClick={onChangeDesk}
-          className="min-h-8 rounded-full border border-neutral-300 px-3 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
+          aria-label="Quay lại chọn khu vực"
+          title="Quay lại chọn khu vực"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-neutral-600 transition-colors hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
-          Đổi khu vực
+          <ArrowLeftIcon className="h-4 w-4" />
         </button>
       )}
       <button
@@ -145,7 +172,7 @@ function SessionBar({
         onClick={onLogout}
         className="min-h-8 rounded-full bg-neutral-800 px-3 text-xs font-semibold text-white hover:opacity-90"
       >
-        Thoát
+        Đăng xuất
       </button>
     </div>
   );
@@ -169,15 +196,16 @@ function AdminHome({ name }: { name: string }) {
       <div className="mx-auto w-full max-w-[430px] px-4 py-8">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl font-black text-neutral-900">NPI-APPLE</h1>
+            <h1 className="text-2xl font-black text-neutral-900">NPI-CPS</h1>
             <p className="mt-1 text-sm text-neutral-500">{name || 'Quản trị'} · toàn quyền</p>
           </div>
           <button
             type="button"
             onClick={() => adminSessionStore.clear()}
-            className="min-h-11 shrink-0 rounded-xl border border-neutral-300 bg-white px-3 text-sm font-semibold text-neutral-600 active:bg-neutral-100"
+            className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-white px-3 text-sm font-bold text-red-600 shadow-[0_6px_18px_rgba(17,24,39,0.06)] transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 active:bg-red-100"
           >
-            Thoát
+            <LogOutIcon className="h-4 w-4" />
+            Đăng xuất
           </button>
         </div>
 
@@ -278,7 +306,7 @@ export default function AppPage() {
     return (
       <Shell>
         <div className="mx-auto w-full max-w-[430px] px-4 py-8">
-          <h1 className="text-2xl font-black text-neutral-900">NPI-APPLE</h1>
+          <h1 className="text-2xl font-black text-neutral-900">NPI-CPS</h1>
           <p className="mt-1 text-sm text-neutral-500">All in One</p>
           <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5">
             <p className="text-sm font-semibold text-amber-800">

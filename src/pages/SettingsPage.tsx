@@ -32,7 +32,7 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
   return (
     <div className="space-y-3">
       <p className="text-xs text-neutral-500">
-        Đang chuẩn bị đẩy: <b>{settings.useMock ? 'Dữ liệu mẫu' : 'Lark Base (live)'}</b> · proxy <b>{settings.apiUrl || 'chưa có'}</b>.
+        Đang chuẩn bị đẩy: <b>{!settings.useMock && settings.apiUrl.trim() ? 'Lark Connected' : 'Lark Not connected'}</b> · proxy <b>{settings.apiUrl || 'chưa có'}</b>.
         {dirty && ' Anh nên bấm “Lưu & đồng bộ” trước để dùng bản mới nhất.'}
       </p>
       <button

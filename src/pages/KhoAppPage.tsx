@@ -12,6 +12,7 @@
  * hai chỗ phải sửa mỗi lần Base đổi.
  */
 import { useState } from 'react';
+import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import KhoBoard from '@/components/KhoBoard';
 import KhoHandoverForm, { type KhoHandoverValues } from '@/components/KhoHandoverForm';
 import { useAdminInfo } from '@/config/adminSession';
@@ -45,6 +46,7 @@ export default function KhoAppPage({
   const board = useKhoBoardData(undefined, tab === 'board');
 
   const webhookUrl = staffActionWebhookUrl(settings);
+  const larkConnected = !isMock && !dataError && Boolean(lastUpdated);
 
   const submit = async (values: KhoHandoverValues) => {
     if (sending) return;
@@ -117,9 +119,11 @@ export default function KhoAppPage({
                 <button
                   type="button"
                   onClick={onChangeDesk}
-                  className="min-h-11 rounded-xl border border-neutral-300 px-3 text-sm font-semibold text-neutral-600 active:bg-neutral-100"
+                  aria-label="Quay lại chọn khu vực"
+                  title="Quay lại chọn khu vực"
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-colors hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:bg-neutral-300"
                 >
-                  Đổi khu vực
+                  <ArrowLeftIcon />
                 </button>
               )}
               {onLogout && (
@@ -128,7 +132,7 @@ export default function KhoAppPage({
                   onClick={onLogout}
                   className="min-h-11 rounded-xl px-2 text-sm font-semibold text-neutral-400"
                 >
-                  Thoát
+                  Đăng xuất
                 </button>
               )}
             </div>
@@ -138,10 +142,10 @@ export default function KhoAppPage({
             <span
               className={[
                 'rounded-full px-2 py-0.5 font-semibold',
-                isMock ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700',
+                larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
               ].join(' ')}
             >
-              {isMock ? 'Dữ liệu mẫu' : 'Lark (live) · 5s'}
+              {larkConnected ? 'Lark Connected' : 'Lark Not connected'}
             </span>
             <span className="min-w-0 flex-1 truncate text-neutral-500">
               {dataError

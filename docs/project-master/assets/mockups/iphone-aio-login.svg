@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="1040" viewBox="0 0 520 1040">
+  <rect width="520" height="1040" fill="#f3f4f6"/>
+  <rect x="42" y="20" width="436" height="1000" rx="72" fill="#111827"/>
+  <rect x="62" y="43" width="396" height="954" rx="54" fill="#ffffff"/>
+  <image href="../ui/production-aio-login-iphone-393x852.jpg" x="64" y="94" width="392" height="852" preserveAspectRatio="xMidYMid slice"/>
+  <rect x="190" y="52" width="140" height="34" rx="17" fill="#111827"/>
+</svg>

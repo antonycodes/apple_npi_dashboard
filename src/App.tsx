@@ -8,7 +8,7 @@
  * `#/admin` — tức chỉ chặn việc đổi máy này là ai / sửa danh sách, không chặn
  * việc vận hành.
  *
- * **App gộp `#/app`** (2026-08-19, yêu cầu user — "NPI-APPLE All in One"):
+ * **App gộp `#/app`** (2026-08-19, yêu cầu user — nay là "NPI-CPS All in One"):
  * MỘT link cho toàn bộ nhân sự, đăng nhập bằng tài khoản trong `Master_DS`
  * (`NPI_AIO_User`/`NPI_AIO_Pass`) rồi tự mở đúng màn hình theo vai trò — nhân
  * viên bàn, hoặc kho. Mọi route bên dưới GIỮ NGUYÊN, kể cả link riêng từng bàn

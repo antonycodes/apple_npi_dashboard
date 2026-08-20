@@ -51,14 +51,17 @@ export default function AppLogin() {
   };
 
   return (
-    <div className="min-h-full bg-neutral-100 pt-[env(safe-area-inset-top)] text-neutral-800">
-      <div className="mx-auto w-full max-w-[430px] px-4 py-8">
-        <h1 className="text-3xl font-black leading-none text-neutral-900">NPI-APPLE</h1>
-        <p className="mt-1 text-sm text-neutral-500">All in One · Tư vấn · Thu cũ · Backup · Kho</p>
-
-        <form onSubmit={submit} className="mt-6 space-y-3 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-neutral-500">Tài khoản (MSNV)</span>
+    <div className="min-h-full bg-[#f5f5f7] pt-[env(safe-area-inset-top)] text-neutral-800">
+      <main className="mx-auto flex min-h-[calc(100dvh-env(safe-area-inset-top))] w-full max-w-[430px] flex-col px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-10">
+        <img
+          src="/cellphones-logo.png"
+          alt="CellphoneS"
+          className="h-12 w-auto max-w-[190px]"
+        />
+        <h1 className="mt-7 text-[34px] font-black leading-none tracking-[-0.03em] text-neutral-950">NPI-CPS</h1>
+        <form onSubmit={submit} className="mt-8 space-y-4 rounded-2xl bg-white p-5 shadow-[0_12px_36px_rgba(17,24,39,0.08)]">
+          <label className="flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-500">Tài khoản MSNV</span>
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -66,12 +69,12 @@ export default function AppLogin() {
               autoCapitalize="characters"
               autoFocus={!username}
               placeholder="VD: S08380"
-              className="min-h-14 rounded-xl border border-neutral-300 px-3 text-lg font-bold uppercase focus:border-brand focus:outline-none"
+              className="min-h-14 rounded-xl bg-neutral-100 px-4 text-lg font-bold uppercase text-neutral-900 outline-none ring-brand transition-shadow placeholder:text-neutral-400 focus:ring-2"
             />
           </label>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-neutral-500">Mật khẩu</span>
+          <label className="flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-500">Mật khẩu</span>
             <div className="flex items-center gap-2">
               <input
                 type={showPass ? 'text' : 'password'}
@@ -79,13 +82,13 @@ export default function AppLogin() {
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
                 autoFocus={Boolean(username)}
-                className="min-h-14 w-full min-w-0 flex-1 rounded-xl border border-neutral-300 px-3 text-lg focus:border-brand focus:outline-none"
+                className="min-h-14 w-full min-w-0 flex-1 rounded-xl bg-neutral-100 px-4 text-lg text-neutral-900 outline-none ring-brand transition-shadow focus:ring-2"
               />
               <button
                 type="button"
                 onClick={() => setShowPass((v) => !v)}
                 aria-label={showPass ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                className="min-h-14 shrink-0 rounded-xl border border-neutral-300 px-3 text-sm font-semibold text-neutral-600 active:bg-neutral-100"
+                className="min-h-14 shrink-0 rounded-xl bg-neutral-100 px-4 text-sm font-bold text-neutral-600 transition-colors hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand active:bg-neutral-300"
               >
                 {showPass ? 'Ẩn' : 'Hiện'}
               </button>
@@ -95,17 +98,18 @@ export default function AppLogin() {
           <button
             type="submit"
             disabled={busy || !username.trim() || !password}
-            className="min-h-14 w-full rounded-2xl bg-brand text-base font-bold text-white shadow-sm active:opacity-80 disabled:opacity-40"
+            className="min-h-14 w-full rounded-xl bg-neutral-950 text-base font-bold text-white shadow-[0_8px_20px_rgba(17,24,39,0.18)] transition-[transform,background-color] hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:scale-[0.99] disabled:cursor-not-allowed disabled:shadow-none disabled:opacity-35"
           >
             {busy ? 'Đang kiểm tra…' : 'Đăng nhập'}
           </button>
 
-          {error && <p className="text-sm font-semibold text-red-600">✗ {error}</p>}
-          <p className="text-[11px] text-neutral-400">
-            Tài khoản và mật khẩu lấy từ Master_DS. Mật khẩu kiểm tra ở máy chủ, phiên giữ 12 giờ.
-          </p>
+          {error && (
+            <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+              {error}
+            </p>
+          )}
         </form>
-      </div>
+      </main>
     </div>
   );
 }

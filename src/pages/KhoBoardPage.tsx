@@ -48,6 +48,7 @@ export default function KhoBoardPage() {
     () => (hideEmpty ? desks.filter((d) => d.customers.length > 0) : desks),
     [desks, hideEmpty],
   );
+  const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-neutral-100 text-neutral-800">
@@ -62,18 +63,14 @@ export default function KhoBoardPage() {
             <span
               className={[
                 'rounded-full px-2 py-1 font-semibold',
-                isMock ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700',
+                larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
               ].join(' ')}
             >
-              {isMock ? 'Mock data' : 'Lark Base (live)'}
+              {larkConnected ? 'Lark Connected' : 'Lark Not connected'}
             </span>
-            {error ? (
-              <span className="rounded-full bg-red-100 px-2 py-1 font-semibold text-red-700">Lỗi đồng bộ</span>
-            ) : (
-              <span className="text-neutral-500">
-                {loading ? 'Đang tải…' : lastUpdated ? `Cập nhật: ${lastUpdated.toLocaleTimeString('vi-VN')}` : '—'}
-              </span>
-            )}
+            <span className={error ? 'text-red-600' : 'text-neutral-500'}>
+              {error ? 'Lỗi đồng bộ' : loading ? 'Đang tải…' : lastUpdated ? `Cập nhật: ${lastUpdated.toLocaleTimeString('vi-VN')}` : '—'}
+            </span>
             <button
               type="button"
               onClick={refresh}

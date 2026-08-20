@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="960" viewBox="0 0 1320 960">
+  <rect width="1320" height="960" fill="#f3f4f6"/>
+  <rect x="35" y="35" width="1250" height="890" rx="52" fill="#111827"/>
+  <rect x="67" y="67" width="1186" height="826" rx="26" fill="#ffffff"/>
+  <image href="../ui/production-kho-ipad-1180x820.jpg" x="70" y="70" width="1180" height="820" preserveAspectRatio="xMidYMid slice"/>
+  <circle cx="660" cy="50" r="5" fill="#374151"/>
+</svg>

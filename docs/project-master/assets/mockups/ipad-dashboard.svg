@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1120" viewBox="0 0 1500 1120">
+  <rect width="1500" height="1120" fill="#f3f4f6"/>
+  <rect x="35" y="35" width="1430" height="1050" rx="54" fill="#111827"/>
+  <rect x="64" y="64" width="1372" height="992" rx="28" fill="#ffffff"/>
+  <image href="../ui/production-dashboard-ipad-1366x1024.jpg" x="67" y="67" width="1366" height="986" preserveAspectRatio="xMidYMid slice"/>
+  <circle cx="750" cy="50" r="5" fill="#374151"/>
+</svg>

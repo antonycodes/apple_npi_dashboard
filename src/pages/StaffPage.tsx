@@ -23,6 +23,7 @@
  */
 import { useEffect, useState } from 'react';
 import AdminLoginForm from '@/components/AdminLoginForm';
+import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import StaffDeskPicker from '@/components/StaffDeskPicker';
 import StaffDeskScreen from '@/components/StaffDeskScreen';
 import { adminSessionStore, useAdminInfo, useAdminToken } from '@/config/adminSession';
@@ -100,6 +101,7 @@ export default function StaffPage({
   const locked = Boolean(lockedDeskId);
   const deskId = lockedDeskId ?? savedDeskId;
   const { view, loading, error, lastUpdated, isMock, refresh } = useStaffDeskData(deskId);
+  const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
   // ── 1. Đăng nhập (admin không mật khẩu; nhân viên có mật khẩu) ───────────
   const loginPossible = Boolean(settings.apiUrl.trim()) && !settings.useMock;
@@ -165,9 +167,11 @@ export default function StaffPage({
               <button
                 type="button"
                 onClick={() => (onChangeDesk ? onChangeDesk() : setPicking(true))}
-                className="min-h-11 shrink-0 rounded-xl border border-neutral-300 px-3 text-sm font-semibold text-neutral-600 active:bg-neutral-100"
+                aria-label="Quay lại chọn khu vực"
+                title="Quay lại chọn khu vực"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-colors hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:bg-neutral-300"
               >
-                Đổi bàn
+                <ArrowLeftIcon />
               </button>
             )}
           </div>
@@ -176,10 +180,10 @@ export default function StaffPage({
             <span
               className={[
                 'rounded-full px-2 py-0.5 font-semibold',
-                isMock ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700',
+                larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
               ].join(' ')}
             >
-              {isMock ? 'Dữ liệu mẫu' : 'Lark (live) · 5s'}
+              {larkConnected ? 'Lark Connected' : 'Lark Not connected'}
             </span>
             <span className="min-w-0 flex-1 truncate text-neutral-500">
               {error
@@ -203,7 +207,7 @@ export default function StaffPage({
                 onClick={() => (onLogout ? onLogout() : adminSessionStore.clear())}
                 className="min-h-8 rounded-lg px-2 font-semibold text-neutral-400"
               >
-                Thoát
+                Đăng xuất
               </button>
             )}
           </div>

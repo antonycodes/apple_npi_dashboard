@@ -67,13 +67,19 @@ export default function DashboardPage() {
     const customer = desk?.receivedCustomers?.[selectedCustomer.index];
     return desk && customer ? { desk, customer } : null;
   }, [desks, selectedCustomer]);
+  const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
   return (
     <div className="min-h-full bg-neutral-100 text-neutral-800">
       <header className="border-b border-neutral-200 bg-white px-4 py-3 md:px-6 md:py-4">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <div>
-            <h1 className="text-lg font-bold md:text-xl">NPI Event · Coordinator Dashboard</h1>
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              src="/cellphones-logo.png"
+              alt="CellphoneS"
+              className="h-7 w-auto shrink-0 md:h-8"
+            />
+            <h1 className="text-lg font-bold md:text-xl">NPI-CPS · Coordinator Dashboard</h1>
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
@@ -87,24 +93,20 @@ export default function DashboardPage() {
             <span
               className={[
                 'rounded-full px-2 py-1 font-semibold',
-                isMock ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700',
+                larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
               ].join(' ')}
             >
-              {isMock ? 'Mock data' : 'Lark Base (live · 30s)'}
+              {larkConnected ? 'Lark Connected' : 'Lark Not connected'}
             </span>
-            {error ? (
-              <span className="rounded-full bg-red-100 px-2 py-1 font-semibold text-red-700">
-                Lỗi đồng bộ
-              </span>
-            ) : (
-              <span className="text-neutral-500">
-                {loading
+            <span className={error ? 'text-red-600' : 'text-neutral-500'}>
+              {error
+                ? 'Lỗi đồng bộ'
+                : loading
                   ? 'Đang tải…'
                   : lastUpdated
                     ? `Cập nhật: ${lastUpdated.toLocaleTimeString('vi-VN')}`
                     : '—'}
-              </span>
-            )}
+            </span>
             <button
               type="button"
               onClick={refresh}
