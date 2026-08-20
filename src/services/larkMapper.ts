@@ -401,6 +401,15 @@ function latestByDeskAndName(
   for (const r of rows) {
     const name = cellToString(fieldValue(r.fields, fm.name));
     if (!name) continue;
+    // CHỈ xét dòng mang trạng thái phục vụ. Bảng còn có dòng "Thu máy nhanh"
+    // (thao tác chỉ-cầm-máy, xem `staffActionWebhook.StaffActionPayload`) —
+    // nó phải VÔ HẠI đúng như thiết kế, nhưng nếu để lọt vào đây thì với tư
+    // cách dòng MỚI NHẤT của cặp (bàn, khách) nó sẽ che dòng "Hoàn tất" cũ
+    // hơn, làm khách biến mất khỏi bàn ở CẢ hai danh sách (đang tiếp nhận và
+    // đã hoàn tất) — bug thật user báo 2026-08-19: TC1 hoàn tất 1 khách nhưng
+    // màn hình Kho không hiện. Dòng trạng thái rỗng cũng bị loại vì cùng lý do.
+    const rowStatus = cellToString(fieldValue(r.fields, fm.status));
+    if (rowStatus !== STATUS_RECEIVED && rowStatus !== STATUS_COMPLETED) continue;
     const stage = normalizedStage(cellToString(fieldValue(r.fields, fm.stage)));
     const msnv = cellToString(fieldValue(r.fields, fm.submitBy))?.trim().toUpperCase();
     const deskCode =
@@ -416,12 +425,7 @@ function latestByDeskAndName(
     const key = `${deskCode} ${name}`;
     const prev = latest.get(key);
     if (!prev || time >= prev.time) {
-      latest.set(key, {
-        deskCode,
-        name,
-        time,
-        status: cellToString(fieldValue(r.fields, fm.status)),
-      });
+      latest.set(key, { deskCode, name, time, status: rowStatus });
     }
   }
   return { rows: [...latest.values()], unresolvedNames: [...unresolved] };

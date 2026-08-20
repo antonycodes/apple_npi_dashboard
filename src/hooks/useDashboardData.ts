@@ -12,6 +12,7 @@ import { DEFAULT_FIELD_CONFIG } from '@/config/larkSettings';
 import { fetchLarkData } from '@/services/larkService';
 import { mapDeskStates } from '@/services/larkMapper';
 import { mapPendingDevices, type StaffCustomer } from '@/services/staffMapper';
+import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 import {
   computeSummary,
@@ -102,16 +103,19 @@ export function useDashboardData(): UseDashboardDataResult {
 
     async function load(initial: boolean) {
       if (initial) setLoading(true);
+      // Hết giờ thì BỎ lượt này để vòng poll đi tiếp — xem `requestTimeout.ts`.
+      const req = withRequestTimeout(controller.signal);
       try {
-        const tables = await fetchLarkData(cfg, controller.signal);
+        const tables = await fetchLarkData(cfg, req.signal);
         if (cancelled) return;
         setRaw({ ...mapDeskStates(tables), pendingDevice: mapPendingDevices(tables) });
         setError(null);
         setLastUpdated(new Date());
       } catch (err) {
         if (cancelled || controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : String(err));
+        setError(req.timedOut() ? TIMEOUT_MESSAGE : err instanceof Error ? err.message : String(err));
       } finally {
+        req.done();
         if (!cancelled && initial) setLoading(false);
       }
     }

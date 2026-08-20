@@ -71,7 +71,21 @@ function ShareLinkRow({ deskId }: { deskId: string }) {
   );
 }
 
-export default function StaffPage({ lockedDeskId }: { lockedDeskId?: string }) {
+export default function StaffPage({
+  lockedDeskId,
+  onChangeDesk,
+  onLogout,
+}: {
+  lockedDeskId?: string;
+  /**
+   * Chỉ truyền từ app gộp (`#/app`) khi tài khoản có NHIỀU bàn — hiện nút "Đổi
+   * bàn" quay về bước chọn bàn của shell. Link riêng từng bàn không có nút này:
+   * bàn đã nằm trong URL, đổi được thì hết là "link riêng".
+   */
+  onChangeDesk?: () => void;
+  /** Chỉ truyền từ app gộp — link riêng từng bàn không cho thoát. */
+  onLogout?: () => void;
+}) {
   const token = useAdminToken();
   const session = useAdminInfo();
   const settings = useLarkSettings();
@@ -147,10 +161,10 @@ export default function StaffPage({ lockedDeskId }: { lockedDeskId?: string }) {
                 {view?.staffName ?? 'Chưa có tên NV'}
               </p>
             </div>
-            {!locked && (
+            {(!locked || onChangeDesk) && (
               <button
                 type="button"
-                onClick={() => setPicking(true)}
+                onClick={() => (onChangeDesk ? onChangeDesk() : setPicking(true))}
                 className="min-h-11 shrink-0 rounded-xl border border-neutral-300 px-3 text-sm font-semibold text-neutral-600 active:bg-neutral-100"
               >
                 Đổi bàn
@@ -183,10 +197,10 @@ export default function StaffPage({ lockedDeskId }: { lockedDeskId?: string }) {
             >
               Làm mới
             </button>
-            {token && !locked && (
+            {token && (!locked || onLogout) && (
               <button
                 type="button"
-                onClick={() => adminSessionStore.clear()}
+                onClick={() => (onLogout ? onLogout() : adminSessionStore.clear())}
                 className="min-h-8 rounded-lg px-2 font-semibold text-neutral-400"
               >
                 Thoát
@@ -209,10 +223,10 @@ export default function StaffPage({ lockedDeskId }: { lockedDeskId?: string }) {
           <p className="text-sm text-neutral-500">
             {loading ? 'Đang tải dữ liệu bàn…' : `Không tìm thấy bàn “${deskId}” trên sơ đồ.`}
           </p>
-          {!locked && (
+          {(!locked || onChangeDesk) && (
             <button
               type="button"
-              onClick={() => setPicking(true)}
+              onClick={() => (onChangeDesk ? onChangeDesk() : setPicking(true))}
               className="mt-4 min-h-[52px] w-full rounded-2xl bg-brand text-base font-bold text-white"
             >
               Chọn lại bàn

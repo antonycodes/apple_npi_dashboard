@@ -23,9 +23,6 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div>
             <h1 className="text-lg font-bold md:text-xl">Màn hình STT · Khu vực {title}</h1>
-            <p className="hidden text-sm text-neutral-500 md:block">
-              STT đang phục vụ và STT tiếp theo của từng bàn — tự động cập nhật.
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">

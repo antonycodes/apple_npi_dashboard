@@ -1,10 +1,11 @@
-export type AppView = 'main' | 'tuvan' | 'tradein' | 'backup';
+export type AppView = 'main' | 'tuvan' | 'tradein' | 'backup' | 'kho';
 
 const VIEWS: Array<{ key: AppView; label: string; href: string }> = [
   { key: 'main', label: 'Main', href: '#/' },
   { key: 'tuvan', label: 'Tư vấn', href: '#/tuvanview' },
   { key: 'tradein', label: 'Thu cũ', href: '#/kythuatview' },
   { key: 'backup', label: 'Backup', href: '#/backupview' },
+  { key: 'kho', label: 'Kho', href: '#/khoview' },
 ];
 
 export default function ViewSwitcher({ active }: { active: AppView }) {

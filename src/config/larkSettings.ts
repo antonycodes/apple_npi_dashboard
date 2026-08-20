@@ -169,7 +169,9 @@ export function toRuntimeConfig(s: LarkSettings = settings): LarkRuntimeConfig {
     appToken: undefined,
     accessToken: undefined,
     tableIds,
-    pollMs: 5000,
+    // Nhịp quan sát 1 giây. Worker trả snapshot edge ngay và tự làm mới Lark
+    // ở nền; polling nhanh ở đây không đồng nghĩa gọi Lark mỗi giây.
+    pollMs: 1000,
   };
 }
 

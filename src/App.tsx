@@ -8,6 +8,12 @@
  * `#/admin` — tức chỉ chặn việc đổi máy này là ai / sửa danh sách, không chặn
  * việc vận hành.
  *
+ * **App gộp `#/app`** (2026-08-19, yêu cầu user — "NPI-APPLE All in One"):
+ * MỘT link cho toàn bộ nhân sự, đăng nhập bằng tài khoản trong `Master_DS`
+ * (`NPI_AIO_User`/`NPI_AIO_Pass`) rồi tự mở đúng màn hình theo vai trò — nhân
+ * viên bàn, hoặc kho. Mọi route bên dưới GIỮ NGUYÊN, kể cả link riêng từng bàn
+ * đã phát ra ngoài; dashboard và 3 màn hình STT vẫn mở-là-chạy không đăng nhập.
+ *
  * **Link riêng từng bàn** (2026-08-12, yêu cầu user): mọi hash dạng mã bàn —
  * `#/tv4`, `#/tc1`, `#/kt1` (alias của TC1), `#/bk2` — mở thẳng màn hình điện
  * thoại của ĐÚNG bàn đó, khoá luôn, không có nút đổi bàn. `#/nv` giữ nguyên là
@@ -19,13 +25,26 @@ import { applyLinkConfigFromHash, hashPath } from './config/staffLink';
 import { useSharedSettingsSync } from './hooks/useSharedSettingsSync';
 import { normalizeDeskCode } from './services/larkMapper';
 import AdminPage from './pages/AdminPage';
+import AppPage from './pages/AppPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import QueueBoardPage from './pages/QueueBoardPage';
+import KhoBoardPage from './pages/KhoBoardPage';
 import StaffPage from './pages/StaffPage';
 
 type Route =
-  | { kind: 'admin' | 'settings' | 'dashboard' | 'tuvanview' | 'kythuatview' | 'backupview' | 'staff' }
+  | {
+      kind:
+        | 'admin'
+        | 'settings'
+        | 'dashboard'
+        | 'tuvanview'
+        | 'kythuatview'
+        | 'backupview'
+        | 'khoview'
+        | 'staff'
+        | 'app';
+    }
   | { kind: 'desk'; deskId: string };
 
 /** `#/tv4`, `#/tc10`, `#/kt2`, `#/bk7` — mã bàn đứng 1 mình. */
@@ -44,6 +63,12 @@ function useHashRoute(): Route {
   if (path.startsWith('tuvanview')) return { kind: 'tuvanview' };
   if (path.startsWith('kythuatview') || path.startsWith('thucuvview')) return { kind: 'kythuatview' };
   if (path.startsWith('backupview')) return { kind: 'backupview' };
+  if (path.startsWith('khoview')) return { kind: 'khoview' };
+  // App gộp — MỘT link phát cho toàn bộ nhân sự, xem `pages/AppPage.tsx`.
+  // `startsWith` chứ không phải `===`: link chép tay hay dán từ chat rất hay
+  // dính dấu `/` ở cuối (`#/app/`), mà rơi khỏi route này thì im lặng nhảy về
+  // dashboard — đúng kiểu lỗi khó đoán nhất cho người dùng cuối.
+  if (path.startsWith('app')) return { kind: 'app' };
   // Bản cho admin tổng — chọn/đổi bàn được. `#/staff` giữ cho ai gõ tiếng Anh.
   if (path === 'nv' || path === 'staff') return { kind: 'staff' };
   if (DESK_ROUTE.test(path)) {
@@ -67,6 +92,8 @@ export default function App() {
   if (route.kind === 'tuvanview') return <QueueBoardPage cluster="consult" />;
   if (route.kind === 'kythuatview') return <QueueBoardPage cluster="tradein" />;
   if (route.kind === 'backupview') return <QueueBoardPage cluster="backup" />;
+  if (route.kind === 'khoview') return <KhoBoardPage />;
+  if (route.kind === 'app') return <AppPage />;
   if (route.kind === 'staff') return <StaffPage />;
   if (route.kind === 'desk') return <StaffPage lockedDeskId={route.deskId} />;
   return <DashboardPage />;

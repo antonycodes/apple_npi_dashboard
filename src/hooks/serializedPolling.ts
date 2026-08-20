@@ -36,18 +36,20 @@ export function startSerializedPolling(
     }
   };
 
-  const schedule = () => {
+  const schedule = (waitMs: number = delay) => {
     if (stopped || isCancelled()) return;
-    timer = setTimeout(() => void loop(), delay);
+    timer = setTimeout(() => void loop(), waitMs);
   };
 
   const loop = async () => {
     if (stopped || isCancelled()) return;
+    const startedAt = Date.now();
     await runOnce(false);
-    schedule();
+    schedule(Math.max(0, delay - (Date.now() - startedAt)));
   };
 
-  void runOnce(true).then(schedule);
+  const firstStartedAt = Date.now();
+  void runOnce(true).then(() => schedule(Math.max(0, delay - (Date.now() - firstStartedAt))));
 
   return stop;
 }

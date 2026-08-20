@@ -12,6 +12,7 @@ import { DEFAULT_FIELD_CONFIG, toRuntimeConfig, useLarkSettings } from '@/config
 import { mockLarkTables } from '@/data/mockLarkData';
 import { fetchLarkData } from '@/services/larkService';
 import { mapQueueStates, type DeskQueueState } from '@/services/queueMapper';
+import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 import type { ClusterKey } from '@/types/desk';
 
@@ -58,16 +59,19 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
 
     async function load(initial: boolean) {
       if (initial) setLoading(true);
+      // Hết giờ thì BỎ lượt này để vòng poll đi tiếp — xem `requestTimeout.ts`.
+      const req = withRequestTimeout(controller.signal);
       try {
-        const tables = await fetchLarkData(cfg, controller.signal);
+        const tables = await fetchLarkData(cfg, req.signal);
         if (cancelled) return;
         setStatesById(mapQueueStates(tables));
         setError(null);
         setLastUpdated(new Date());
       } catch (err) {
         if (cancelled || controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : String(err));
+        setError(req.timedOut() ? TIMEOUT_MESSAGE : err instanceof Error ? err.message : String(err));
       } finally {
+        req.done();
         if (!cancelled && initial) setLoading(false);
       }
     }

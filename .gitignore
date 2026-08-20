@@ -16,3 +16,5 @@ dist/
 .claude/
 memory.md
 *.tsbuildinfo
+.vercel
+.env*
