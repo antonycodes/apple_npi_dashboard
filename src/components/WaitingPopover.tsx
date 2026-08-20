@@ -24,7 +24,7 @@ interface WaitingPopoverProps {
 
 /** Fallback nếu Check-in chưa có "Done in Flow" — suy từ cụm vừa hoàn tất. */
 const STAGE_NAME: Record<ClusterKey, string> = {
-  tradein: 'Kỹ thuật',
+  tradein: 'Thu cũ',
   consult: 'Tư vấn',
   backup: 'Backup',
 };
