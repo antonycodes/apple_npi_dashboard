@@ -257,7 +257,7 @@ export const ENV_DEFAULTS = {
   host: DEFAULT_HOST,
   appToken: (env.VITE_LARK_APP_TOKEN as string | undefined) || '',
   accessToken: (env.VITE_LARK_ACCESS_TOKEN as string | undefined) || '',
-  pollMs: Number(env.VITE_LARK_POLL_MS) > 0 ? Number(env.VITE_LARK_POLL_MS) : 5000,
+  pollMs: Number(env.VITE_LARK_POLL_MS) > 0 ? Number(env.VITE_LARK_POLL_MS) : 10_000,
   useMock:
     env.VITE_LARK_USE_MOCK === 'true' || (!env.VITE_LARK_API_URL && !env.VITE_LARK_APP_TOKEN),
   tableIds: {

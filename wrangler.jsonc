@@ -22,6 +22,22 @@
       "id": "4c310d2bfd1f4295aa980b05f913cfba"
     }
   ],
+  // Một Durable Object serialize việc làm mới snapshot cho toàn bộ thiết bị
+  // trong event; migration SQLite chỉ tạo class mới, không đụng KV CONFIG.
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "DASHBOARD_SNAPSHOT",
+        "class_name": "DashboardSnapshotCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-dashboard-snapshot",
+      "new_sqlite_classes": ["DashboardSnapshotCoordinator"]
+    }
+  ],
   "secrets": {
     "required": [
       "LARK_APP_ID",

@@ -1,3 +1,5 @@
+import { DurableObject } from 'cloudflare:workers';
+
 /**
  * Lark Base proxy — Cloudflare Worker (module syntax).
  *
@@ -515,20 +517,9 @@ function resolveOptionRefs(records, fieldMaps) {
   }
 }
 
-// Dashboard reads are shared per warm Worker isolate. The short TTL is
-// deliberate: it coalesces a burst of devices without making writes appear
-// permanently stale. POST routes never use this cache.
-let dashboardSnapshotCache = null;
-let dashboardSnapshotInFlight = null;
-const dashboardTableCache = new Map();
-// Cache RAM chỉ để gộp các request rơi vào CÙNG isolate. Cache dùng chung cho
-// các isolate ở một data center nằm ở `caches.default` bên dưới.
-const DASHBOARD_SNAPSHOT_TTL_MS = 500;
-const DASHBOARD_SNAPSHOT_STALE_MS = 30000;
 const DASHBOARD_TABLES = ['checkin', 'orders', 'master', 'dispatch', 'dsMaster'];
-const EDGE_SNAPSHOT_FRESH_MS = 500;
-const EDGE_SNAPSHOT_TTL_SECONDS = 60;
-const EDGE_SNAPSHOT_CACHE_PATH = '/__npi-cache/dashboard-snapshot-v1';
+const DASHBOARD_SNAPSHOT_FRESH_MS = 8000;
+const DASHBOARD_SNAPSHOT_OBJECT_NAME = 'npi-cps-event';
 
 /**
  * Xoá cột bí mật khỏi các record sắp trả về máy khách.
@@ -579,100 +570,24 @@ async function readTableRecords(env, host, key, token, appToken, { includeSecret
   return items;
 }
 
-async function getDashboardSnapshot(env, host, forceRefresh = false) {
-  const now = Date.now();
-  if (!forceRefresh && dashboardSnapshotCache && now < dashboardSnapshotCache.expiresAt) {
-    return { ...dashboardSnapshotCache.payload, cache: 'hit' };
-  }
-  if (dashboardSnapshotInFlight) return dashboardSnapshotInFlight;
-
-  dashboardSnapshotInFlight = (async () => {
-    const token = await getToken(env, host);
-    const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
-    const results = await Promise.all(DASHBOARD_TABLES.map(async (key) => {
-      try {
-        const items = await readTableRecords(env, host, key, token, appToken);
-        dashboardTableCache.set(key, { items, updatedAt: Date.now() });
-        return { key, items, warning: null };
-      } catch (error) {
-        const cached = dashboardTableCache.get(key);
-        return {
-          key,
-          items: cached?.items ?? [],
-          warning: `${key}: ${String(error?.message || error)}`,
-        };
-      }
-    }));
-    const tables = Object.fromEntries(results.map(({ key, items }) => [key, items]));
-    const warnings = results.map((result) => result.warning).filter(Boolean);
-    const payload = {
-      code: 0,
-      msg: warnings.length ? 'partial snapshot' : 'success',
-      data: { tables, generatedAt: new Date().toISOString(), warnings },
-    };
-    dashboardSnapshotCache = {
-      payload,
-      expiresAt: Date.now() + DASHBOARD_SNAPSHOT_TTL_MS,
-      staleUntil: Date.now() + DASHBOARD_SNAPSHOT_STALE_MS,
-    };
-    return { ...payload, cache: 'miss' };
-  })();
-
-  try {
-    return await dashboardSnapshotInFlight;
-  } catch (error) {
-    // Keep the dashboard usable during a short Lark timeout/rate-limit burst.
-    // Writes still invalidate this cache, so this fallback is only a read-path
-    // resilience measure and is bounded by DASHBOARD_SNAPSHOT_STALE_MS.
-    if (dashboardSnapshotCache && Date.now() < dashboardSnapshotCache.staleUntil) {
-      return {
-        ...dashboardSnapshotCache.payload,
-        cache: 'stale',
-        warning: String(error?.message || error),
-      };
-    }
-    throw error;
-  } finally {
-    dashboardSnapshotInFlight = null;
-  }
-}
-
-/**
- * Snapshot nhanh cho trình duyệt: trả cache edge NGAY, rồi làm mới Lark ở nền.
- *
- * Cache RAM phía trên bị chia theo Worker isolate nên production liên tục
- * `cache=miss` (đo 2026-08-20: 2.6–6.25 giây/lượt). `caches.default` dùng
- * chung trong data center, đúng với mô hình 38 máy cùng ở một hội trường.
- * Payload được giữ 60 giây để luôn có bản dự phòng, nhưng chỉ coi là "tươi"
- * trong 0.5 giây; quá mốc đó request vẫn nhận bản gần nhất ngay và `waitUntil`
- * kéo dữ liệu mới ở nền. Đường GHI không đi qua cache này.
- */
-function edgeSnapshotCacheKey(request) {
-  const url = new URL(request.url);
-  url.pathname = EDGE_SNAPSHOT_CACHE_PATH;
-  url.search = '';
-  return new Request(url.toString(), { method: 'GET' });
-}
-
-function snapshotResponse(request, payload, edgeState, ageMs = 0) {
+function snapshotResponse(request, payload, cacheState, ageMs = 0) {
   const generatedAt = String(payload?.data?.generatedAt ?? 'unknown');
   const etag = `"npi-${generatedAt}"`;
   const commonHeaders = {
     'Cache-Control': 'no-cache',
     ETag: etag,
-    'X-NPI-Snapshot-Cache': edgeState,
+    'X-NPI-Snapshot-Cache': cacheState,
     'X-NPI-Snapshot-Age-Ms': String(Math.max(0, Math.round(ageMs))),
     ...CORS,
   };
 
-  // Poll 1 giây nhưng snapshot Lark chưa đổi thì chỉ gửi response 304 rất nhỏ;
-  // trình duyệt tự ghép lại body 200 đã cache. Không làm vậy, 38 máy sẽ tải
-  // lại toàn bộ JSON ~220 KB mỗi giây dù dữ liệu không thay đổi.
+  // Snapshot chưa đổi thì chỉ gửi response 304 rất nhỏ; trình duyệt tự ghép
+  // lại body 200 đã cache thay vì tải lại toàn bộ JSON.
   if (request.headers.get('If-None-Match') === etag) {
     return new Response(null, { status: 304, headers: commonHeaders });
   }
 
-  return new Response(JSON.stringify({ ...payload, cache: edgeState }), {
+  return new Response(JSON.stringify({ ...payload, cache: cacheState }), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
@@ -681,43 +596,17 @@ function snapshotResponse(request, payload, edgeState, ageMs = 0) {
   });
 }
 
-async function refreshEdgeSnapshot(cache, cacheKey, env, host) {
-  const payload = await getDashboardSnapshot(env, host, true);
-  if (!payload?.data?.tables) return payload;
-  const cached = new Response(JSON.stringify(payload), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': `public, max-age=${EDGE_SNAPSHOT_TTL_SECONDS}`,
-    },
-  });
-  await cache.put(cacheKey, cached);
-  return payload;
+async function getSharedDashboardSnapshotResponse(request, env) {
+  if (!env.DASHBOARD_SNAPSHOT) throw new Error('Thiếu Durable Object binding "DASHBOARD_SNAPSHOT"');
+  const coordinator = env.DASHBOARD_SNAPSHOT.getByName(DASHBOARD_SNAPSHOT_OBJECT_NAME);
+  const payload = await coordinator.getSnapshot();
+  return snapshotResponse(request, payload, payload.cache ?? 'shared', payload.ageMs ?? 0);
 }
 
-async function getFastDashboardSnapshotResponse(request, env, host, ctx) {
-  const cache = caches.default;
-  const cacheKey = edgeSnapshotCacheKey(request);
-  const hit = await cache.match(cacheKey);
-
-  if (hit) {
-    const payload = await hit.json();
-    const generatedAt = Date.parse(String(payload?.data?.generatedAt ?? ''));
-    const ageMs = Number.isFinite(generatedAt) ? Date.now() - generatedAt : Infinity;
-    if (ageMs > EDGE_SNAPSHOT_FRESH_MS) {
-      ctx.waitUntil(refreshEdgeSnapshot(cache, cacheKey, env, host).catch(() => undefined));
-      return snapshotResponse(request, payload, 'edge-stale-refreshing', ageMs);
-    }
-    return snapshotResponse(request, payload, 'edge-hit', ageMs);
-  }
-
-  // Cold start của data center: chưa có gì để trả nhanh, phải đọc Lark một lần.
-  const payload = await refreshEdgeSnapshot(cache, cacheKey, env, host);
-  return snapshotResponse(request, payload, 'edge-miss', 0);
-}
-
-function invalidateDashboardSnapshot() {
-  dashboardSnapshotCache = null;
+function invalidateDashboardSnapshot(env, ctx) {
+  if (!env.DASHBOARD_SNAPSHOT) return;
+  const coordinator = env.DASHBOARD_SNAPSHOT.getByName(DASHBOARD_SNAPSHOT_OBJECT_NAME);
+  ctx.waitUntil(coordinator.invalidate().catch(() => undefined));
 }
 
 // ── `POST /record`: map payload → cột Bitable ───────────────────────────────
@@ -977,6 +866,132 @@ function toCellValue(meta, raw) {
     // Text / single select / barcode / URL… đều nhận string.
     default:
       return s;
+  }
+}
+
+/**
+ * Một event là một coordination atom: toàn bộ 38 thiết bị dùng chung đúng một
+ * Durable Object. Object này serialize refresh, nên mỗi chu kỳ chỉ phát sinh
+ * một lượt đọc 5 bảng Lark dù nhiều máy poll cùng lúc.
+ *
+ * Dữ liệu được lưu theo từng bảng. Nếu một bảng Lark timeout, bảng đó giữ bản
+ * tốt gần nhất; tuyệt đối không ghi `[]` đè lên cache rồi làm dashboard trống.
+ */
+export class DashboardSnapshotCoordinator extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.refreshPromise = null;
+    this.tableState = new Map();
+    this.dirty = true;
+    this.invalidateVersion = 0;
+    this.lastAttemptAt = 0;
+    this.lastWarnings = [];
+    this.ready = ctx.blockConcurrencyWhile(async () => {
+      const values = await ctx.storage.get([
+        ...DASHBOARD_TABLES.map((key) => `table:${key}`),
+        'dirty',
+        'warnings',
+      ]);
+      for (const key of DASHBOARD_TABLES) {
+        const saved = values.get(`table:${key}`);
+        if (saved?.items && Number.isFinite(saved.updatedAt)) this.tableState.set(key, saved);
+      }
+      this.dirty = values.get('dirty') !== false;
+      this.lastWarnings = Array.isArray(values.get('warnings')) ? values.get('warnings') : [];
+      this.lastAttemptAt = this.tableState.size
+        ? Math.max(...Array.from(this.tableState.values(), (value) => value.updatedAt))
+        : 0;
+    });
+  }
+
+  async invalidate() {
+    await this.ready;
+    this.invalidateVersion += 1;
+    this.dirty = true;
+    await this.ctx.storage.put('dirty', true);
+    return { ok: true };
+  }
+
+  async getSnapshot() {
+    await this.ready;
+    const now = Date.now();
+    const allTablesAvailable = DASHBOARD_TABLES.every((key) => this.tableState.has(key));
+    if (allTablesAvailable && now - this.lastAttemptAt < DASHBOARD_SNAPSHOT_FRESH_MS) {
+      return this.buildPayload(
+        this.lastWarnings,
+        this.lastWarnings.length ? 'shared-stale' : 'shared-hit',
+      );
+    }
+
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.refresh().finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+    try {
+      return await this.refreshPromise;
+    } catch (error) {
+      if (!allTablesAvailable) throw error;
+      this.lastWarnings = [`snapshot: ${String(error?.message || error)}`];
+      this.dirty = true;
+      await this.ctx.storage.put({ dirty: true, warnings: this.lastWarnings });
+      return this.buildPayload(this.lastWarnings, 'shared-stale');
+    }
+  }
+
+  async refresh() {
+    const refreshVersion = this.invalidateVersion;
+    this.lastAttemptAt = Date.now();
+    const host = this.env.LARK_HOST || 'https://open.larksuite.com';
+    const token = await getToken(this.env, host);
+    const appToken = await resolveAppToken(this.env, host, this.env.LARK_APP_TOKEN);
+    const refreshedAt = Date.now();
+    const results = await Promise.all(DASHBOARD_TABLES.map(async (key) => {
+      try {
+        const items = await readTableRecords(this.env, host, key, token, appToken);
+        return { key, value: { items, updatedAt: refreshedAt }, warning: null };
+      } catch (error) {
+        return { key, value: null, warning: `${key}: ${String(error?.message || error)}` };
+      }
+    }));
+
+    const writes = {};
+    for (const result of results) {
+      if (!result.value) continue;
+      this.tableState.set(result.key, result.value);
+      writes[`table:${result.key}`] = result.value;
+    }
+    const warnings = results.map((result) => result.warning).filter(Boolean);
+    const missing = DASHBOARD_TABLES.filter((key) => !this.tableState.has(key));
+    if (Object.keys(writes).length) await this.ctx.storage.put(writes);
+    if (missing.length) {
+      throw new Error(`Snapshot chưa có dữ liệu tốt cho bảng: ${missing.join(', ')}`);
+    }
+
+    this.lastWarnings = warnings;
+    this.dirty = warnings.length > 0 || this.invalidateVersion !== refreshVersion;
+    await this.ctx.storage.put({ dirty: this.dirty, warnings });
+    return this.buildPayload(warnings, warnings.length ? 'shared-stale' : 'shared-refresh');
+  }
+
+  buildPayload(warnings, cache) {
+    const updatedAtByTable = Object.fromEntries(
+      DASHBOARD_TABLES.map((key) => [key, new Date(this.tableState.get(key).updatedAt).toISOString()]),
+    );
+    const oldestUpdatedAt = Math.min(...DASHBOARD_TABLES.map((key) => this.tableState.get(key).updatedAt));
+    return {
+      code: 0,
+      msg: warnings.length ? 'stale snapshot' : 'success',
+      cache,
+      ageMs: Date.now() - oldestUpdatedAt,
+      data: {
+        tables: Object.fromEntries(DASHBOARD_TABLES.map((key) => [key, this.tableState.get(key).items])),
+        generatedAt: new Date(this.lastAttemptAt).toISOString(),
+        sourceOldestAt: new Date(oldestUpdatedAt).toISOString(),
+        updatedAtByTable,
+        warnings,
+      },
+    };
   }
 }
 
@@ -1513,7 +1528,7 @@ export default {
             502,
           );
         }
-        invalidateDashboardSnapshot();
+        invalidateDashboardSnapshot(env, ctx);
         return json({
           code: 0,
           msg: 'success',
@@ -1624,7 +1639,7 @@ export default {
             502,
           );
         }
-        invalidateDashboardSnapshot();
+        invalidateDashboardSnapshot(env, ctx);
         return json({
           code: 0,
           msg: 'success',
@@ -1652,7 +1667,7 @@ export default {
           body: await request.text(),
         });
         const text = await r.text();
-        if (r.ok) invalidateDashboardSnapshot();
+        if (r.ok) invalidateDashboardSnapshot(env, ctx);
         return json({ code: r.ok ? 0 : -1, msg: r.ok ? 'success' : `Lark HTTP ${r.status}`, data: { body: text } }, r.ok ? 200 : 502);
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);
@@ -1665,7 +1680,7 @@ export default {
 
     if (request.method === 'GET' && route === 'dashboard/snapshot') {
       try {
-        return await getFastDashboardSnapshotResponse(request, env, host, ctx);
+        return await getSharedDashboardSnapshotResponse(request, env);
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e), data: { tables: {} } }, 500);
       }
