@@ -13,6 +13,7 @@ import { fetchLarkData } from '@/services/larkService';
 import { mapStaffDeskView, type StaffDeskView } from '@/services/staffMapper';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
+import { subscribeDashboardRealtime } from '@/services/dashboardRealtime';
 
 export interface UseStaffDeskDataResult {
   /** null = chưa chọn bàn, mã bàn không hợp lệ, hoặc chưa tải xong lần đầu. */
@@ -79,10 +80,12 @@ export function useStaffDeskData(deskId: string): UseStaffDeskDataResult {
     }
 
     const stopPolling = startSerializedPolling(load, cfg.pollMs, () => cancelled);
+    const stopRealtime = subscribeDashboardRealtime(cfg.apiUrl, () => void load(false));
     return () => {
       cancelled = true;
       controller.abort();
       stopPolling();
+      stopRealtime();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deskId, isMock, sig, nonce]);

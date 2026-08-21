@@ -609,6 +609,42 @@ function invalidateDashboardSnapshot(env, ctx) {
   ctx.waitUntil(coordinator.invalidate().catch(() => undefined));
 }
 
+function dashboardSnapshotCoordinator(env) {
+  if (!env.DASHBOARD_SNAPSHOT) throw new Error('Thiếu Durable Object binding "DASHBOARD_SNAPSHOT"');
+  return env.DASHBOARD_SNAPSHOT.getByName(DASHBOARD_SNAPSHOT_OBJECT_NAME);
+}
+
+async function handleLarkEvent(request, env, ctx) {
+  const raw = await request.text();
+  let body;
+  try {
+    body = JSON.parse(raw || '{}');
+  } catch {
+    return json({ code: -1, msg: 'Lark event không phải JSON hợp lệ' }, 400);
+  }
+
+  // Lark gửi challenge khi kiểm tra URL callback. Phải trả lại nguyên giá trị.
+  if (body.challenge) return json({ challenge: body.challenge });
+
+  // Có thể đặt secret này bằng `wrangler secret put LARK_EVENT_VERIFICATION_TOKEN`.
+  // Không hard-code token và không bắt buộc secret để giữ tương thích môi trường cũ.
+  const expectedToken = String(env.LARK_EVENT_VERIFICATION_TOKEN || '').trim();
+  const receivedToken = String(body.token || body.header?.token || '').trim();
+  if (expectedToken && receivedToken !== expectedToken) {
+    return json({ code: -1, msg: 'Lark event verification token không khớp' }, 401);
+  }
+
+  if (body.encrypt) {
+    return json({ code: -1, msg: 'Lark event đang ở dạng encrypt; cần cấu hình decrypt key trước' }, 400);
+  }
+
+  const coordinator = dashboardSnapshotCoordinator(env);
+  const eventId = String(body.header?.event_id || body.event_id || body.event?.event_id || '').trim();
+  const eventType = String(body.header?.event_type || body.event_type || '').trim();
+  const result = await coordinator.receiveLarkEvent({ eventId, eventType });
+  return json({ code: 0, msg: result.duplicate ? 'duplicate event ignored' : 'event accepted', data: result });
+}
+
 // ── `POST /record`: map payload → cột Bitable ───────────────────────────────
 //
 // Tên cột lấy theo bảng "Master" đang dùng thật. Sai tên KHÔNG làm hỏng
@@ -886,6 +922,7 @@ export class DashboardSnapshotCoordinator extends DurableObject {
     this.invalidateVersion = 0;
     this.lastAttemptAt = 0;
     this.lastWarnings = [];
+    this.webSockets = new Set();
     this.ready = ctx.blockConcurrencyWhile(async () => {
       const values = await ctx.storage.get([
         ...DASHBOARD_TABLES.map((key) => `table:${key}`),
@@ -909,7 +946,86 @@ export class DashboardSnapshotCoordinator extends DurableObject {
     this.invalidateVersion += 1;
     this.dirty = true;
     await this.ctx.storage.put('dirty', true);
-    return { ok: true };
+    await this.scheduleRefresh();
+    return { ok: true, scheduled: true };
+  }
+
+  async receiveLarkEvent({ eventId = '', eventType = '' } = {}) {
+    await this.ready;
+    const id = String(eventId || '').trim();
+    if (id) {
+      const seenKey = `event:${id}`;
+      if (await this.ctx.storage.get(seenKey)) return { duplicate: true, eventId: id };
+      await this.ctx.storage.put(seenKey, Date.now(), { expirationTtl: 600 });
+    }
+    this.invalidateVersion += 1;
+    this.dirty = true;
+    await this.ctx.storage.put('dirty', true);
+    await this.scheduleRefresh();
+    return { duplicate: false, eventId: id || null, eventType: eventType || null, scheduled: true };
+  }
+
+  async scheduleRefresh() {
+    const dueAt = Date.now() + 750;
+    const currentDueAt = await this.ctx.storage.get('refreshDueAt');
+    if (!currentDueAt || dueAt < currentDueAt) {
+      await this.ctx.storage.put('refreshDueAt', dueAt);
+      await this.ctx.storage.setAlarm(dueAt);
+    }
+  }
+
+  async fetch(request) {
+    await this.ready;
+    if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
+      return json({ code: -1, msg: 'WebSocket Upgrade required' }, 426);
+    }
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+    this.ctx.acceptWebSocket(server);
+    this.webSockets.add(server);
+    server.serializeAttachment({ connectedAt: Date.now() });
+    server.send(JSON.stringify({ type: 'connected', generatedAt: new Date().toISOString() }));
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async alarm() {
+    await this.ready;
+    const dueAt = await this.ctx.storage.get('refreshDueAt');
+    if (dueAt && dueAt > Date.now()) {
+      await this.ctx.storage.setAlarm(dueAt);
+      return;
+    }
+    await this.ctx.storage.delete('refreshDueAt');
+    try {
+      const payload = await this.refresh();
+      this.broadcast({ type: 'snapshot', payload });
+    } catch (error) {
+      this.broadcast({ type: 'error', message: String(error?.message || error) });
+    }
+  }
+
+  webSocketClose(webSocket) {
+    this.webSockets.delete(webSocket);
+  }
+
+  webSocketError(webSocket) {
+    this.webSockets.delete(webSocket);
+  }
+
+  webSocketMessage(webSocket, message) {
+    if (message === 'ping' || message?.data === 'ping') webSocket.send('pong');
+  }
+
+  broadcast(message) {
+    const encoded = JSON.stringify(message);
+    for (const webSocket of this.ctx.getWebSockets()) {
+      try {
+        webSocket.send(encoded);
+      } catch {
+        this.webSockets.delete(webSocket);
+      }
+    }
   }
 
   async getSnapshot() {
@@ -1006,6 +1122,22 @@ export default {
     // chế với việc lấy tên bảng ở segment cuối bên dưới.
     const route = segments.slice(-2).join('/');
     const host = (env.LARK_HOST || 'https://open.larksuite.com').replace(/\/+$/, '');
+
+    if (request.method === 'POST' && route === 'lark/events') {
+      try {
+        return await handleLarkEvent(request, env, ctx);
+      } catch (e) {
+        return json({ code: -1, msg: String(e?.message || e) }, 500);
+      }
+    }
+
+    if (request.method === 'GET' && (route === 'realtime' || route === 'ws')) {
+      try {
+        return await dashboardSnapshotCoordinator(env).fetch(request);
+      } catch (e) {
+        return json({ code: -1, msg: String(e?.message || e) }, 500);
+      }
+    }
 
     // ── `GET /roster-check` — soi danh sách tài khoản mà worker ĐỌC ĐƯỢC ───
     //

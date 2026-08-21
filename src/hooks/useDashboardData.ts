@@ -14,6 +14,7 @@ import { mapDeskStates } from '@/services/larkMapper';
 import { mapPendingDevices, type StaffCustomer } from '@/services/staffMapper';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
+import { subscribeDashboardRealtime } from '@/services/dashboardRealtime';
 import {
   computeSummary,
   type DashboardSummary,
@@ -121,10 +122,12 @@ export function useDashboardData(): UseDashboardDataResult {
     }
 
     const stopPolling = startSerializedPolling(load, cfg.pollMs, () => cancelled);
+    const stopRealtime = subscribeDashboardRealtime(cfg.apiUrl, () => void load(false));
     return () => {
       cancelled = true;
       controller.abort();
       stopPolling();
+      stopRealtime();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMock, sig, nonce]);
