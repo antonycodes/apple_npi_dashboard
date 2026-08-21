@@ -641,8 +641,12 @@ async function handleLarkEvent(request, env, ctx) {
   const coordinator = dashboardSnapshotCoordinator(env);
   const eventId = String(body.header?.event_id || body.event_id || body.event?.event_id || '').trim();
   const eventType = String(body.header?.event_type || body.event_type || '').trim();
-  const result = await coordinator.receiveLarkEvent({ eventId, eventType });
-  return json({ code: 0, msg: result.duplicate ? 'duplicate event ignored' : 'event accepted', data: result });
+  // Acknowledge Lark immediately. Deduplication, alarm scheduling and snapshot
+  // refresh continue after the HTTP response through the Worker lifetime.
+  ctx.waitUntil(
+    coordinator.receiveLarkEvent({ eventId, eventType }).catch(() => undefined),
+  );
+  return json({ code: 0, msg: 'event accepted' });
 }
 
 // ── `POST /record`: map payload → cột Bitable ───────────────────────────────
