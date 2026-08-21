@@ -238,7 +238,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
 
           {!webhook && (
             <p className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              Chưa cấu hình Webhook URL. Vào <b>Cài đặt Lark → 4 · Webhook Điều phối</b> để dán URL
+              Chưa cấu hình Webhook URL. Vào <b>Cài đặt → 4 · Webhook Điều phối</b> để dán URL
               webhook của Lark Base.
             </p>
           )}

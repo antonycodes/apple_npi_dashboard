@@ -160,12 +160,16 @@ export default function SettingsPage() {
     }
   };
 
+  if (session?.role !== 'admin') {
+    return <SettingsAccessGate />;
+  }
+
   return (
     <div className="min-h-full bg-neutral-100 text-neutral-800">
       <header className="border-b border-neutral-200 bg-white px-6 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold">Cài đặt · Kết nối Lark Base</h1>
+            <h1 className="text-xl font-bold">Cài đặt</h1>
           </div>
           <a
             href="#/"
@@ -353,6 +357,31 @@ export default function SettingsPage() {
             </span>
           )}
         </div>
+      </main>
+    </div>
+  );
+}
+
+function SettingsAccessGate() {
+  return (
+    <div className="min-h-full bg-neutral-100 text-neutral-800">
+      <header className="border-b border-neutral-200 bg-white px-6 py-4">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+          <h1 className="text-xl font-bold">Cài đặt</h1>
+          <a
+            href="#/"
+            className="rounded border border-neutral-300 px-3 py-1 text-sm font-medium text-neutral-600 hover:bg-neutral-50"
+          >
+            ← Về sơ đồ
+          </a>
+        </div>
+      </header>
+      <main className="mx-auto max-w-md px-6 py-10">
+        <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-bold">Cần đăng nhập admin</h2>
+          <p className="mt-1 mb-4 text-sm text-neutral-500">Nhập mật khẩu admin để truy cập Cài đặt.</p>
+          <AdminLoginForm fixedUsername="admin" submitLabel="Đăng nhập để truy cập Cài đặt" />
+        </section>
       </main>
     </div>
   );

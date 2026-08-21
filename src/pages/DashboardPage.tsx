@@ -88,7 +88,7 @@ export default function DashboardPage() {
               href="#/settings"
               className="flex min-h-8 items-center rounded border border-brand px-3 font-semibold text-brand hover:bg-brand hover:text-white"
             >
-              Cài đặt Lark
+              Cài đặt
             </a>
             <span
               className={[
