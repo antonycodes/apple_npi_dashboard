@@ -10,7 +10,7 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
     setError(null);
     try {
       await pushSharedSettings(toSharedSettings(settings));
-      setMessage('Đã đẩy cấu hình Live Base cho mọi máy. Máy NV sẽ áp dụng tối đa trong 5 giây.');
+      setMessage('Đã đồng bộ cấu hình toàn thiết bị. Máy NV sẽ áp dụng tối đa trong 5 giây.');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -24,7 +24,7 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
         <p className="text-xs text-neutral-500">
           Cấu hình được lưu trên Cloudflare KV. Đăng nhập admin để ghi cấu hình dùng chung cho tất cả máy.
         </p>
-        <AdminLoginForm fixedUsername="admin" submitLabel="Đăng nhập admin để đẩy cấu hình" />
+        <AdminLoginForm fixedUsername="admin" submitLabel="Đăng nhập admin để đồng bộ cấu hình" />
       </div>
     );
   }
@@ -41,7 +41,7 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
         disabled={busy || dirty || !settings.apiUrl.trim()}
         className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40"
       >
-        {busy ? 'Đang đẩy…' : 'Đẩy cấu hình cho mọi máy'}
+        {busy ? 'Đang đồng bộ…' : 'Đồng bộ cấu hình toàn thiết bị'}
       </button>
       {message && <p className="text-sm text-emerald-700">✓ {message}</p>}
       {error && <p className="text-sm text-red-600">✗ {error}</p>}
@@ -55,7 +55,7 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
  * Enter the proxy URL and map each Lark column name to the corresponding web field. Settings are
  * saved to localStorage and applied immediately (the dashboard re-syncs).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
   CHECKIN_LABELS,
   DISPATCH_BACKUP_FIELD_LABEL,
@@ -222,7 +222,8 @@ export default function SettingsPage() {
         </Section>
 
         {/* Ánh xạ trường */}
-        <Section title="3 · Ánh xạ trường">
+        <SettingsLockContext.Provider value={locked}>
+          <Section title="3 · Ánh xạ trường" disabled={locked}>
           <MapBlock title="Check in (bảng Master_Check in)">
             {(Object.keys(CHECKIN_LABELS) as Array<keyof CheckinFieldMap>).map((k) => (
               <Input
@@ -278,7 +279,8 @@ export default function SettingsPage() {
               />
             ))}
           </MapBlock>
-        </Section>
+          </Section>
+        </SettingsLockContext.Provider>
 
         {/* Hai đường GHI ra Lark, tách hẳn khỏi phần đọc dữ liệu ở trên.
             Mô tả cố ý KHÔNG liệt kê từng field payload: bản cũ liệt kê rồi để
@@ -301,8 +303,8 @@ export default function SettingsPage() {
           />
         </Section>
 
-        {/* Đẩy cấu hình cho MỌI máy — thứ khiến máy nhân viên live theo admin */}
-        <Section title="5 · Đẩy cấu hình cho mọi máy">
+        {/* Đồng bộ cấu hình toàn thiết bị — thứ khiến máy nhân viên live theo admin */}
+        <Section title="5 · Đồng bộ cấu hình toàn thiết bị">
           <SharedSettingsPush settings={saved} dirty={dirty} />
         </Section>
 
@@ -441,6 +443,8 @@ function MapBlock({ title, children }: { title: string; children: React.ReactNod
   );
 }
 
+const SettingsLockContext = createContext(false);
+
 function Input({
   label,
   value,
@@ -459,7 +463,10 @@ function Input({
   /** Che giá trị + cấm sửa khi chưa đăng nhập admin (chỉ chống nhìn lén). */
   locked?: boolean;
 }) {
-  if (locked) {
+  const sectionLocked = useContext(SettingsLockContext);
+  const isLocked = locked || sectionLocked;
+
+  if (isLocked) {
     return (
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium text-neutral-500">
