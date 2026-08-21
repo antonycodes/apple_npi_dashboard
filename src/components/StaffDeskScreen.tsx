@@ -275,7 +275,6 @@ function CustomerCard({
  */
 function ActionButton({
   label,
-  hint,
   href,
   variant,
   disabled,
@@ -285,7 +284,6 @@ function ActionButton({
   onOpen,
 }: {
   label: string;
-  hint?: string;
   href?: string | null;
   variant: 'receive' | 'complete';
   disabled?: boolean;
@@ -309,7 +307,6 @@ function ActionButton({
         className={`${base} ${locked ? lockedCls : disabled || busy ? off : enabled}`}
       >
         {busy ? 'Đang gửi…' : label}
-        {hint && <span className="mt-0.5 text-[11px] font-medium opacity-90">{hint}</span>}
       </button>
     );
   }
@@ -318,7 +315,6 @@ function ActionButton({
     return (
       <span aria-disabled="true" className={`${base} ${off}`}>
         {label}
-        {hint && <span className="mt-0.5 text-[11px] font-medium">{hint}</span>}
       </span>
     );
   }
@@ -326,7 +322,6 @@ function ActionButton({
   return (
     <a href={href} target="_blank" rel="noreferrer" onClick={onOpen} className={`${base} ${enabled}`}>
       {label}
-      {hint && <span className="mt-0.5 text-[11px] font-medium opacity-90">{hint}</span>}
     </a>
   );
 }
@@ -635,16 +630,6 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
     // Khi Lark đã chuyển sang STT kế tiếp, mở khoá nút Tiếp nhận cho khách mới.
     if (lockedReceiveStt && lockedReceiveStt !== nextStt) setLockedReceiveStt(null);
   }, [lockedReceiveStt, nextStt]);
-  const receiveHint = !nextStt
-    ? 'Chưa có khách chờ'
-    : !webhookMode
-      ? 'Chưa cấu hình webhook'
-      : receiveLocked
-        ? `Đã gửi · STT ${nextStt}`
-        : `STT ${nextStt}`;
-  const completeCustomerForButton = primary ?? ghost;
-  const completeHint = completeCustomerForButton ? `STT ${completeCustomerForButton.stt ?? '•'}` : 'Chưa có khách';
-
   // Đã gửi webhook mà quá lâu Lark vẫn chưa hiện record → nói thẳng, đừng để
   // NV ngồi nhìn nhãn "đang chờ" mãi rồi tưởng xong.
   const slowConfirm = Boolean(pending) && webhookMode && now - (pending?.at ?? now) > CONFIRM_WARN_MS;
@@ -799,7 +784,6 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
         <div className="mx-auto flex w-full max-w-[430px] gap-2 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
           <ActionButton
             label="Tiếp nhận"
-            hint={receiveHint}
             variant="receive"
             disabled={!nextStt || !webhookMode || receiveLocked}
             locked={receiveLocked}
@@ -811,7 +795,6 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
           />
           <ActionButton
             label="Hoàn tất"
-            hint={completeHint}
             variant="complete"
             disabled={!busy || !webhookMode}
             onPress={() => {

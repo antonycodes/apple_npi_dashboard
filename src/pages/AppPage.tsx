@@ -180,15 +180,15 @@ function SessionBar({
 
 /** Danh mục của admin — mở thẳng các màn hình sẵn có, mỗi cái một tab mới. */
 function AdminHome({ name }: { name: string }) {
-  const links: Array<{ href: string; label: string; desc: string }> = [
-    { href: '#/', label: 'Dashboard điều phối', desc: 'Sơ đồ 36 bàn, điều phối khách' },
-    { href: '#/tuvanview', label: 'Màn hình STT · Tư vấn', desc: 'Bản chiếu ngoài hội trường' },
-    { href: '#/kythuatview', label: 'Màn hình STT · Thu cũ', desc: 'Bản chiếu ngoài hội trường' },
-    { href: '#/backupview', label: 'Màn hình STT · Backup', desc: 'Bản chiếu ngoài hội trường' },
-    { href: '#/khoview', label: 'Bảng kho', desc: 'Kanban 36 bàn cho màn hình lớn' },
-    { href: '#/nv', label: 'Màn hình nhân viên', desc: 'Xem bàn bất kỳ, copy link cho NV' },
-    { href: '#/settings', label: 'Cài đặt', desc: 'Kết nối Lark, tên cột, webhook' },
-    { href: '#/admin', label: 'Quản trị', desc: 'Danh sách điều phối viên' },
+  const links: Array<{ href: string; label: string }> = [
+    { href: '#/', label: 'Dashboard điều phối' },
+    { href: '#/tuvanview', label: 'Màn hình STT · Tư vấn' },
+    { href: '#/kythuatview', label: 'Màn hình STT · Thu cũ' },
+    { href: '#/backupview', label: 'Màn hình STT · Backup' },
+    { href: '#/khoview', label: 'Bảng kho' },
+    { href: '#/nv', label: 'Màn hình nhân viên' },
+    { href: '#/settings', label: 'Cài đặt' },
+    { href: '#/admin', label: 'Quản trị' },
   ];
 
   return (
@@ -217,7 +217,6 @@ function AdminHome({ name }: { name: string }) {
               className="block rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm active:bg-neutral-50"
             >
               <span className="block text-base font-bold text-neutral-800">{l.label}</span>
-              <span className="block text-xs text-neutral-500">{l.desc}</span>
             </a>
           ))}
         </div>
@@ -314,10 +313,6 @@ export default function AppPage() {
                 ? 'Máy này đang chạy DỮ LIỆU MẪU nên chưa có tài khoản để đăng nhập.'
                 : 'Máy này chưa có API URL của worker nên chưa đăng nhập được.'}
             </p>
-            <p className="mt-2 text-xs text-amber-700">
-              Mở Cài đặt, điền API URL và tắt dữ liệu mẫu, hoặc mở app bằng link admin đã gửi
-              (link có sẵn <code>?api=…</code>).
-            </p>
             <a
               href="#/settings"
               className="mt-4 block min-h-14 rounded-2xl bg-brand pt-4 text-center text-base font-bold text-white"
@@ -328,10 +323,6 @@ export default function AppPage() {
           {settings.useMock && (
             <div className="mt-4 rounded-3xl border border-neutral-200 bg-white p-4">
               <h2 className="text-sm font-bold text-neutral-800">Chế độ thử</h2>
-              <p className="mt-1 text-xs text-neutral-500">
-                Mở đúng giao diện thật với dữ liệu mẫu để xem trước. Không đăng nhập, không ghi
-                được gì vào Lark — nút xác nhận sẽ báo thiếu cấu hình.
-              </p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"

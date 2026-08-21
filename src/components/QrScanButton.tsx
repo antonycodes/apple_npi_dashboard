@@ -283,10 +283,6 @@ export default function QrScanButton({
                 }}
               />
             </label>
-            <p className="mt-2 text-xs text-neutral-400">
-              Đưa mã vào khung màu xanh, hoặc chụp/chọn ảnh có mã — ô nhập tự điền khi
-              nhận diện được. Với IMEI, đặt mã vạch nằm ngang trong khung chữ nhật.
-            </p>
           </div>
         </div>
       )}

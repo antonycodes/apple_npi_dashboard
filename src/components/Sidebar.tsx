@@ -334,7 +334,6 @@ function AllSttModal({
             ×
           </button>
         </div>
-        <p className="mt-1 text-xs text-neutral-500">Bấm 1 STT để xem chi tiết khách.</p>
         {/* Cuộn trong popup: 200+ khách vẫn không đẩy nút Đóng ra khỏi màn hình. */}
         <div className="mt-3 flex flex-wrap justify-center gap-2 overflow-y-auto">
           {items.map((item, index) => (

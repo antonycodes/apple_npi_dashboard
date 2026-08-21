@@ -47,11 +47,6 @@ export default function PendingDeviceTable({
             ×
           </button>
         </div>
-        <p className="mb-3 text-xs text-neutral-500">
-          Khách đã chọn "Thu máy sau" ở khâu trước. NV bàn Thu cũ / Backup dùng
-          nút "Thu máy" trên màn hình của mình để ghi nhận.
-        </p>
-
         {customers.length === 0 ? (
           <p className="py-6 text-center text-sm italic text-neutral-400">
             Không còn máy nào chờ thu.

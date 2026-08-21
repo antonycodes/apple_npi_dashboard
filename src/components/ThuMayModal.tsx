@@ -145,21 +145,12 @@ export default function ThuMayModal({
                 <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
                   ✗ {loiTra}
                 </p>
-              ) : (
-                <p className="mt-1 text-xs text-neutral-400">
-                  Chỉ tra được khách đã hẹn "Thu máy sau" ở khâu trước.
-                </p>
-              )}
+              ) : null}
             </div>
           )}
 
           {chon && (
           <>
-          <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Dữ liệu máy lấy từ khâu trước, đã điền sẵn. Kiểm lại rồi xác nhận —
-            không cần sửa gì nếu đã đúng.
-          </p>
-
           <div>
             <span className="text-xs font-semibold text-neutral-500">
               Ảnh nghiệm thu (tối đa {MAX_ANH} ảnh)

@@ -21,9 +21,6 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
   if (session?.role !== 'admin') {
     return (
       <div className="space-y-3">
-        <p className="text-xs text-neutral-500">
-          Cấu hình được lưu trên Cloudflare KV. Đăng nhập admin để ghi cấu hình dùng chung cho tất cả máy.
-        </p>
         <AdminLoginForm fixedUsername="admin" submitLabel="Đăng nhập admin để đồng bộ cấu hình" />
       </div>
     );
@@ -31,10 +28,6 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-neutral-500">
-        Đang chuẩn bị đẩy: <b>{!settings.useMock && settings.apiUrl.trim() ? 'Lark Connected' : 'Lark Not connected'}</b> · proxy <b>{settings.apiUrl || 'chưa có'}</b>.
-        {dirty && ' Anh nên bấm “Lưu & đồng bộ” trước để dùng bản mới nhất.'}
-      </p>
       <button
         type="button"
         onClick={push}
@@ -426,9 +419,6 @@ function DeviceIdentityPicker() {
           ID “{currentId}” không còn trong danh sách (admin đã xoá/đổi) — chọn lại.
         </p>
       )}
-      <p className="text-[10px] text-neutral-400">
-        Lưu trên máy này. Mọi bản ghi gửi từ Form Điều phối sẽ kèm ID / tên / vị trí này.
-      </p>
 
       {assigning && <CoordinatorAssignModal onClose={() => setAssigning(false)} />}
     </div>
@@ -479,7 +469,6 @@ function Input({
   value,
   onChange,
   placeholder,
-  hint,
   type = 'text',
   locked = false,
 }: {
@@ -487,7 +476,6 @@ function Input({
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
-  hint?: string;
   type?: string;
   /** Che giá trị + cấm sửa khi chưa đăng nhập admin (chỉ chống nhìn lén). */
   locked?: boolean;
@@ -507,9 +495,6 @@ function Input({
         <div className="select-none rounded border border-neutral-200 bg-neutral-100 px-2 py-1.5 text-sm tracking-widest text-neutral-400">
           {value.trim() ? '••••••••••••••••••••' : <span className="tracking-normal italic">chưa cấu hình</span>}
         </div>
-        <span className="text-[10px] text-neutral-400">
-          Đăng nhập admin ở mục 5 để xem và sửa.
-        </span>
       </label>
     );
   }
@@ -524,7 +509,6 @@ function Input({
         onChange={(e) => onChange(e.target.value)}
         className="rounded border border-neutral-300 px-2 py-1.5 text-sm focus:border-brand focus:outline-none"
       />
-      {hint && <span className="text-[10px] text-neutral-400">{hint}</span>}
     </label>
   );
 }

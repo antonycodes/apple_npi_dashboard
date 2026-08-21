@@ -51,9 +51,6 @@ export default function CoordinatorAssignModal({ onClose }: { onClose: () => voi
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-neutral-800">Đổi điều phối viên</h2>
-            <p className="text-xs text-neutral-500">
-              {verified ? 'Chọn người phụ trách máy này.' : 'Xác nhận tài khoản admin để đổi.'}
-            </p>
           </div>
           <button
             type="button"

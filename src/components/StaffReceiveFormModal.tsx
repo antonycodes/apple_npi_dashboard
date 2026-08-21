@@ -149,9 +149,6 @@ export default function StaffReceiveFormModal({
                   </button>
                 ))}
               </div>
-              {!values.checkBackup && (
-                <p className="mt-1 text-xs text-neutral-400">Chọn Có hoặc Không trước khi gửi.</p>
-              )}
             </div>
           )}
 

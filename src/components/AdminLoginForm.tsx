@@ -94,7 +94,6 @@ export default function AdminLoginForm({
         {busy ? 'Đang kiểm tra…' : submitLabel}
       </button>
       {error && <p className="text-sm text-red-600">✗ {error}</p>}
-      <p className="text-[11px] text-neutral-400">Mật khẩu được kiểm tra ở máy chủ. Phiên giữ 12 giờ.</p>
     </form>
   );
 }

@@ -121,17 +121,8 @@ export default function KhoHandoverForm({
               {staff.msnv ?? '—'}
             </span>
           </div>
-        ) : (
-          <p className="mt-2 text-xs text-neutral-400">
-            {qrLoi ? '' : 'QR trên thẻ nhân viên chứa mã bàn — quét xong app hiện tên để đối chiếu.'}
-          </p>
-        )}
+        ) : null}
         {qrLoi && <p className="mt-1 text-sm font-semibold text-red-600">✗ {qrLoi}</p>}
-        <p className="mt-1 text-[11px] text-neutral-400">
-          {loading && chuaCoRoster
-            ? 'Đang tải danh sách bàn từ Master_DS…'
-            : `Danh sách bàn: ${staffByDesk.size} mã, đọc từ cột "STT bàn" của Master_DS.`}
-        </p>
         {staff && staff.loai && !/tư vấn/i.test(staff.loai) && (
           <p className="mt-1 text-xs font-semibold text-amber-700">
             Lưu ý: bàn {staff.desk} thuộc “{staff.loai}”, không phải Tư vấn.
@@ -169,9 +160,6 @@ export default function KhoHandoverForm({
       >
         {busy ? 'Đang gửi…' : 'Xác nhận bàn giao'}
       </button>
-      <p className="text-center text-[11px] text-neutral-400">
-        Ghi 1 dòng vào SS_Master với trạng thái “Bàn giao kho”.
-      </p>
     </div>
   );
 }
