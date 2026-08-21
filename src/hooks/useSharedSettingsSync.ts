@@ -13,6 +13,7 @@
  */
 import { useEffect } from 'react';
 import { larkSettingsStore, type LarkSettings } from '@/config/larkSettings';
+import { DEFAULT_API_URL, LEGACY_API_URL } from '@/config/larkConfig';
 import { fetchSharedSettings } from '@/services/appConfigApi';
 
 const SYNC_MS = 5_000;
@@ -72,10 +73,13 @@ export function useSharedSettingsSync(): void {
           },
         };
 
+        const incomingApiUrl = env.settings.apiUrl?.trim() || '';
+        const apiUrl = incomingApiUrl === LEGACY_API_URL ? DEFAULT_API_URL : incomingApiUrl || current.apiUrl;
+
         larkSettingsStore.save({
           ...current,
           useMock: env.settings.useMock,
-          apiUrl: env.settings.apiUrl || current.apiUrl,
+          apiUrl,
           dispatchWebhookUrl: env.settings.dispatchWebhookUrl,
           staffActionWebhookUrl: env.settings.staffActionWebhookUrl,
           fields: mergedFields,

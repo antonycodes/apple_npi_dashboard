@@ -242,7 +242,8 @@ export interface LarkRuntimeConfig {
 }
 
 /** Env-seeded defaults for first run (before the user opens Settings). */
-const DEFAULT_API_URL = 'https://api.vhws.online';
+export const DEFAULT_API_URL = 'https://api.vhws.online';
+export const LEGACY_API_URL = 'https://vhws-lark-proxy.eventnpi2026.workers.dev';
 
 export const ENV_DEFAULTS = {
   apiUrl: (env.VITE_LARK_API_URL as string | undefined) || DEFAULT_API_URL,
