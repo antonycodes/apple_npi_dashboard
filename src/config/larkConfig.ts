@@ -242,8 +242,10 @@ export interface LarkRuntimeConfig {
 }
 
 /** Env-seeded defaults for first run (before the user opens Settings). */
+const DEFAULT_API_URL = 'https://api.vhws.online';
+
 export const ENV_DEFAULTS = {
-  apiUrl: (env.VITE_LARK_API_URL as string | undefined) || '',
+  apiUrl: (env.VITE_LARK_API_URL as string | undefined) || DEFAULT_API_URL,
   /**
    * URL webhook của Lark (Base automation / anycross trigger) nhận form "Điều
    * phối". CHỈ GHI RA ngoài — form này không đọc/ghi gì vào dữ liệu dashboard.
@@ -258,8 +260,7 @@ export const ENV_DEFAULTS = {
   appToken: (env.VITE_LARK_APP_TOKEN as string | undefined) || '',
   accessToken: (env.VITE_LARK_ACCESS_TOKEN as string | undefined) || '',
   pollMs: Number(env.VITE_LARK_POLL_MS) > 0 ? Number(env.VITE_LARK_POLL_MS) : 10_000,
-  useMock:
-    env.VITE_LARK_USE_MOCK === 'true' || (!env.VITE_LARK_API_URL && !env.VITE_LARK_APP_TOKEN),
+  useMock: env.VITE_LARK_USE_MOCK === 'true',
   tableIds: {
     checkin: (env.VITE_LARK_TABLE_CHECKIN as string | undefined) || '',
     orders: (env.VITE_LARK_TABLE_ORDERS as string | undefined) || '',
