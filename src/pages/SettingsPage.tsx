@@ -209,7 +209,6 @@ export default function SettingsPage() {
                 value={draft.apiUrl}
                 onChange={(v) => setTop('apiUrl', v)}
                 locked={locked}
-                hint="Client gọi {URL}/checkin, /orders, /master, /dispatch, /dsMaster — hoặc quét QR bằng biểu tượng bên phải."
               />
             </div>
             {/* Ẩn nút quét khi khoá: quét QR là một đường GHI đè URL, để lại thì
@@ -224,10 +223,6 @@ export default function SettingsPage() {
 
         {/* Ánh xạ trường */}
         <Section title="3 · Ánh xạ trường">
-          <p className="text-xs text-neutral-500">
-            Điền đúng <b>tên cột hiển thị</b> trong Lark cho từng trường. Để trống = dùng mặc định.
-          </p>
-
           <MapBlock title="Check in (bảng Master_Check in)">
             {(Object.keys(CHECKIN_LABELS) as Array<keyof CheckinFieldMap>).map((k) => (
               <Input
@@ -296,7 +291,6 @@ export default function SettingsPage() {
             value={draft.dispatchWebhookUrl}
             onChange={(v) => setTop('dispatchWebhookUrl', v)}
             locked={locked}
-            hint='Nút "Điều phối" trên sơ đồ gửi bản ghi lên URL này. Nên dùng route /dispatch-record (worker ghi thẳng vào Lark, xác nhận được là đã ghi). Route /webhook cũ đi qua Automation: trả 200 nhưng vẫn mất record khi đông. Bảng Điều phối là nguồn của số "khách đang chờ" ở mỗi bàn và cột Nhân sự trong bảng End Flow — mất record là dashboard hiện thiếu.'
           />
           <Input
             label="Webhook Tiếp nhận / Hoàn tất (màn hình nhân viên)"
@@ -304,7 +298,6 @@ export default function SettingsPage() {
             value={draft.staffActionWebhookUrl}
             onChange={(v) => setTop('staffActionWebhookUrl', v)}
             locked={locked}
-            hint='2 nút ở màn hình NV (#/tv4…) gửi bản ghi lên URL này, ghi vào bảng Master. Nên dùng route /record — worker ghi thẳng, và tự tính leadtime của khâu từ hai mốc Thời gian trong Base. ĐỂ TRỐNG = 2 nút bị khoá, NV không thao tác được.'
           />
         </Section>
 

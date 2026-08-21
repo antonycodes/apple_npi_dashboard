@@ -251,12 +251,14 @@ export const ENV_DEFAULTS = {
    * URL webhook của Lark (Base automation / anycross trigger) nhận form "Điều
    * phối". CHỈ GHI RA ngoài — form này không đọc/ghi gì vào dữ liệu dashboard.
    */
-  dispatchWebhookUrl: (env.VITE_LARK_DISPATCH_WEBHOOK as string | undefined) || '',
+  dispatchWebhookUrl:
+    (env.VITE_LARK_DISPATCH_WEBHOOK as string | undefined) || `${DEFAULT_API_URL}/dispatch-record`,
   /**
    * Webhook thứ hai — 2 nút Tiếp nhận/Hoàn tất ở màn hình nhân viên. Trỏ vào
    * `https://<worker>/webhook2` (secret `LARK_WEBHOOK_URL2`).
    */
-  staffActionWebhookUrl: (env.VITE_LARK_STAFF_WEBHOOK as string | undefined) || '',
+  staffActionWebhookUrl:
+    (env.VITE_LARK_STAFF_WEBHOOK as string | undefined) || `${DEFAULT_API_URL}/record`,
   host: DEFAULT_HOST,
   appToken: (env.VITE_LARK_APP_TOKEN as string | undefined) || '',
   accessToken: (env.VITE_LARK_ACCESS_TOKEN as string | undefined) || '',

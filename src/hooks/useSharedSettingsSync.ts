@@ -75,13 +75,20 @@ export function useSharedSettingsSync(): void {
 
         const incomingApiUrl = env.settings.apiUrl?.trim() || '';
         const apiUrl = incomingApiUrl === LEGACY_API_URL ? DEFAULT_API_URL : incomingApiUrl || current.apiUrl;
+        const migrateEndpoint = (value: string, fallback: string) => {
+          const trimmed = value.trim();
+          if (!trimmed) return fallback;
+          return trimmed.startsWith(LEGACY_API_URL)
+            ? `${DEFAULT_API_URL}${trimmed.slice(LEGACY_API_URL.length)}`
+            : trimmed;
+        };
 
         larkSettingsStore.save({
           ...current,
           useMock: env.settings.useMock,
           apiUrl,
-          dispatchWebhookUrl: env.settings.dispatchWebhookUrl,
-          staffActionWebhookUrl: env.settings.staffActionWebhookUrl,
+          dispatchWebhookUrl: migrateEndpoint(env.settings.dispatchWebhookUrl, current.dispatchWebhookUrl),
+          staffActionWebhookUrl: migrateEndpoint(env.settings.staffActionWebhookUrl, current.staffActionWebhookUrl),
           fields: mergedFields,
         });
         markApplied(env.updatedAt);
