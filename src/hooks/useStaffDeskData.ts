@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_FIELD_CONFIG, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { mockLarkTables } from '@/data/mockLarkData';
 import { fetchLarkData } from '@/services/larkService';
+import type { LarkTables } from '@/services/larkTypes';
 import { mapStaffDeskView, type StaffDeskView } from '@/services/staffMapper';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
@@ -60,12 +61,12 @@ export function useStaffDeskData(deskId: string): UseStaffDeskDataResult {
       };
     }
 
-    async function load(initial: boolean) {
+    async function load(initial: boolean, realtimeTables?: LarkTables) {
       if (initial) setLoading(true);
       // Hết giờ thì BỎ lượt này để vòng poll đi tiếp — xem `requestTimeout.ts`.
       const req = withRequestTimeout(controller.signal);
       try {
-        const tables = await fetchLarkData(cfg, req.signal);
+        const tables = realtimeTables ?? await fetchLarkData(cfg, req.signal);
         if (cancelled) return;
         setView(mapStaffDeskView(tables, deskId));
         setError(null);
@@ -80,7 +81,7 @@ export function useStaffDeskData(deskId: string): UseStaffDeskDataResult {
     }
 
     const stopPolling = startSerializedPolling(load, cfg.pollMs, () => cancelled);
-    const stopRealtime = subscribeDashboardRealtime(cfg.apiUrl, () => void load(false));
+    const stopRealtime = subscribeDashboardRealtime(cfg.apiUrl, (realtimeTables) => void load(false, realtimeTables));
     return () => {
       cancelled = true;
       controller.abort();

@@ -1,4 +1,6 @@
-type RealtimeListener = () => void;
+import type { LarkTables } from './larkTypes';
+
+type RealtimeListener = (tables?: LarkTables) => void;
 
 let socket: WebSocket | null = null;
 let socketUrl = '';
@@ -15,8 +17,8 @@ function toWebSocketUrl(apiUrl: string): string {
   return url.toString();
 }
 
-function notify() {
-  for (const listener of listeners) listener();
+function notify(tables?: LarkTables) {
+  for (const listener of listeners) listener(tables);
 }
 
 function scheduleReconnect() {
@@ -44,7 +46,10 @@ function connect() {
   socket.onmessage = (event) => {
     try {
       const message = JSON.parse(String(event.data));
-      if (message.type === 'snapshot') notify();
+      if (message.type === 'snapshot') {
+        const tables = message.payload?.data?.tables as LarkTables | undefined;
+        notify(tables);
+      }
     } catch {
       // Ignore malformed frames; the next fallback poll remains authoritative.
     }
