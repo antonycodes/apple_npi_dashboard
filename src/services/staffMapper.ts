@@ -52,6 +52,8 @@ export interface StaffCustomer extends DeskCustomer {
   receiveUrl?: string | null;
   /** Dữ liệu máy cũ đã ghi lần trước — null nếu chưa từng ghi. */
   prevDevice?: PrevDeviceData | null;
+  /** Khách đã kết thúc toàn bộ luồng trong Check-in. */
+  endFlow?: boolean;
 }
 
 /** Toàn bộ những gì 1 màn hình nhân viên cần hiển thị. */
@@ -69,6 +71,10 @@ export interface StaffDeskView {
   current: StaffCustomer[];
   /** Khách của "STT tiếp theo" (`Master_DS`) — null nếu bàn chưa có ai chờ. */
   next: StaffCustomer | null;
+  /** Toàn bộ khách đã Check-in, dùng cho Tiếp nhận nhanh theo STT. */
+  checkinCustomers: StaffCustomer[];
+  /** STT đang có record Tiếp nhận ở bất kỳ bàn nào. */
+  activeStts: string[];
   /** Số khách đang chờ tới lượt ở bàn này (`Master_DS."Sl khách chờ"`). */
   waiting: number;
   /**
@@ -108,6 +114,7 @@ function indexCheckinByStt(rows: LarkRecord[], fm: CheckinFieldMap): Map<string,
       oldDeviceCheck: cellToString(r.fields[fm.oldDeviceCheck]),
       backupCheck: cellToString(r.fields[fm.backupCheck]),
       receiveUrl: cellToUrl(r.fields[fm.receiveHyperlink]),
+      endFlow: cellToString(r.fields[fm.endFlow])?.trim().toLowerCase() === 'end flow',
     });
   }
   return m;
@@ -255,6 +262,10 @@ export function mapStaffDeskView(
   const dangOBanNay = new Set(
     (state?.receivedCustomers ?? []).map((c) => c.stt).filter((x): x is string => Boolean(x)),
   );
+  const activeStts = tables.master
+    .filter((r) => cellToString(r.fields[fields.master.status]) === 'Tiếp nhận')
+    .map((r) => cellToString(r.fields[fields.master.sttInput]))
+    .filter((x): x is string => Boolean(x));
   const pendingDevice =
     pos.cluster === 'consult'
       ? []
@@ -269,6 +280,8 @@ export function mapStaffDeskView(
     submitBy: rosterStaff.get(pos.id)?.username ?? null,
     current: (state?.receivedCustomers ?? []).map(withPrev),
     next: next ? withPrev(next) : null,
+    checkinCustomers: [...checkinByStt.values()].map(withPrev),
+    activeStts,
     waiting: state?.waiting ?? 0,
     completedHistory: state?.completedCustomers ?? [],
     pendingDevice,

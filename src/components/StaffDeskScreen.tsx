@@ -437,6 +437,8 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
   const [formAction, setFormAction] = useState<'tiep_nhan' | 'hoan_tat' | null>(null);
   const [formCustomer, setFormCustomer] = useState<StaffCustomer | null>(null);
   const [lockedReceiveStt, setLockedReceiveStt] = useState<string | null>(null);
+  const [quickReceiveOpen, setQuickReceiveOpen] = useState(false);
+  const [quickReceiveError, setQuickReceiveError] = useState<string | null>(null);
   /** Sheet "chỉ thu máy" đang mở hay không (NV gõ STT bên trong sheet). */
   const [thuMayOpen, setThuMayOpen] = useState(false);
 
@@ -623,6 +625,36 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
     }
   };
 
+  const openQuickReceive = () => {
+    setQuickReceiveError(null);
+    setQuickReceiveOpen(true);
+  };
+
+  const lookupQuickReceive = (rawStt: string) => {
+    const stt = rawStt.trim();
+    if (!stt) {
+      setQuickReceiveError('Nhập STT khách.');
+      return;
+    }
+    const customer = view.checkinCustomers.find((c) => c.stt?.trim() === stt);
+    if (!customer) {
+      setQuickReceiveError('Không tìm thấy khách đã Check-in với STT này.');
+      return;
+    }
+    if (customer.endFlow) {
+      setQuickReceiveError('Khách đã hoàn tất toàn bộ quy trình.');
+      return;
+    }
+    if (view.activeStts.includes(stt)) {
+      setQuickReceiveError('Khách đang được tiếp nhận tại một bàn.');
+      return;
+    }
+    setQuickReceiveOpen(false);
+    setQuickReceiveError(null);
+    setFormCustomer(customer);
+    setFormAction('tiep_nhan');
+  };
+
   const nextStt = view.next?.stt ?? null;
   const webhookMode = Boolean(webhookUrl);
   const receiveLocked = Boolean(lockedReceiveStt && lockedReceiveStt === nextStt);
@@ -719,6 +751,23 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
               ))}
             </div>
           )}
+        </section>
+
+        <section className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-emerald-900">Tiếp nhận nhanh</h2>
+              <p className="mt-1 text-sm text-emerald-800">Dành cho khách đi thẳng vào bàn.</p>
+            </div>
+            <button
+              type="button"
+              onClick={openQuickReceive}
+              disabled={!webhookMode || sending || busy}
+              className="min-h-12 shrink-0 rounded-2xl bg-emerald-600 px-4 text-sm font-bold text-white active:bg-emerald-700 disabled:bg-neutral-200 disabled:text-neutral-500"
+            >
+              Tiếp nhận nhanh
+            </button>
+          </div>
         </section>
 
         {/* ── STT khách tiếp theo ──────────────────────────────────────── */}
@@ -851,6 +900,83 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
           }}
         />
       )}
+      {quickReceiveOpen && (
+        <QuickReceiveModal
+          busy={sending}
+          error={quickReceiveError}
+          onSubmit={lookupQuickReceive}
+          onClose={() => {
+            if (sending) return;
+            setQuickReceiveOpen(false);
+            setQuickReceiveError(null);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function QuickReceiveModal({
+  busy,
+  error,
+  onSubmit,
+  onClose,
+}: {
+  busy: boolean;
+  error: string | null;
+  onSubmit: (stt: string) => void;
+  onClose: () => void;
+}) {
+  const [stt, setStt] = useState('');
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !busy && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [busy, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" role="dialog" aria-modal="true">
+      <div className="w-full max-w-[430px] rounded-t-3xl bg-white p-4 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-bold text-neutral-900">Tiếp nhận nhanh</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            aria-label="Đóng"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-2xl leading-none text-neutral-400 active:bg-neutral-100 disabled:opacity-40"
+          >
+            ×
+          </button>
+        </div>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit(stt);
+          }}
+          className="space-y-3"
+        >
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-semibold text-neutral-700">STT khách</span>
+            <input
+              value={stt}
+              onChange={(event) => setStt(event.target.value)}
+              inputMode="numeric"
+              autoFocus
+              className="min-h-14 rounded-xl border border-neutral-300 px-4 text-xl font-bold focus:border-brand focus:outline-none"
+            />
+          </label>
+          {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">✗ {error}</p>}
+          <button
+            type="submit"
+            disabled={busy || !stt.trim()}
+            className="min-h-14 w-full rounded-2xl bg-emerald-600 text-base font-bold text-white disabled:opacity-40"
+          >
+            Tìm khách
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
