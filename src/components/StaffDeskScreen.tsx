@@ -753,23 +753,6 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
           )}
         </section>
 
-        <section className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-emerald-900">Tiếp nhận nhanh</h2>
-              <p className="mt-1 text-sm text-emerald-800">Dành cho khách đi thẳng vào bàn.</p>
-            </div>
-            <button
-              type="button"
-              onClick={openQuickReceive}
-              disabled={!webhookMode || sending || busy}
-              className="min-h-12 shrink-0 rounded-2xl bg-emerald-600 px-4 text-sm font-bold text-white active:bg-emerald-700 disabled:bg-neutral-200 disabled:text-neutral-500"
-            >
-              Tiếp nhận nhanh
-            </button>
-          </div>
-        </section>
-
         {/* ── STT khách tiếp theo ──────────────────────────────────────── */}
         <section className="rounded-3xl border-2 border-amber-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -842,6 +825,16 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
               setFormAction('tiep_nhan');
             }}
           />
+          <button
+            type="button"
+            onClick={openQuickReceive}
+            disabled={!webhookMode || sending || busy}
+            aria-label="Tiếp nhận nhanh"
+            title="Tiếp nhận nhanh"
+            className="flex min-h-[56px] w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm active:bg-emerald-100 disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400"
+          >
+            <LightningIcon />
+          </button>
           <ActionButton
             label="Hoàn tất"
             variant="complete"
@@ -913,6 +906,14 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
         />
       )}
     </>
+  );
+}
+
+function LightningIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6 fill-current">
+      <path d="M13.2 2.5 4.7 13.1c-.6.8-.1 1.9.9 1.9h4.8l-.8 6.5c-.1 1.1 1.3 1.6 1.9.6l8.2-11.3c.6-.8 0-1.9-1-1.9h-4.6l1-5.1c.2-1.1-1.2-1.9-1.9-1.3Z" />
+    </svg>
   );
 }
 
