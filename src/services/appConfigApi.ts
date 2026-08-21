@@ -23,7 +23,7 @@ import { workerBaseUrl } from './adminApi';
  * Nếu máy chưa từng nhận link `?api=...` thì vẫn gọi được `/config/app` và
  * nhận cấu hình Live Base do admin đã đẩy lên KV.
  */
-const PUBLIC_WORKER_URL = 'https://vhws-lark-proxy.eventnpi2026.workers.dev';
+const PUBLIC_WORKER_URL = 'https://api.vhws.online';
 
 function sharedConfigWorkerUrl(): string {
   try {

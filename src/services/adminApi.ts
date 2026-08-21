@@ -21,7 +21,7 @@ import type { CoordinatorConfig } from '@/types/coordinator';
 /** Base URL của worker — dùng chung ô "API URL" ở trang Cài đặt. */
 export function workerBaseUrl(): string {
   const url = larkSettingsStore.getSnapshot().apiUrl.trim().replace(/\/+$/, '');
-  return url || 'https://vhws-lark-proxy.eventnpi2026.workers.dev';
+  return url || 'https://api.vhws.online';
 }
 
 async function parse(res: Response): Promise<{ data?: unknown }> {
