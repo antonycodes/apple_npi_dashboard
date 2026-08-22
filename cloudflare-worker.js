@@ -609,6 +609,12 @@ function invalidateDashboardSnapshot(env, ctx) {
   ctx.waitUntil(coordinator.invalidate().catch(() => undefined));
 }
 
+function refreshDashboardSnapshotNow(env, ctx) {
+  if (!env.DASHBOARD_SNAPSHOT) return;
+  const coordinator = env.DASHBOARD_SNAPSHOT.getByName(DASHBOARD_SNAPSHOT_OBJECT_NAME);
+  ctx.waitUntil(coordinator.refreshAndBroadcast().catch(() => undefined));
+}
+
 function dashboardSnapshotCoordinator(env) {
   if (!env.DASHBOARD_SNAPSHOT) throw new Error('Thiếu Durable Object binding "DASHBOARD_SNAPSHOT"');
   return env.DASHBOARD_SNAPSHOT.getByName(DASHBOARD_SNAPSHOT_OBJECT_NAME);
@@ -952,6 +958,18 @@ export class DashboardSnapshotCoordinator extends DurableObject {
     await this.ctx.storage.put('dirty', true);
     await this.scheduleRefresh();
     return { ok: true, scheduled: true };
+  }
+
+  async refreshAndBroadcast() {
+    await this.ready;
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.refresh().finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+    const payload = await this.refreshPromise;
+    this.broadcast({ type: 'snapshot', payload });
+    return { ok: true, generatedAt: payload.data?.generatedAt ?? null };
   }
 
   async receiveLarkEvent({ eventId = '', eventType = '' } = {}) {
@@ -1664,7 +1682,7 @@ export default {
             502,
           );
         }
-        invalidateDashboardSnapshot(env, ctx);
+        refreshDashboardSnapshotNow(env, ctx);
         return json({
           code: 0,
           msg: 'success',
@@ -1775,7 +1793,7 @@ export default {
             502,
           );
         }
-        invalidateDashboardSnapshot(env, ctx);
+        refreshDashboardSnapshotNow(env, ctx);
         return json({
           code: 0,
           msg: 'success',
