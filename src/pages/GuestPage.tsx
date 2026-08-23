@@ -22,6 +22,7 @@ const DESK_ROLES = ALL_POSITIONS.map((position) => ({
   label: position.label,
   note: CLUSTER_LABELS[position.cluster],
 }));
+const ROOM_ROLES = [...DESK_ROLES, MODES.find((item) => item.id === 'KHO')!];
 
 export default function GuestPage() {
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -53,7 +54,7 @@ export default function GuestPage() {
               </a>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {(roomCode ? DESK_ROLES : MODES).map((item) => (
+              {(roomCode ? ROOM_ROLES : MODES).map((item) => (
                 <button
                   key={item.id}
                   type="button"
