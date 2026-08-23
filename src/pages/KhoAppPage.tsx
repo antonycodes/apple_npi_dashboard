@@ -152,7 +152,7 @@ export default function KhoAppPage({
                 larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
               ].join(' ')}
             >
-              {larkConnected ? 'Lark Connected' : 'Lark Not connected'}
+                {guestMode ? 'Guest Connected' : larkConnected ? 'Lark Connected' : 'Lark Not connected'}
             </span>
             <span className="min-w-0 flex-1 truncate text-neutral-500">
               {dataError
