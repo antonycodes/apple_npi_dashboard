@@ -127,7 +127,8 @@ iPad; có thể dùng dọc cho thao tác camera.
 2. Nhân sự mới đăng nhập tài khoản của mình.
 3. Chọn đúng workspace.
 4. Kiểm tra khách đang hoạt động trước khi thao tác.
-5. Timer trình duyệt có thể bị suy ra; dùng Proxy Leadtime trong báo cáo.
+5. Timer UI lấy mốc Tiếp nhận từ Base nên sống qua reload/đổi máy; dùng Proxy
+   Leadtime làm nguồn chính trong báo cáo.
 
 ## 9. Dấu hiệu cần báo Điều phối/kỹ thuật vận hành
 

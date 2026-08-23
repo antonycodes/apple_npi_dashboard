@@ -480,6 +480,7 @@ function indexMasterByDeskCode(
       customer: {
         stt: ci?.stt ?? null,
         name: row.name,
+        serviceStartedAt: row.time > 0 ? row.time : null,
         productName: ci?.product ?? null,
         paymentNote: ci?.note ?? null,
         deviceAccepted: ci?.deviceAccepted ?? null,

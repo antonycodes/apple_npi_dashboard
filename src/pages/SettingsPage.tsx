@@ -114,6 +114,7 @@ import {
   type LarkSettings,
 } from '@/config/larkSettings';
 import type { CheckinFieldMap, DsMasterFieldMap, MasterFieldMap } from '@/config/larkConfig';
+import { LEADTIME_WARNING_MINUTES } from '@/config/larkSettings';
 import AdminLoginForm from '@/components/AdminLoginForm';
 import { useAdminInfo } from '@/config/adminSession';
 import { fetchLarkData } from '@/services/larkService';
@@ -171,6 +172,15 @@ export default function SettingsPage() {
 
   const setDsMasterField = (k: keyof DsMasterFieldMap, v: string) =>
     setDraft((d) => ({ ...d, fields: { ...d.fields, dsMaster: { ...d.fields.dsMaster, [k]: v } } }));
+
+  const setLeadtime = (cluster: ClusterKey, value: string) =>
+    setDraft((d) => ({
+      ...d,
+      leadtimeMinutes: {
+        ...d.leadtimeMinutes,
+        [cluster]: Math.max(1, Number(value) || 1),
+      },
+    }));
 
   const save = () => {
     larkSettingsStore.save(clone(draft));
@@ -304,11 +314,41 @@ export default function SettingsPage() {
           </Section>
         </SettingsLockContext.Provider>
 
+        <Section title="3 · Thiết lập leadtime theo khâu" disabled={locked}>
+          <p className="text-sm text-neutral-500">
+            Timer chuyển vàng trước leadtime {LEADTIME_WARNING_MINUTES} phút và chuyển đỏ khi chạm hoặc vượt leadtime.
+            Giá trị áp dụng cho cả màn hình nhân viên và màn hình STT.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Input
+              label="Thu cũ (phút)"
+              type="number"
+              value={String(draft.leadtimeMinutes.tradein)}
+              onChange={(v) => setLeadtime('tradein', v)}
+              locked={locked}
+            />
+            <Input
+              label="Tư vấn (phút)"
+              type="number"
+              value={String(draft.leadtimeMinutes.consult)}
+              onChange={(v) => setLeadtime('consult', v)}
+              locked={locked}
+            />
+            <Input
+              label="Backup (phút)"
+              type="number"
+              value={String(draft.leadtimeMinutes.backup)}
+              onChange={(v) => setLeadtime('backup', v)}
+              locked={locked}
+            />
+          </div>
+        </Section>
+
         {/* Hai đường GHI ra Lark, tách hẳn khỏi phần đọc dữ liệu ở trên.
             Mô tả cố ý KHÔNG liệt kê từng field payload: bản cũ liệt kê rồi để
             lỗi thời khi payload thêm field, mà chú thích sai nằm ngay cạnh ô
             nhập thì người sau đọc vào sẽ tin. Danh sách field đầy đủ ở README. */}
-        <Section title="3 · Webhook Điều phối">
+        <Section title="4 · Webhook Điều phối">
           <Input
             label="Webhook URL"
             placeholder="https://<worker>.workers.dev/dispatch-record"
@@ -325,7 +365,7 @@ export default function SettingsPage() {
           />
         </Section>
 
-        <Section title="4 · Chế độ màn hình nhân viên">
+        <Section title="5 · Chế độ màn hình nhân viên">
           <p className="mb-3 text-sm text-neutral-500">
             Lock khóa toàn bộ màn hình vận hành, trừ admin và nhân viên MSNV S12196.
           </p>
@@ -335,7 +375,7 @@ export default function SettingsPage() {
         </Section>
 
         {/* Đồng bộ cấu hình toàn thiết bị — thứ khiến máy nhân viên theo admin */}
-        <Section title="5 · Đồng bộ cấu hình toàn thiết bị">
+        <Section title="6 · Đồng bộ cấu hình toàn thiết bị">
           <SharedSettingsPush settings={saved} dirty={dirty} />
         </Section>
 

@@ -53,13 +53,18 @@ export const staffTimerStore = {
   get(deskId: string, stt: string | null): TimerEntry | undefined {
     return stt ? timers[keyOf(deskId, stt)] : undefined;
   },
-  /** Bắt đầu đếm. Đã có mốc THẬT rồi thì giữ nguyên; mốc `approx` bị mốc thật ghi đè. */
-  start(deskId: string, stt: string | null, approx = false) {
+  /**
+   * Bắt đầu đếm từ mốc thật trong Base nếu có.
+   *
+   * Mốc tạm chỉ dùng trong lúc POST Tiếp nhận còn chờ. Khi vòng đọc nhận được
+   * `Master."Thời gian"`, mốc thật sẽ thay thế mốc tạm và sống qua F5/đổi máy.
+   */
+  start(deskId: string, stt: string | null, approx = false, startedAt = Date.now()) {
     if (!stt) return;
     const k = keyOf(deskId, stt);
     const prev = timers[k];
     if (prev && (prev.approx === approx || !prev.approx)) return;
-    commit({ ...timers, [k]: { startedAt: Date.now(), approx } });
+    commit({ ...timers, [k]: { startedAt, approx } });
   },
   /** Đặt lại nguyên 1 mốc đã lưu — dùng để HOÀN TÁC khi gửi webhook thất bại. */
   restore(deskId: string, stt: string | null, entry: TimerEntry | undefined) {

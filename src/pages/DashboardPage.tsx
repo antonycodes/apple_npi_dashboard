@@ -8,7 +8,7 @@ import DeskPopover from '@/components/DeskPopover';
 import DispatchFormModal from '@/components/DispatchFormModal';
 import EndFlowTable from '@/components/EndFlowTable';
 import PendingDeviceTable from '@/components/PendingDeviceTable';
-import FilterBar from '@/components/FilterBar';
+import FilterBar, { type OvertimeDesk } from '@/components/FilterBar';
 import LayoutDashboard from '@/components/LayoutDashboard';
 import Sidebar from '@/components/Sidebar';
 import StatusLegend from '@/components/StatusLegend';
@@ -18,13 +18,17 @@ import { useAdminInfo } from '@/config/adminSession';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
+import { LEADTIME_WARNING_MINUTES, useLarkSettings } from '@/config/larkSettings';
+import { formatElapsed } from '@/config/staffTimers';
 import type { WaitingZoneKey } from '@/types/desk';
 
 export default function DashboardPage({ readOnly = false, simulation = false, onGuestBack }: { readOnly?: boolean; simulation?: boolean; onGuestBack?: () => void } = {}) {
   const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, pendingDevice, loading, error, lastUpdated, isMock, refresh } =
     useDashboardData({ guestMode: simulation });
   const session = useAdminInfo();
+  const settings = useLarkSettings();
   const guestRoom = useGuestSimulation();
+  const [now, setNow] = useState(() => Date.now());
   const [showGuestQr, setShowGuestQr] = useState(false);
   const [guestQrDataUrl, setGuestQrDataUrl] = useState<string | null>(null);
 
@@ -38,6 +42,11 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
       .catch(() => setGuestQrDataUrl(null));
   }, [guestRoom?.joinUrl, showGuestQr]);
   const canDispatch = (simulation || !readOnly) && (simulation || session?.role === 'admin' || session?.role === 'dieuphoi');
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<{ deskId: string; index: number } | null>(null);
@@ -87,6 +96,27 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
     const customer = desk?.receivedCustomers?.[selectedCustomer.index];
     return desk && customer ? { desk, customer } : null;
   }, [desks, selectedCustomer]);
+
+  const overtimeDesks = useMemo<OvertimeDesk[]>(() => {
+    return desks.flatMap((desk) => {
+      const customer = desk.receivedCustomers?.[0];
+      const startedAt = customer?.serviceStartedAt;
+      if (!customer || typeof startedAt !== 'number' || !Number.isFinite(startedAt) || startedAt <= 0) return [];
+
+      const elapsedMs = Math.max(0, now - startedAt);
+      const leadtimeMs = Math.max(1, settings.leadtimeMinutes[desk.cluster]) * 60_000;
+      const warningMs = Math.max(0, settings.leadtimeMinutes[desk.cluster] - LEADTIME_WARNING_MINUTES) * 60_000;
+      if (elapsedMs < warningMs) return [];
+
+      return [{
+        id: desk.id,
+        label: desk.label,
+        stt: customer.stt,
+        elapsed: formatElapsed(elapsedMs),
+        overdue: elapsedMs >= leadtimeMs,
+      }];
+    });
+  }, [desks, now, settings.leadtimeMinutes]);
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
   return (
@@ -213,6 +243,8 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
         <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           <StatusLegend />
           <FilterBar
+            overtimeDesks={overtimeDesks}
+            onSelectOvertimeDesk={handleSelect}
             readOnly={!canDispatch}
             endFlowCount={endFlow.length}
             endFlowOpen={showEndFlow}

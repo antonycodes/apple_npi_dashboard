@@ -12,10 +12,12 @@ import QueueBoard from '@/components/QueueBoard';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useQueueBoardData } from '@/hooks/useQueueBoardData';
+import { useLarkSettings } from '@/config/larkSettings';
 import type { ClusterKey } from '@/types/desk';
 
 export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
   const { desks, loading, error, lastUpdated, isMock, refresh } = useQueueBoardData(cluster);
+  const settings = useLarkSettings();
   const title = CLUSTER_LABELS[cluster];
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
@@ -59,7 +61,7 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
       </header>
 
       <main className="px-3 py-4 md:px-6 md:py-6">
-        <QueueBoard desks={desks} />
+        <QueueBoard desks={desks} leadtimeMinutes={settings.leadtimeMinutes[cluster]} />
       </main>
       <SleepOverlay />
     </div>

@@ -48,7 +48,7 @@ Mỗi lần test lưu:
 | TV-01 | Tiếp nhận | Master `Tiếp nhận`, `Loại 2=Tư vấn` |
 | TV-02 | Hoàn tất không Backup | Master Hoàn tất + Back up Không |
 | TV-03 | Hoàn tất có Backup | Master Hoàn tất + Back up Có |
-| TV-04 | Reload giữa ca | UI không nhân đôi; Browser leadtime có thể suy ra |
+| TV-04 | Reload giữa ca | UI không nhân đôi; timer tiếp tục từ mốc Tiếp nhận trong Base |
 | TV-05 | Poll chưa xác nhận sau 15s | Hiện cảnh báo, không tự báo thành công giả |
 
 ## 5. Thu cũ

@@ -97,7 +97,8 @@ Source AIO nằm ở branch khác nhưng deploy `main` chưa chứa commit AIO.
 
 ## 12. Timer/leadtime sai
 
-- Browser timer mất khi reload/đổi máy.
+- Timer UI phải đọc lại mốc `Thời gian` của dòng Tiếp nhận từ Base sau reload/đổi máy;
+  chỉ dùng mốc tạm nếu record vừa bấm chưa xuất hiện.
 - Dùng `Proxy Leadtime` làm nguồn chính.
 - Kiểm tra cặp Tiếp nhận/Hoàn tất cùng STT và `Loại 2`.
 - Leadtime âm/không tìm thấy mốc phải để trống, không tự điền 0.

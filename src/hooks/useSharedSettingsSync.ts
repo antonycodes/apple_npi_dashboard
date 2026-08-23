@@ -97,6 +97,10 @@ export function useSharedSettingsSync(): void {
           apiUrl,
           dispatchWebhookUrl: migrateEndpoint(env.settings.dispatchWebhookUrl, current.dispatchWebhookUrl),
           staffActionWebhookUrl: migrateEndpoint(env.settings.staffActionWebhookUrl, current.staffActionWebhookUrl),
+          leadtimeMinutes: {
+            ...current.leadtimeMinutes,
+            ...(env.settings.leadtimeMinutes ?? {}),
+          },
           fields: mergedFields,
         });
         markApplied(env.updatedAt);

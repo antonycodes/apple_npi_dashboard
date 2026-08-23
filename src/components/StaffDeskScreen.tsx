@@ -19,13 +19,13 @@
  * tự tan khi dữ liệu thật về khớp, hoặc sau `PENDING_TTL_MS` để không kẹt mãi
  * nếu NV mở link rồi bỏ ngang.
  *
- * **Đồng hồ phục vụ** (2026-08-12): chạy từ lúc bấm Tiếp nhận tới lúc bấm Hoàn
- * tất, mốc lưu trên máy (`config/staffTimers.ts`) vì Lark không trả về mốc bắt
- * đầu nào. Mở màn hình lên mà thấy sẵn khách ở bàn (tiếp nhận từ máy khác) thì
- * lấy tạm thời điểm nhìn thấy làm mốc và hiện dấu `~`.
+ * **Đồng hồ phục vụ**: chạy từ mốc `Thời gian` của dòng Tiếp nhận trong Base,
+ * nên F5/đổi thiết bị vẫn giữ đúng thời gian. Chỉ trong lúc chờ record Tiếp
+ * nhận xuất hiện mới dùng mốc tạm trên máy; mốc này được thay bằng mốc Base ở
+ * vòng đọc kế tiếp.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { staffActionWebhookUrl, useLarkSettings } from '@/config/larkSettings';
+import { LEADTIME_WARNING_MINUTES, staffActionWebhookUrl, useLarkSettings } from '@/config/larkSettings';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import { formatElapsed, staffTimerStore, useStaffTimers, type TimerEntry } from '@/config/staffTimers';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
@@ -47,10 +47,6 @@ const STAGE_LABEL: Record<ClusterKey, string> = {
   tradein: 'Thu cũ',
   backup: 'Backup',
 };
-
-/** Mốc đổi màu đồng hồ — phục vụ càng lâu, màu càng gắt (phút). */
-const WARN_MINUTES = 10;
-const LATE_MINUTES = 20;
 
 interface Pending {
   action: 'receive' | 'complete';
@@ -129,18 +125,22 @@ function useNow(active: boolean): number {
 function ElapsedBadge({
   entry,
   now,
+  leadtimeMinutes,
   size = 'lg',
 }: {
   entry: TimerEntry | undefined;
   now: number;
+  leadtimeMinutes: number;
   size?: 'sm' | 'lg';
 }) {
   if (!entry) return null;
-  const minutes = (now - entry.startedAt) / 60_000;
+  const elapsed = Math.max(0, now - entry.startedAt);
+  const leadtimeMs = Math.max(1, leadtimeMinutes) * 60_000;
+  const warningMs = Math.max(0, leadtimeMinutes - LEADTIME_WARNING_MINUTES) * 60_000;
   const tone =
-    minutes >= LATE_MINUTES
+    elapsed >= leadtimeMs
       ? 'bg-red-100 text-red-700'
-      : minutes >= WARN_MINUTES
+      : elapsed >= warningMs
         ? 'bg-amber-100 text-amber-700'
         : 'bg-neutral-100 text-neutral-600';
   return (
@@ -157,7 +157,7 @@ function ElapsedBadge({
       ].join(' ')}
     >
       {entry.approx ? '~' : ''}
-      {formatElapsed(now - entry.startedAt)}
+      {formatElapsed(elapsed)}
     </span>
   );
 }
@@ -225,11 +225,13 @@ function CustomerCard({
   tone,
   timer,
   now,
+  leadtimeMinutes,
 }: {
   customer: StaffCustomer;
   tone: 'current' | 'pending';
   timer: TimerEntry | undefined;
   now: number;
+  leadtimeMinutes: number;
 }) {
   return (
     <div className={tone === 'pending' ? 'opacity-70' : undefined}>
@@ -242,7 +244,7 @@ function CustomerCard({
             <span className="min-w-0 truncate text-xl font-bold leading-tight text-neutral-900">
               {customer.name ?? 'Khách'}
             </span>
-            <ElapsedBadge entry={timer} now={now} />
+            <ElapsedBadge entry={timer} now={now} leadtimeMinutes={leadtimeMinutes} />
           </div>
           <div className="mt-1 flex flex-wrap gap-1">
             {customer.oldDeviceCheck && (
@@ -418,9 +420,17 @@ export default function StaffDeskScreen({
     // Lark còn đang trả về khách đó vài giây nữa, dùng danh sách thô sẽ dựng
     // lại ngay cái đồng hồ vừa dừng.
     //
-    // Khách đang ở bàn mà máy này chưa có mốc nào (được tiếp nhận từ máy khác,
-    // hoặc trước khi có tính năng) → lấy tạm lúc nhìn thấy, đánh dấu `approx`.
-    for (const c of current) staffTimerStore.start(view.id, c.stt, true);
+    // Dùng mốc Thời gian của dòng Tiếp nhận trong Base. Chỉ fallback về lúc
+    // nhìn thấy nếu dữ liệu cũ/guest chưa có mốc, để F5 không làm timer chạy
+    // lại từ đầu khi record thật đã có thời gian.
+    for (const c of current) {
+      const startedAt = c.serviceStartedAt;
+      if (typeof startedAt === 'number' && Number.isFinite(startedAt) && startedAt > 0) {
+        staffTimerStore.start(view.id, c.stt, false, startedAt);
+      } else {
+        staffTimerStore.start(view.id, c.stt, true);
+      }
+    }
     // Khách đã rời bàn thì bỏ đồng hồ — trừ khách vừa bấm Tiếp nhận, Lark chưa
     // kịp ghi (giữ lại thì đồng hồ mới không bị reset khi dữ liệu về).
     staffTimerStore.pruneDesk(view.id, [
@@ -444,6 +454,7 @@ export default function StaffDeskScreen({
 
   // ── Nút Tiếp nhận qua webhook: form recheck → POST tạo record SS_Master ──
   const settings = useLarkSettings();
+  const leadtimeMinutes = settings.leadtimeMinutes[view.cluster];
   const webhookUrl = staffActionWebhookUrl(settings);
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -760,10 +771,10 @@ export default function StaffDeskScreen({
           </h2>
 
           {primary ? (
-            <CustomerCard customer={primary} tone="current" timer={timerOf(primary.stt)} now={now} />
+            <CustomerCard customer={primary} tone="current" timer={timerOf(primary.stt)} now={now} leadtimeMinutes={leadtimeMinutes} />
           ) : ghost ? (
             <>
-              <CustomerCard customer={ghost} tone="pending" timer={timerOf(ghost.stt)} now={now} />
+              <CustomerCard customer={ghost} tone="pending" timer={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} />
               <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
                 {simulation ? 'Đã ghi nhận trong phòng mô phỏng — đang đồng bộ…' : webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
               </p>
@@ -787,7 +798,7 @@ export default function StaffDeskScreen({
                 <span className="min-w-0 truncate text-sm font-bold text-neutral-800">
                   {ghost.name ?? 'Khách'}
                 </span>
-                <ElapsedBadge entry={timerOf(ghost.stt)} now={now} size="sm" />
+                <ElapsedBadge entry={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} size="sm" />
               </div>
               <p className="mt-1 text-xs font-semibold text-amber-700">
                 {simulation ? 'Đã ghi nhận trong phòng mô phỏng — đang đồng bộ…' : webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
@@ -810,7 +821,7 @@ export default function StaffDeskScreen({
                       <span className="min-w-0 truncate text-sm font-bold text-neutral-800">
                         {c.name ?? 'Khách'}
                       </span>
-                      <ElapsedBadge entry={timerOf(c.stt)} now={now} size="sm" />
+                      <ElapsedBadge entry={timerOf(c.stt)} now={now} leadtimeMinutes={leadtimeMinutes} size="sm" />
                     </div>
                     <button
                       type="button"

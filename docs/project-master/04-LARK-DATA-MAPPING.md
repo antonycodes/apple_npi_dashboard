@@ -130,7 +130,8 @@ Test đạt khi token tải lại được và attachment xuất hiện trong re
 
 ## 9. Leadtime
 
-- `Brower Leadtime`: App tính bằng giây, có thể thiếu/sai khi reload hoặc đổi máy.
+- `Brower Leadtime`: UI hiển thị từ mốc `Master."Thời gian"` của dòng Tiếp nhận;
+  chỉ có thể thiếu trong vài giây đầu khi record mới chưa đọc về.
 - `Proxy Leadtime`: Worker tìm dòng Tiếp nhận cùng STT + cùng `Loại 2`, lấy mốc phù hợp trước Hoàn tất và tính trên Base.
 - Báo cáo hiệu suất ưu tiên `Proxy Leadtime`.
 - Nếu đổi tên/kiểu hai cột này phải sửa Worker và audit `/fields`.

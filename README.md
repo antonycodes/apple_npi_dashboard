@@ -45,12 +45,10 @@ vụ**), **STT khách tiếp theo** + số khách đang chờ, danh sách **sổ
   `#/tv1` **không** tự vào kịch bản mock nữa nếu worker đã có cấu hình Live —
   thêm `?mock=1` vào hash (`#/tv1?mock=1`) hoặc bật Mock ở `#/settings` để
   xem kịch bản mẫu: TV1 đang tiếp khách **STT 02**, **STT tiếp theo là 04**.
-- **Đồng hồ phục vụ**: chạy từ lúc bấm **Tiếp nhận** đến lúc bấm **Hoàn tất**,
-  mốc chỉ lưu trong bộ nhớ của tab (không phải `localStorage`) — khoá màn
-  hình/chuyển app rồi quay lại không mất, nhưng **reload trang thì mất**, đồng
-  hồ quay về suy đoán. Vàng ≥ 10 phút, đỏ ≥ 20 phút. Mở màn hình lên mà thấy
-  sẵn khách (được tiếp nhận từ máy khác, hoặc sau khi reload) thì đồng hồ hiện
-  `~` — mốc suy ra từ lúc màn hình nhìn thấy, không phải số đo thật.
+- **Đồng hồ phục vụ**: chạy từ mốc `Thời gian` của dòng **Tiếp nhận** trong
+  `Master` đến lúc bấm **Hoàn tất**, nên khoá màn hình, F5, hoặc đổi thiết bị
+  vẫn giữ đúng mốc. Trong lúc chờ record Tiếp nhận đầu tiên xuất hiện, UI dùng
+  mốc tạm trên máy rồi tự thay bằng mốc Base. Vàng ≥ 10 phút, đỏ ≥ 20 phút.
 
 ### 2 nút Tiếp nhận / Hoàn tất — cùng 1 đường: form recheck → webhook
 
@@ -154,17 +152,10 @@ dùng Backup không" là thừa.
 **Leadtime từng khâu** — đo từ lúc bấm **Tiếp nhận** tới lúc bấm **Hoàn tất**,
 gửi kèm ngay trong payload Hoàn tất. Dùng để đánh giá hiệu suất từng bàn/khâu.
 
-> ⚠️ **`leadtimeUocLuong: "Có"` nghĩa là số đo KHÔNG đáng tin** — phải lọc bỏ
-> trước khi tính trung bình, nếu không kết quả sẽ **thấp hơn thực tế một cách
-> có hệ thống**.
->
-> Đồng hồ chỉ nằm trong bộ nhớ phiên của trình duyệt (`staffTimers.ts`), không
-> lưu xuống máy. Nên mốc bị "suy ra" trong hai trường hợp thường gặp: màn hình
-> mở lên đã thấy sẵn khách (khách được Tiếp nhận từ máy khác), hoặc **NV tải
-> lại trang giữa lúc đang phục vụ**. Khi đó số đo chỉ tính từ lúc màn hình
-> nhìn thấy khách, không phải lúc bắt đầu phục vụ thật.
->
-> Muốn số liệu sạch hoàn toàn thì phải để đồng hồ sống qua reload — chưa làm.
+> ⚠️ **`leadtimeUocLuong: "Có"` chỉ còn áp dụng khi dữ liệu Tiếp nhận chưa có
+> mốc `Thời gian` để đối chiếu** (ví dụ vài giây đầu sau khi vừa bấm nút hoặc
+> dữ liệu cũ thiếu thời gian). Những dòng này phải lọc bỏ trước khi tính trung
+> bình.
 
 **Hai con số, hai nguồn độc lập** — giữ cả hai để đối chiếu:
 

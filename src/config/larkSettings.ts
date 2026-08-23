@@ -23,6 +23,9 @@ import {
 
 export type ConnMode = 'proxy';
 
+/** Số phút trước leadtime mà timer chuyển sang cảnh báo màu vàng. */
+export const LEADTIME_WARNING_MINUTES = 3;
+
 export interface LarkSettings {
   useMock: boolean;
   /** Khóa các màn hình nhân viên từ xa; máy Điều phối không bị khóa. */
@@ -45,6 +48,8 @@ export interface LarkSettings {
    */
   staffActionWebhookUrl: string;
   pollSeconds: number;
+  /** Leadtime mục tiêu theo từng khâu, tính bằng phút. */
+  leadtimeMinutes: Record<ClusterKey, number>;
   tableIds: Record<TableKey, string>;
   fields: {
     checkin: CheckinFieldMap;
@@ -66,6 +71,7 @@ export function defaultSettings(): LarkSettings {
     dispatchWebhookUrl: ENV_DEFAULTS.dispatchWebhookUrl,
     staffActionWebhookUrl: ENV_DEFAULTS.staffActionWebhookUrl,
     pollSeconds: 5,
+    leadtimeMinutes: { consult: 20, tradein: 20, backup: 20 },
     tableIds: { ...ENV_DEFAULTS.tableIds },
     fields: {
       checkin: { ...DEFAULT_CHECKIN_FIELDS },
@@ -90,6 +96,10 @@ function hydrate(raw: unknown): LarkSettings {
     ...p,
     mode: 'proxy',
     pollSeconds: 5,
+    leadtimeMinutes: {
+      ...base.leadtimeMinutes,
+      ...(p.leadtimeMinutes ?? {}),
+    },
     tableIds: { ...base.tableIds, ...(p.tableIds ?? {}) },
     fields: {
       checkin: {
