@@ -47,11 +47,7 @@ export default function GuestPage() {
       <div className="mx-auto max-w-3xl">
         <div className="mb-6 flex items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.16em] text-brand">VHWS Preview</p>
-            <h1 className="mt-1 text-3xl font-black text-neutral-900">Chế độ khách</h1>
-            <p className="mt-2 max-w-xl text-sm text-neutral-500">
-              Chọn một màn hình để xem đúng luồng vận hành. Dữ liệu là bản mô phỏng; mọi thao tác gửi đều chỉ hiện Thành công.
-            </p>
+            <h1 className="text-3xl font-black text-neutral-900">Chế độ khách</h1>
           </div>
           <a href="/app" className="hidden shrink-0 items-center gap-2 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-600 sm:flex">
             <ArrowLeftIcon className="h-4 w-4" /> Về đăng nhập
