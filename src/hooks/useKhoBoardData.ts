@@ -36,10 +36,10 @@ function emptyState(id: string, label: string, cluster: ClusterKey): DeskKhoStat
  *   (`KhoAppPage`), nơi bảng kanban nằm ở tab thứ hai: kho để máy ở tab Bàn
  *   giao suốt buổi, không việc gì phải map lại 36 bàn mỗi 5 giây.
  */
-export function useKhoBoardData(cluster?: ClusterKey, enabled = true): UseKhoBoardDataResult {
+export function useKhoBoardData(cluster?: ClusterKey, enabled = true, guestMode = false): UseKhoBoardDataResult {
   const settings = useLarkSettings();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
-  const isMock = cfg.useMock;
+  const isMock = guestMode || cfg.useMock;
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
 
   // Kèm nguồn sinh ra dữ liệu — xem ghi chú dài ở `useKhoHandoverData`: bảng

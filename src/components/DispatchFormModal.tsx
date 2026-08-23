@@ -35,6 +35,7 @@ interface DispatchFormModalProps {
    */
   initialStt?: string;
   onClose: () => void;
+  simulation?: boolean;
 }
 
 /**
@@ -61,7 +62,7 @@ type Status =
   | { kind: 'sent'; confirmed: boolean }
   | { kind: 'error'; msg: string };
 
-export default function DispatchFormModal({ desks, roster, initialStt = '', onClose }: DispatchFormModalProps) {
+export default function DispatchFormModal({ desks, roster, initialStt = '', onClose, simulation = false }: DispatchFormModalProps) {
   const settings = useLarkSettings();
   const webhook = dispatchWebhookUrl(settings);
   // Danh tính lấy trực tiếp từ tài khoản đăng nhập; không còn gán theo máy.
@@ -127,6 +128,12 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
     if (!canSubmit) return;
     setStatus({ kind: 'sending' });
     try {
+      if (simulation) {
+        setStatus({ kind: 'sent', confirmed: true });
+        setStt('');
+        setDeskId('');
+        return;
+      }
       const res = await sendDispatchForm(webhook, {
         stt: stt.trim(),
         phanLoai: loai,

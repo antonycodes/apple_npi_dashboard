@@ -71,10 +71,10 @@ export interface UseDashboardDataResult {
   refresh: () => void;
 }
 
-export function useDashboardData(): UseDashboardDataResult {
+export function useDashboardData(forceMock = false): UseDashboardDataResult {
   const settings = useLarkSettings();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
-  const isMock = cfg.useMock;
+  const isMock = forceMock || cfg.useMock;
   // Lock có polling riêng trong SleepOverlay. Không để thay đổi sleepMode
   // khởi động lại snapshot Lark 5 bảng và làm chậm việc hiện overlay trên DP.
   const sig = useMemo(() => {

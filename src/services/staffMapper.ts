@@ -229,7 +229,13 @@ export function mapStaffDeskView(
   deskId: string,
   fields: FieldConfig = toFieldConfig(),
 ): StaffDeskView | null {
-  const pos = ALL_POSITIONS.find((p) => p.id === deskId);
+  const guestTemplate: Record<string, string> = {
+    Guest_TV: 'TV1',
+    Guest_TC: 'TC1',
+    Guest_BK: 'BK1',
+  };
+  const templateId = guestTemplate[deskId] ?? deskId;
+  const pos = ALL_POSITIONS.find((p) => p.id === templateId);
   if (!pos) return null;
 
   const { statesById } = mapDeskStates(tables, fields);
@@ -272,12 +278,12 @@ export function mapStaffDeskView(
       : mapPendingDevices(tables, fields).filter((c) => !c.stt || !dangOBanNay.has(c.stt));
 
   return {
-    id: pos.id,
-    label: pos.label,
+    id: deskId,
+    label: deskId,
     cluster: pos.cluster,
-    staffName: state?.staffName ?? rosterStaff.get(pos.id)?.name ?? null,
-    staffId: rosterStaff.get(pos.id)?.staffId ?? null,
-    submitBy: rosterStaff.get(pos.id)?.username ?? null,
+    staffName: deskId.startsWith('Guest_') ? 'Màn hình mô phỏng' : state?.staffName ?? rosterStaff.get(pos.id)?.name ?? null,
+    staffId: deskId.startsWith('Guest_') ? 'Guest' : rosterStaff.get(pos.id)?.staffId ?? null,
+    submitBy: deskId.startsWith('Guest_') ? 'Guest' : rosterStaff.get(pos.id)?.username ?? null,
     current: (state?.receivedCustomers ?? []).map(withPrev),
     next: next ? withPrev(next) : null,
     checkinCustomers: [...checkinByStt.values()].map(withPrev),

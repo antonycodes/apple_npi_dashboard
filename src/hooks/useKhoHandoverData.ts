@@ -43,10 +43,10 @@ interface StaffSnapshot {
   fromMock: boolean;
 }
 
-export function useKhoHandoverData(): UseKhoHandoverDataResult {
+export function useKhoHandoverData(guestMode = false): UseKhoHandoverDataResult {
   const settings = useLarkSettings();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
-  const isMock = cfg.useMock;
+  const isMock = guestMode || cfg.useMock;
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
 
   const [snapshot, setSnapshot] = useState<StaffSnapshot>({ map: EMPTY_STAFF, fromMock: false });

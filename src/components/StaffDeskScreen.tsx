@@ -329,10 +329,13 @@ function ActionButton({
 export default function StaffDeskScreen({
   view,
   actorMsnv,
+  simulation = false,
 }: {
   view: StaffDeskView;
   /** MSNV từ phiên đăng nhập; roster chỉ là fallback cho link bàn cũ. */
   actorMsnv?: string | null;
+  /** Guest giữ nguyên toàn bộ form nhưng không upload và không gọi webhook. */
+  simulation?: boolean;
 }) {
   const submitByMsnv = actorMsnv?.trim() || view.staffId?.trim() || '';
   const [pending, setPending] = useState<Pending | null>(null);
@@ -442,6 +445,7 @@ export default function StaffDeskScreen({
   const webhookUrl = staffActionWebhookUrl(settings);
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [simulationMessage, setSimulationMessage] = useState<string | null>(null);
   const [formAction, setFormAction] = useState<'tiep_nhan' | 'hoan_tat' | null>(null);
   const [formCustomer, setFormCustomer] = useState<StaffCustomer | null>(null);
   const [lockedReceiveStt, setLockedReceiveStt] = useState<string | null>(null);
@@ -470,6 +474,13 @@ export default function StaffDeskScreen({
     setActionError(null);
     setSending(true);
     try {
+      if (simulation) {
+        setVuaThu((p) => ({ ...p, [stt]: Date.now() }));
+        setSimulationMessage(`Thành công · mô phỏng thu máy STT ${stt}.`);
+        setThuMayOpen(false);
+        setActionError(null);
+        return;
+      }
       // Upload TUẦN TỰ như đường Hoàn tất — sóng hội trường hay nghẽn, bắn
       // cùng lúc dễ timeout cả loạt và không biết đứt ở ảnh thứ mấy.
       const tokens = values.anhGiuLai.map((img) => img.fileToken);
@@ -530,6 +541,19 @@ export default function StaffDeskScreen({
     setActionError(null);
     setSending(true);
     try {
+      if (simulation) {
+        if (formAction === 'hoan_tat') completeCustomer(stt);
+        else {
+          receiveCustomer(stt);
+          setLockedReceiveStt(stt);
+        }
+        setFormAction(null);
+        setFormCustomer(null);
+        setSimulationMessage(
+          `Thành công · mô phỏng ${formAction === 'hoan_tat' ? 'Hoàn tất' : 'Tiếp nhận'} STT ${stt}.`,
+        );
+        return;
+      }
       // Check Backup áp dụng cho MỌI khâu khi Hoàn tất (mở rộng 2026-08-12);
       // cố tình KHÔNG gửi field này khi Tiếp nhận, để automation phân biệt
       // được "không áp dụng" vs "chưa chọn".
@@ -662,7 +686,7 @@ export default function StaffDeskScreen({
   };
 
   const nextStt = view.next?.stt ?? null;
-  const webhookMode = Boolean(webhookUrl);
+  const webhookMode = simulation || Boolean(webhookUrl);
   const receiveLocked = Boolean(lockedReceiveStt && lockedReceiveStt === nextStt);
   useEffect(() => {
     // Khi Lark đã chuyển sang STT kế tiếp, mở khoá nút Tiếp nhận cho khách mới.
@@ -675,6 +699,11 @@ export default function StaffDeskScreen({
   return (
     <>
       <main className="mx-auto w-full max-w-[430px] space-y-3 px-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-3">
+        {simulationMessage && (
+          <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+            ✓ {simulationMessage}
+          </p>
+        )}
         {/* ── Khách đang tiếp nhận ─────────────────────────────────────── */}
         <section
           className={[

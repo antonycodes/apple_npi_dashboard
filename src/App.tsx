@@ -27,6 +27,7 @@ import SettingsPage from './pages/SettingsPage';
 import QueueBoardPage from './pages/QueueBoardPage';
 import KhoBoardPage from './pages/KhoBoardPage';
 import StaffPage from './pages/StaffPage';
+import GuestPage from './pages/GuestPage';
 
 type Route =
   | {
@@ -93,7 +94,7 @@ export default function App() {
   // đặt ở đây để MỌI màn hình đều được áp, kể cả điện thoại nhân viên.
   useSharedSettingsSync();
   if (route.kind === 'settings') return <SettingsPage />;
-  if (route.kind === 'guest') return <DashboardPage readOnly />;
+  if (route.kind === 'guest') return <GuestPage />;
   if (route.kind === 'tuvanview') return <QueueBoardPage cluster="consult" />;
   if (route.kind === 'kythuatview') return <QueueBoardPage cluster="tradein" />;
   if (route.kind === 'backupview') return <QueueBoardPage cluster="backup" />;

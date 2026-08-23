@@ -28,10 +28,12 @@ type Tab = 'handover' | 'board';
 export default function KhoAppPage({
   onChangeDesk,
   onLogout,
+  guestMode = false,
 }: {
   /** Chỉ có khi tài khoản còn chỗ khác trong roster (vd vừa KHO1 vừa bàn TV4). */
   onChangeDesk?: () => void;
   onLogout?: () => void;
+  guestMode?: boolean;
 }) {
   const session = useAdminInfo();
   const settings = useLarkSettings();
@@ -41,10 +43,10 @@ export default function KhoAppPage({
   const [okMessage, setOkMessage] = useState<string | null>(null);
 
   const { staffByDesk, loading, error: dataError, lastUpdated, isMock, refresh } =
-    useKhoHandoverData();
+    useKhoHandoverData(guestMode);
   // Bảng kanban chỉ tải khi thật sự mở tab đó — kho thường để máy ở tab Bàn
   // giao suốt buổi, không việc gì phải map lại 36 bàn mỗi 5 giây.
-  const board = useKhoBoardData(undefined, tab === 'board');
+  const board = useKhoBoardData(undefined, tab === 'board', guestMode);
 
   const webhookUrl = staffActionWebhookUrl(settings);
   const larkConnected = !isMock && !dataError && Boolean(lastUpdated);
@@ -55,6 +57,11 @@ export default function KhoAppPage({
     setOkMessage(null);
     setSending(true);
     try {
+      if (guestMode) {
+        setOkMessage(`Thành công · mô phỏng bàn giao cho ${values.deskCode}.`);
+        setSending(false);
+        return;
+      }
       // Upload TUẦN TỰ như đường Hoàn tất — sóng hội trường hay nghẽn, bắn
       // cùng lúc dễ timeout cả loạt và không biết đứt ở ảnh thứ mấy.
       const tokens: string[] = [];

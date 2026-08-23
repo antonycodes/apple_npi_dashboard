@@ -75,6 +75,7 @@ export default function StaffPage({
   lockedDeskId,
   onChangeDesk,
   onLogout,
+  guestMode = false,
 }: {
   lockedDeskId?: string;
   /**
@@ -85,6 +86,7 @@ export default function StaffPage({
   onChangeDesk?: () => void;
   /** Chỉ truyền từ app gộp — link riêng từng bàn không cho thoát. */
   onLogout?: () => void;
+  guestMode?: boolean;
 }) {
   const token = useAdminToken();
   const session = useAdminInfo();
@@ -99,11 +101,11 @@ export default function StaffPage({
 
   const locked = Boolean(lockedDeskId);
   const deskId = lockedDeskId ?? savedDeskId;
-  const { view, loading, error, lastUpdated, isMock, refresh } = useStaffDeskData(deskId);
+  const { view, loading, error, lastUpdated, isMock, refresh } = useStaffDeskData(deskId, guestMode);
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
   // ── 1. Đăng nhập (admin không mật khẩu; nhân viên có mật khẩu) ───────────
-  const loginPossible = Boolean(settings.apiUrl.trim());
+  const loginPossible = !guestMode && Boolean(settings.apiUrl.trim());
   const sessionMatchesPage = locked
     ? session?.role === 'staff' && session.desk === lockedDeskId
     : session?.role === 'admin';
@@ -221,7 +223,7 @@ export default function StaffPage({
 
       {view ? (
         <>
-          <StaffDeskScreen view={view} actorMsnv={session?.msnv} />
+          <StaffDeskScreen view={view} actorMsnv={session?.msnv} simulation={guestMode} />
           <SleepOverlay />
         </>
       ) : (

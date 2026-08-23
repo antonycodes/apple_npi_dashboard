@@ -18,11 +18,11 @@ import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import type { WaitingZoneKey } from '@/types/desk';
 
-export default function DashboardPage({ readOnly = false }: { readOnly?: boolean } = {}) {
+export default function DashboardPage({ readOnly = false, simulation = false }: { readOnly?: boolean; simulation?: boolean } = {}) {
   const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, pendingDevice, loading, error, lastUpdated, isMock, refresh } =
-    useDashboardData();
+    useDashboardData(simulation);
   const session = useAdminInfo();
-  const canDispatch = !readOnly && (session?.role === 'admin' || session?.role === 'dieuphoi');
+  const canDispatch = (simulation || !readOnly) && (simulation || session?.role === 'admin' || session?.role === 'dieuphoi');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<{ deskId: string; index: number } | null>(null);
@@ -213,6 +213,7 @@ export default function DashboardPage({ readOnly = false }: { readOnly?: boolean
           roster={roster}
           initialStt={dispatchStt}
           onClose={() => setShowDispatchForm(false)}
+          simulation={simulation}
         />
       )}
       <SleepOverlay />

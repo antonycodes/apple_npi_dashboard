@@ -26,10 +26,10 @@ export interface UseStaffDeskDataResult {
   refresh: () => void;
 }
 
-export function useStaffDeskData(deskId: string): UseStaffDeskDataResult {
+export function useStaffDeskData(deskId: string, guestMode = false): UseStaffDeskDataResult {
   const settings = useLarkSettings();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
-  const isMock = cfg.useMock;
+  const isMock = guestMode || cfg.useMock;
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
 
   const [view, setView] = useState<StaffDeskView | null>(null);
