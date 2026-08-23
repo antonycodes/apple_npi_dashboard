@@ -61,6 +61,7 @@ function useHashRoute(): Route {
   const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
   // Hash route phải được xét trước pathname `/app`: AppHome dùng các link
   // `#/settings`... và vẫn có thể đang nằm tại URL `/app`.
+  if (path === 'admin-dashboard') return { kind: 'dashboard' };
   if (path.startsWith('admin')) return { kind: 'app' };
   if (path === 'guest' || pathname === 'guest' || pathname.startsWith('guest/')) return { kind: 'guest' };
   if (path.startsWith('settings')) return { kind: 'settings' };

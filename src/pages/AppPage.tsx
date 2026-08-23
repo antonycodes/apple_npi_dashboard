@@ -181,9 +181,7 @@ function SessionBar({
 /** Danh mục của admin — chỉ giữ các màn hình quản trị/vận hành chính. */
 function AdminHome({ name }: { name: string }) {
   const links: Array<{ href: string; label: string }> = [
-    { href: '#/', label: 'Dashboard điều phối' },
-    { href: '#/khoview', label: 'Bảng kho' },
-    { href: '#/nv', label: 'Màn hình nhân viên' },
+    { href: '#/admin-dashboard', label: 'Dashboard Admin' },
     { href: '#/settings', label: 'Cài đặt' },
   ];
 
