@@ -566,11 +566,29 @@ export default function StaffDeskScreen({
           setLockedReceiveStt(stt);
         }
         if (formAction === 'hoan_tat') {
+          const isDeviceStage = view.cluster === 'tradein' || view.cluster === 'backup';
+          const deviceImages: PrevImage[] = [
+            ...values.anhGiuLai,
+            ...values.hinhNghiemThu.map((file, index) => ({
+              fileToken: `guest-file-${stt}-${Date.now()}-${index}`,
+              name: file.name || `Ảnh nghiệm thu ${index + 1}`,
+            })),
+          ].slice(0, 3);
           guestSimulation?.complete(
             stt,
             view.cluster,
             values.checkBackup ? (values.checkBackup as 'Có' | 'Không') : undefined,
             values.thuLaiMay ? (values.thuLaiMay as 'Thu máy ngay' | 'Thu máy sau') : undefined,
+            isDeviceStage && values.thuLaiMay
+              ? {
+                  scanQr: values.scanQr.trim() || undefined,
+                  imei: values.imei.trim() || undefined,
+                  hinhNghiemThu: deviceImages.map((image) => ({
+                    file_token: image.fileToken,
+                    ...(image.name ? { name: image.name } : {}),
+                  })),
+                }
+              : undefined,
           );
         } else guestSimulation?.receive(stt, view.cluster, view.id);
         setFormAction(null);

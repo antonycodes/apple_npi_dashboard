@@ -36,7 +36,7 @@ interface GuestSimulationValue {
   seed: (tables: LarkTables) => LarkTables;
   dispatch: (stt: string, stage: ClusterKey, deskId: string) => void;
   receive: (stt: string, stage: ClusterKey, deskId?: string) => void;
-  complete: (stt: string, stage: ClusterKey, checkBackup?: 'Có' | 'Không', thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau') => void;
+  complete: (stt: string, stage: ClusterKey, checkBackup?: 'Có' | 'Không', thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau', device?: GuestDeviceData) => void;
   quickDevice: (stt: string, stage: ClusterKey, deskId?: string, device?: GuestDeviceData) => void;
   staffTables: (deskId: string) => LarkTables;
 }
@@ -112,7 +112,7 @@ function buildTables(base: LarkTables, assignments: Assignment[], fields: FieldC
   return { ...base, master: masterRows, dispatch: dispatchRows, dsMaster: dsRows };
 }
 
-function remapForStaffRole(tables: LarkTables, deskId: string): LarkTables {
+function remapForStaffRole(tables: LarkTables, deskId: string, fields: FieldConfig): LarkTables {
   const targetDesk = deskForGuestRole(deskId);
   if (!targetDesk) return tables;
   const prefix = targetDesk.slice(0, 2);
@@ -127,9 +127,13 @@ function remapForStaffRole(tables: LarkTables, deskId: string): LarkTables {
   const matchesDesk = (row: LarkRecord) => Object.values(row.fields).some(
     (value) => typeof value === 'string' && (exactDesk ? value === targetDesk : value.startsWith(prefix)),
   );
+  // Máy đã chọn "Thu máy sau" không thuộc riêng bàn đã ghi nhận trước đó:
+  // cả TC và BK đều phải tra được trong nút "Thu máy cũ".
+  const isPendingDevice = (row: LarkRecord) =>
+    prefix !== 'TV' && cellToString(row.fields[fields.master.thuLaiMay]) === 'Thu máy sau';
   return {
     ...tables,
-    master: tables.master.filter(matchesDesk).map(remap),
+    master: tables.master.filter((row) => matchesDesk(row) || isPendingDevice(row)).map(remap),
     dispatch: tables.dispatch.map(remap),
     dsMaster: tables.dsMaster.filter(matchesDesk).map(remap),
   };
@@ -348,11 +352,20 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         setAssignments(nextAssignments);
         postAction('receive', stt, stage, deskId);
       },
-      complete(stt, stage, checkBackup, thuLaiMay) {
+      complete(stt, stage, checkBackup, thuLaiMay, device) {
         const target = assignments.find((item) => item.stt === stt && item.stage === stage && item.status === 'active');
         const nextAssignments = assignments.map((item) =>
           item.stt === stt && item.stage === stage && item.status === 'active'
-            ? { ...item, status: 'completed' as const, at: Date.now(), ...(checkBackup ? { checkBackup } : {}), ...(thuLaiMay ? { thuLaiMay } : {}) }
+            ? {
+                ...item,
+                status: 'completed' as const,
+                at: Date.now(),
+                ...(checkBackup ? { checkBackup } : {}),
+                ...(thuLaiMay ? { thuLaiMay } : {}),
+                ...(device?.scanQr ? { scanQr: device.scanQr } : {}),
+                ...(device?.imei ? { imei: device.imei } : {}),
+                ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
+              }
             : item,
         );
         setAssignments(nextAssignments);
@@ -374,7 +387,13 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
           }));
         }
         markEndFlowIfReady(nextAssignments, stt, checkBackup);
-        if (target) postAction('complete', stt, stage, target.deskId, { ...(checkBackup ? { checkBackup } : {}), ...(thuLaiMay ? { thuLaiMay } : {}) });
+        if (target) postAction('complete', stt, stage, target.deskId, {
+          ...(checkBackup ? { checkBackup } : {}),
+          ...(thuLaiMay ? { thuLaiMay } : {}),
+          ...(device?.scanQr ? { scanQr: device.scanQr } : {}),
+          ...(device?.imei ? { imei: device.imei } : {}),
+          ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: JSON.stringify(device.hinhNghiemThu) } : {}),
+        });
       },
       quickDevice(stt, stage, guestDeskId, device) {
         const target = assignments.find((item) => item.stt === stt && item.stage === stage);
@@ -399,7 +418,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         });
       },
       staffTables(deskId) {
-        return remapForStaffRole(tables, deskId);
+        return remapForStaffRole(tables, deskId, fields);
       },
     };
   }, [assignments, base, fields, roomCode, roomStatus, roomError]);

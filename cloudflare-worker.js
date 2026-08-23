@@ -1261,11 +1261,20 @@ export class GuestSimulationRoom extends DurableObject {
         }
       } else {
         let matched = false;
-        this.state.assignments = this.state.assignments.map((item) =>
-          item.stt === stt && item.stage === stage && item.status === (action === 'receive' ? 'waiting' : 'active')
-            ? (matched = true, { ...item, status: action === 'receive' ? 'active' : 'completed', at: Date.now(), ...(checkBackup ? { checkBackup } : {}), ...(thuLaiMay ? { thuLaiMay } : {}) })
+          this.state.assignments = this.state.assignments.map((item) =>
+            item.stt === stt && item.stage === stage && item.status === (action === 'receive' ? 'waiting' : 'active')
+            ? (matched = true, {
+                ...item,
+                status: action === 'receive' ? 'active' : 'completed',
+                at: Date.now(),
+                ...(checkBackup ? { checkBackup } : {}),
+                ...(thuLaiMay ? { thuLaiMay } : {}),
+                ...(scanQr ? { scanQr } : {}),
+                ...(imei ? { imei } : {}),
+                ...(hinhNghiemThu?.length ? { hinhNghiemThu } : {}),
+              })
             : item,
-        );
+          );
         // Tiếp nhận nhanh có thể bypass Điều phối. Khi đó chưa có assignment
         // waiting để chuyển trạng thái, nên tạo thẳng active trên room chung.
         if (action === 'receive' && !matched) {
