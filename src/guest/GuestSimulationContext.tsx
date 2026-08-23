@@ -3,7 +3,7 @@ import { DEFAULT_FIELD_CONFIG } from '@/config/larkSettings';
 import { DEFAULT_API_URL } from '@/config/larkConfig';
 import type { FieldConfig } from '@/config/larkConfig';
 import { cellToString } from '@/services/larkMapper';
-import type { LarkRecord, LarkTables } from '@/services/larkTypes';
+import type { LarkCellValue, LarkRecord, LarkTables } from '@/services/larkTypes';
 import type { ClusterKey } from '@/types/desk';
 
 type SimulationStatus = 'waiting' | 'active' | 'completed';
@@ -46,6 +46,13 @@ const STAGE_LABEL: Record<ClusterKey, string> = { consult: 'Tư vấn', tradein:
 
 function record(id: string, fields: Record<string, unknown>): LarkRecord {
   return { record_id: `guest_${id}`, fields: fields as LarkRecord['fields'] };
+}
+
+function incrementGuestNghiemThu(value: unknown): string {
+  const text = cellToString(value as LarkCellValue) ?? '';
+  const match = text.match(/Đã nghiệm thu\s*\((\d+)\)\s*máy/i);
+  if (match) return text.replace(match[1], String(Number(match[1]) + 1));
+  return '✅ Đã nghiệm thu (1) máy';
 }
 
 function deskForGuestRole(deskId: string): string | null {
@@ -369,7 +376,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
             : item,
         );
         setAssignments(nextAssignments);
-        if (checkBackup) {
+        if (checkBackup || thuLaiMay === 'Thu máy ngay') {
           setBase((current) => ({
             ...current,
             checkin: current.checkin.map((row) =>
@@ -378,8 +385,15 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
                     ...row,
                     fields: {
                       ...row.fields,
-                      [fields.checkin.backupCheck]: checkBackup === 'Có' ? 'Có Backup' : 'Không Backup',
-                      [fields.checkin.backupStatus]: checkBackup === 'Có' ? 'Có Backup' : 'Không Backup',
+                      ...(checkBackup
+                        ? {
+                            [fields.checkin.backupCheck]: checkBackup === 'Có' ? 'Có Backup' : 'Không Backup',
+                            [fields.checkin.backupStatus]: checkBackup === 'Có' ? 'Có Backup' : 'Không Backup',
+                          }
+                        : {}),
+                      ...(thuLaiMay === 'Thu máy ngay'
+                        ? { [fields.checkin.deviceAccepted]: incrementGuestNghiemThu(row.fields[fields.checkin.deviceAccepted]) }
+                        : {}),
                     },
                   }
                 : row,
@@ -411,6 +425,14 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
             )
           : [...current, { stt, stage, deskId: resolvedDesk, status: 'completed', at: Date.now(), ...deviceFields }],
         );
+        setBase((current) => ({
+          ...current,
+          checkin: current.checkin.map((row) =>
+            cellToString(row.fields[fields.checkin.stt]) === stt
+              ? { ...row, fields: { ...row.fields, [fields.checkin.deviceAccepted]: incrementGuestNghiemThu(row.fields[fields.checkin.deviceAccepted]) } }
+              : row,
+          ),
+        }));
         postAction('device', stt, stage, resolvedDesk, {
             ...(device?.scanQr ? { scanQr: device.scanQr } : {}),
             ...(device?.imei ? { imei: device.imei } : {}),

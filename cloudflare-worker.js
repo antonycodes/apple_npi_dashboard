@@ -485,6 +485,13 @@ function guestCellText(value) {
   return value == null ? '' : String(value).trim();
 }
 
+function incrementGuestNghiemThu(value) {
+  const text = guestCellText(value);
+  const match = text.match(/Đã nghiệm thu\s*\((\d+)\)\s*máy/i);
+  if (match) return text.replace(match[1], String(Number(match[1]) + 1));
+  return '✅ Đã nghiệm thu (1) máy';
+}
+
 // Cache map optionId→tên hiển thị theo TỪNG BẢNG (10 phút) — tránh gọi lại
 // API field-metadata mỗi request.
 const fieldOptionCache = new Map();
@@ -1259,6 +1266,11 @@ export class GuestSimulationRoom extends DurableObject {
             ...(hinhNghiemThu?.length ? { hinhNghiemThu } : {}),
           });
         }
+        const checkinRow = this.state.baseTables.checkin.find((row) => Object.entries(row.fields).some(([key, value]) => key.trim().toLowerCase() === 'stt' && guestCellText(value) === stt));
+        if (checkinRow) {
+          const acceptedKey = Object.keys(checkinRow.fields).find((key) => key.trim().toLowerCase() === 'check nghiệm thu');
+          if (acceptedKey) checkinRow.fields[acceptedKey] = incrementGuestNghiemThu(checkinRow.fields[acceptedKey]);
+        }
       } else {
         let matched = false;
           this.state.assignments = this.state.assignments.map((item) =>
@@ -1303,6 +1315,13 @@ export class GuestSimulationRoom extends DurableObject {
               const endFlowKey = Object.keys(row.fields).find((key) => key.toLowerCase().includes('end flow'));
               if (endFlowKey) row.fields[endFlowKey] = 'End flow';
             }
+          }
+        }
+        if (action === 'complete' && thuLaiMay === 'Thu máy ngay') {
+          const checkinRow = this.state.baseTables.checkin.find((row) => Object.entries(row.fields).some(([key, value]) => key.trim().toLowerCase() === 'stt' && guestCellText(value) === stt));
+          if (checkinRow) {
+            const acceptedKey = Object.keys(checkinRow.fields).find((key) => key.trim().toLowerCase() === 'check nghiệm thu');
+            if (acceptedKey) checkinRow.fields[acceptedKey] = incrementGuestNghiemThu(checkinRow.fields[acceptedKey]);
           }
         }
       }
