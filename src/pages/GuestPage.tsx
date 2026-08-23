@@ -22,7 +22,16 @@ const DESK_ROLES = ALL_POSITIONS.map((position) => ({
   label: position.label,
   note: CLUSTER_LABELS[position.cluster],
 }));
-const ROOM_ROLES = [...DESK_ROLES, MODES.find((item) => item.id === 'KHO')!];
+const ROLE_GROUPS = (room: boolean) => room
+  ? [
+      { label: 'Điều phối & Kho', items: [MODES[0], MODES[4]] },
+      { label: 'Tư vấn', items: DESK_ROLES.filter((item) => item.id.startsWith('TV')) },
+      { label: 'Thu cũ', items: DESK_ROLES.filter((item) => item.id.startsWith('TC')) },
+      { label: 'Backup', items: DESK_ROLES.filter((item) => item.id.startsWith('BK')) },
+    ]
+  : [
+      { label: 'Màn hình chính', items: MODES },
+    ];
 
 export default function GuestPage() {
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -53,21 +62,28 @@ export default function GuestPage() {
                 <ArrowLeftIcon className="h-4 w-4" /> Về đăng nhập
               </a>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {(roomCode ? ROOM_ROLES : MODES).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setMode(item.id)}
-                  className="rounded-2xl border border-neutral-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xl font-black text-neutral-900">{item.label}</span>
-                    <span className="rounded-full bg-neutral-100 px-2.5 py-1 font-mono text-xs font-bold text-neutral-500">{item.code}</span>
+            <div className="space-y-6">
+              {ROLE_GROUPS(Boolean(roomCode)).map((group) => (
+                <section key={group.label}>
+                  <h2 className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-neutral-400">{group.label}</h2>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {group.items.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setMode(item.id)}
+                        className="rounded-2xl border border-neutral-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xl font-black text-neutral-900">{item.label}</span>
+                          <span className="rounded-full bg-neutral-100 px-2.5 py-1 font-mono text-xs font-bold text-neutral-500">{item.code}</span>
+                        </div>
+                        <p className="mt-2 text-sm text-neutral-500">{item.note}</p>
+                        <span className="mt-5 inline-flex text-sm font-bold text-brand">Mở màn hình →</span>
+                      </button>
+                    ))}
                   </div>
-                  <p className="mt-2 text-sm text-neutral-500">{item.note}</p>
-                  <span className="mt-5 inline-flex text-sm font-bold text-brand">Mở màn hình →</span>
-                </button>
+                </section>
               ))}
             </div>
             <a href="/app" className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-3 py-3 text-sm font-bold text-neutral-600 sm:hidden">

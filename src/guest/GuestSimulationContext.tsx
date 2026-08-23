@@ -146,11 +146,37 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
   const [roomError, setRoomError] = useState<string | null>(null);
   const creating = useRef(false);
   const roomCodeRef = useRef(roomCode);
+  // Không để nhiều GET state chạy chồng lên nhau. Một response cũ có thể về
+  // sau response mới rồi ghi đè state active thành waiting, nhất là khi DP và
+  // màn hình TC đang ở hai thiết bị/mạng khác nhau.
+  const roomRequestInFlight = useRef(false);
   roomCodeRef.current = roomCode;
 
   const applyRoomState = (next: RoomState) => {
-    setBase(next.baseTables ?? EMPTY_TABLES);
-    setAssignments(next.assignments ?? []);
+    const nextAssignments = next.assignments ?? [];
+    const nextBase = next.baseTables ?? EMPTY_TABLES;
+    // Backup check là kết quả của thao tác Hoàn tất trong phòng mô phỏng.
+    // Đồng bộ từ assignment luôn, để dashboard vẫn đổi ngay cả khi worker
+    // đang chạy bản cũ chưa kịp ghi ngược vào dòng Check-in.
+    const backupByStt = new Map(
+      nextAssignments
+        .filter((item) => item.checkBackup === 'Có' || item.checkBackup === 'Không')
+        .map((item) => [item.stt, item.checkBackup as 'Có' | 'Không']),
+    );
+    const syncedBase = backupByStt.size
+      ? {
+          ...nextBase,
+          checkin: nextBase.checkin.map((row) => {
+            const stt = cellToString(row.fields[fields.checkin.stt]);
+            const checkBackup = stt ? backupByStt.get(stt) : undefined;
+            return checkBackup
+              ? { ...row, fields: { ...row.fields, [fields.checkin.backupCheck]: checkBackup } }
+              : row;
+          }),
+        }
+      : nextBase;
+    setBase(syncedBase);
+    setAssignments(nextAssignments);
     setRoomStatus('connected');
     setRoomError(null);
   };
@@ -201,10 +227,20 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
 
   useEffect(() => {
     if (!roomCode) return;
+    const poll = async () => {
+      if (roomRequestInFlight.current) return;
+      roomRequestInFlight.current = true;
+      try {
+        const next = await roomRequest(DEFAULT_API_URL, `/${encodeURIComponent(roomCode)}/state`);
+        applyRoomState(next);
+      } catch {
+        // Một nhịp mạng lỗi không được làm mất state đang hiển thị.
+      } finally {
+        roomRequestInFlight.current = false;
+      }
+    };
     const timer = window.setInterval(() => {
-      void roomRequest(DEFAULT_API_URL, `/${encodeURIComponent(roomCode)}/state`)
-        .then(applyRoomState)
-        .catch(() => undefined);
+      void poll();
     }, 1500);
     return () => window.clearInterval(timer);
   }, [roomCode]);
@@ -212,11 +248,28 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
   const postAction = (action: string, stt: string, stage: ClusterKey, deskId: string, extra: Record<string, string> = {}) => {
     const code = roomCodeRef.current;
     if (!code) return;
-    void roomRequest(DEFAULT_API_URL, `/${encodeURIComponent(code)}/action`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, stt, stage, deskId, ...extra }),
-    }).then(applyRoomState).catch(() => undefined);
+    void (async () => {
+      // Nếu đúng lúc bấm nút đang có một GET state, chờ GET đó xong thay vì
+      // bỏ action — bỏ action sẽ khiến TC thấy đã nhận nhưng DP không bao giờ
+      // nhận được thay đổi.
+      while (roomRequestInFlight.current) {
+        await new Promise((resolve) => window.setTimeout(resolve, 50));
+      }
+      roomRequestInFlight.current = true;
+      try {
+        const next = await roomRequest(DEFAULT_API_URL, `/${encodeURIComponent(code)}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, stt, stage, deskId, ...extra }),
+        });
+        applyRoomState(next);
+      } catch {
+        // Guest vẫn giữ state lạc quan; nhịp poll kế tiếp sẽ đồng bộ lại nếu
+        // action thực sự chưa được ghi vào phòng.
+      } finally {
+        roomRequestInFlight.current = false;
+      }
+    })();
   };
 
   const markEndFlowIfReady = (nextAssignments: Assignment[], stt: string, latestBackup?: 'Có' | 'Không') => {

@@ -33,6 +33,7 @@ import { useLarkSettings } from '@/config/larkSettings';
 import { applyLinkConfigFromHash, deskLinkFor } from '@/config/staffLink';
 import { staffDeskStore, useStaffDeskId } from '@/config/staffDeskIdentity';
 import { useStaffDeskData } from '@/hooks/useStaffDeskData';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 
 /** Khung chung: nền sáng, cột hẹp canh giữa, chừa safe area trên cùng. */
 function Shell({ children }: { children: React.ReactNode }) {
@@ -94,6 +95,7 @@ export default function StaffPage({
   const token = useAdminToken();
   const session = useAdminInfo();
   const settings = useLarkSettings();
+  const guestRoom = useGuestSimulation();
   const savedDeskId = useStaffDeskId();
   const [picking, setPicking] = useState(false);
 
@@ -226,6 +228,17 @@ export default function StaffPage({
               </button>
             )}
           </div>
+          {guestMode && guestRoom?.roomCode && (
+            <button
+              type="button"
+              onClick={() => void navigator.clipboard?.writeText(guestRoom.roomCode ?? '')}
+              className="mt-2 flex min-h-7 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[11px] font-bold text-emerald-700"
+              title="Bấm để copy mã phòng"
+            >
+              <span>Mã phòng</span>
+              <span className="font-mono tracking-wide">{guestRoom.roomCode}</span>
+            </button>
+          )}
           {error && (
             <p className="mt-1 truncate text-[11px] text-red-600" title={error}>
               {error}

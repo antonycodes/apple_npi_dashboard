@@ -732,7 +732,7 @@ export default function StaffDeskScreen({
             <>
               <CustomerCard customer={ghost} tone="pending" timer={timerOf(ghost.stt)} now={now} />
               <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
-                {webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
+                {simulation ? 'Đã ghi nhận trong phòng mô phỏng — đang đồng bộ…' : webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
               </p>
             </>
           ) : (
@@ -757,7 +757,7 @@ export default function StaffDeskScreen({
                 <ElapsedBadge entry={timerOf(ghost.stt)} now={now} size="sm" />
               </div>
               <p className="mt-1 text-xs font-semibold text-amber-700">
-                {webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
+                {simulation ? 'Đã ghi nhận trong phòng mô phỏng — đang đồng bộ…' : webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
               </p>
             </div>
           )}
@@ -874,7 +874,10 @@ export default function StaffDeskScreen({
           <button
             type="button"
             onClick={openQuickReceive}
-            disabled={!webhookMode || sending || busy}
+            // Có thể nhận nhanh khách kế tiếp ngay cả khi bàn đang phục vụ
+            // một khách khác; dashboard hỗ trợ nhiều khách active trên cùng
+            // bàn. Việc chặn STT trùng vẫn được kiểm tra trong lookup.
+            disabled={!webhookMode || sending}
             aria-label="Tiếp nhận nhanh"
             title="Tiếp nhận nhanh"
             className="flex min-h-[56px] w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm active:bg-emerald-100 disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400"

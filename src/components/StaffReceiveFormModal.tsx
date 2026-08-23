@@ -322,7 +322,7 @@ export default function StaffReceiveFormModal({
             <ReadRow label="Sản phẩm" value={customer?.productName} />
             <ReadRow label="Ghi chú thanh toán" value={customer?.paymentNote} />
             <ReadRow label="Thu cũ check" value={customer?.oldDeviceCheck} />
-            <ReadRow label="Backup check" value={customer?.backupCheck} />
+            <ReadRow label="Backup check" value={values.checkBackup || customer?.backupCheck} />
             <ReadRow label="Check nghiệm thu" value={customer?.deviceAcceptedText} />
           </div>
 
