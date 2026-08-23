@@ -88,6 +88,14 @@ export default function DashboardPage({ readOnly = false }: { readOnly?: boolean
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <ViewSwitcher active="main" />
+            {readOnly && (
+              <a
+                href="/app"
+                className="flex min-h-8 items-center rounded border border-neutral-300 px-3 font-semibold text-neutral-700 hover:bg-neutral-50"
+              >
+                Về đăng nhập
+              </a>
+            )}
             {session?.role === 'admin' && (
               <a
                 href="#/settings"
