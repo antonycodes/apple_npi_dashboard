@@ -1133,6 +1133,108 @@ export class DashboardSnapshotCoordinator extends DurableObject {
   }
 }
 
+const GUEST_ROOM_TTL_MS = 2 * 60 * 60 * 1000;
+
+function guestRoomCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  return `VHWS-${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+
+/** State tạm cho một buổi demo nhiều thiết bị; không liên quan tới Lark Base. */
+export class GuestSimulationRoom extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.state = null;
+    this.ready = ctx.blockConcurrencyWhile(async () => {
+      this.state = await ctx.storage.get('state');
+      if (!this.state || this.state.expiresAt <= Date.now()) this.state = null;
+    });
+  }
+
+  async save() {
+    this.state.expiresAt = Date.now() + GUEST_ROOM_TTL_MS;
+    await this.ctx.storage.put('state', this.state);
+    await this.ctx.storage.setAlarm(this.state.expiresAt);
+  }
+
+  async fetch(request) {
+    await this.ready;
+    const path = new URL(request.url).pathname.replace(/^\//, '');
+    if (request.method === 'POST' && path === 'init') {
+      const body = await request.json();
+      const tables = body?.tables;
+      if (!tables || !Array.isArray(tables.checkin) || tables.checkin.length > 5) {
+        return json({ code: -1, msg: 'Guest room cần tối đa 5 khách Check-in.' }, 400);
+      }
+      this.state = {
+        baseTables: {
+          checkin: tables.checkin,
+          orders: Array.isArray(tables.orders) ? tables.orders.slice(0, 5) : tables.checkin,
+          master: [],
+          dispatch: [],
+          dsMaster: [],
+        },
+        assignments: [],
+        participants: [],
+        createdAt: Date.now(),
+        expiresAt: Date.now() + GUEST_ROOM_TTL_MS,
+      };
+      await this.save();
+      return json({ code: 0, msg: 'success', data: this.state });
+    }
+
+    if (!this.state) return json({ code: -1, msg: 'Phòng không tồn tại hoặc đã hết hạn.' }, 404);
+
+    if (request.method === 'POST' && path === 'join') {
+      const body = await request.json();
+      const role = String(body?.role || '').slice(0, 20);
+      if (role && !this.state.participants.some((item) => item.role === role)) {
+        this.state.participants.push({ role, joinedAt: Date.now() });
+      }
+      await this.save();
+      return json({ code: 0, msg: 'success', data: this.state });
+    }
+
+    if (request.method === 'POST' && path === 'action') {
+      const body = await request.json();
+      const stt = String(body?.stt || '').trim();
+      const stage = String(body?.stage || '').trim();
+      const deskId = String(body?.deskId || '').trim();
+      const action = String(body?.action || '').trim();
+      if (!stt || !stage || !deskId || !['dispatch', 'receive', 'complete'].includes(action)) {
+        return json({ code: -1, msg: 'Guest room action không hợp lệ.' }, 400);
+      }
+      if (action === 'dispatch') {
+        this.state.assignments = this.state.assignments.filter(
+          (item) => !(item.stt === stt && item.stage === stage && item.status === 'waiting'),
+        );
+        this.state.assignments.push({ stt, stage, deskId, status: 'waiting', at: Date.now() });
+      } else {
+        this.state.assignments = this.state.assignments.map((item) =>
+          item.stt === stt && item.stage === stage && item.status === (action === 'receive' ? 'waiting' : 'active')
+            ? { ...item, status: action === 'receive' ? 'active' : 'completed', at: Date.now() }
+            : item,
+        );
+      }
+      await this.save();
+      return json({ code: 0, msg: 'success', data: this.state });
+    }
+
+    if (request.method === 'GET' && path === 'state') return json({ code: 0, msg: 'success', data: this.state });
+    return json({ code: -1, msg: 'Guest room route không tồn tại.' }, 404);
+  }
+
+  async alarm() {
+    await this.ready;
+    if (this.state && this.state.expiresAt <= Date.now()) {
+      this.state = null;
+      await this.ctx.storage.deleteAll();
+    } else if (this.state) {
+      await this.save();
+    }
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -1144,6 +1246,25 @@ export default {
     // chế với việc lấy tên bảng ở segment cuối bên dưới.
     const route = segments.slice(-2).join('/');
     const host = (env.LARK_HOST || 'https://open.larksuite.com').replace(/\/+$/, '');
+
+    if (segments[0] === 'guest-room') {
+      if (request.method === 'POST' && segments[1] === 'create') {
+        const code = guestRoomCode();
+        const stub = env.GUEST_SIMULATION_ROOM.get(env.GUEST_SIMULATION_ROOM.idFromName(code));
+        const created = await stub.fetch(new Request('https://guest-room/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: await request.text(),
+        }));
+        const body = await created.json();
+        return json({ ...body, data: { ...body.data, roomCode: code } }, created.status);
+      }
+      const code = segments[1];
+      if (!code) return json({ code: -1, msg: 'Thiếu mã phòng.' }, 400);
+      const action = segments[2] || 'state';
+      const stub = env.GUEST_SIMULATION_ROOM.get(env.GUEST_SIMULATION_ROOM.idFromName(code));
+      return await stub.fetch(new Request(`https://guest-room/${action}`, request));
+    }
 
     if (request.method === 'POST' && route === 'lark/events') {
       try {

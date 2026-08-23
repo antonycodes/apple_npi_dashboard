@@ -1,5 +1,6 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DEFAULT_FIELD_CONFIG } from '@/config/larkSettings';
+import { DEFAULT_API_URL } from '@/config/larkConfig';
 import type { FieldConfig } from '@/config/larkConfig';
 import { cellToString } from '@/services/larkMapper';
 import type { LarkRecord, LarkTables } from '@/services/larkTypes';
@@ -17,6 +18,10 @@ interface Assignment {
 
 interface GuestSimulationValue {
   tables: LarkTables;
+  roomCode: string | null;
+  roomStatus: 'local' | 'creating' | 'connected' | 'error';
+  roomError: string | null;
+  joinUrl: string | null;
   seed: (tables: LarkTables) => LarkTables;
   dispatch: (stt: string, stage: ClusterKey, deskId: string) => void;
   receive: (stt: string, stage: ClusterKey) => void;
@@ -116,14 +121,111 @@ function remapForStaffRole(tables: LarkTables, deskId: string): LarkTables {
 
 const GuestSimulationContext = createContext<GuestSimulationValue | null>(null);
 
-export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFIG }: { children: ReactNode; fields?: FieldConfig }) {
+interface RoomState {
+  baseTables: LarkTables;
+  assignments: Assignment[];
+  roomCode?: string;
+}
+
+async function roomRequest(apiUrl: string, path: string, init?: RequestInit) {
+  const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/guest-room${path}`, init);
+  const body = await response.json() as { code: number; msg?: string; data?: RoomState };
+  if (!response.ok || body.code !== 0 || !body.data) throw new Error(body.msg || 'Không thể kết nối phòng mô phỏng.');
+  return body.data;
+}
+
+export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFIG, roomCode: initialRoomCode = null, role = 'Guest' }: { children: ReactNode; fields?: FieldConfig; roomCode?: string | null; role?: string }) {
   const [base, setBase] = useState<LarkTables>(EMPTY_TABLES);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [roomCode, setRoomCode] = useState(initialRoomCode);
+  const [roomStatus, setRoomStatus] = useState<GuestSimulationValue['roomStatus']>(initialRoomCode ? 'creating' : 'local');
+  const [roomError, setRoomError] = useState<string | null>(null);
+  const creating = useRef(false);
+  const roomCodeRef = useRef(roomCode);
+  roomCodeRef.current = roomCode;
+
+  const applyRoomState = (next: RoomState) => {
+    setBase(next.baseTables ?? EMPTY_TABLES);
+    setAssignments(next.assignments ?? []);
+    setRoomStatus('connected');
+    setRoomError(null);
+  };
+
+  useEffect(() => {
+    if (!initialRoomCode) return;
+    let cancelled = false;
+    void roomRequest(DEFAULT_API_URL, `/${encodeURIComponent(initialRoomCode)}/state`)
+      .then(async (next) => {
+        if (cancelled) return;
+        applyRoomState(next);
+        await roomRequest(DEFAULT_API_URL, `/${encodeURIComponent(initialRoomCode)}/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role }),
+        });
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setRoomStatus('error');
+          setRoomError(error instanceof Error ? error.message : String(error));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialRoomCode, role]);
+
+  useEffect(() => {
+    if (initialRoomCode || !base.checkin.length || roomCode || creating.current) return;
+    creating.current = true;
+    setRoomStatus('creating');
+    void roomRequest(DEFAULT_API_URL, '/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tables: base }),
+    })
+      .then((next) => {
+        // The create endpoint returns the room code alongside its state.
+        if (next.roomCode) setRoomCode(next.roomCode);
+        setRoomStatus('connected');
+      })
+      .catch((error) => {
+        setRoomStatus('error');
+        setRoomError(error instanceof Error ? error.message : String(error));
+      });
+  }, [base, initialRoomCode, roomCode]);
+
+  useEffect(() => {
+    if (!roomCode) return;
+    const timer = window.setInterval(() => {
+      void roomRequest(DEFAULT_API_URL, `/${encodeURIComponent(roomCode)}/state`)
+        .then(applyRoomState)
+        .catch(() => undefined);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [roomCode]);
+
+  const postAction = (action: string, stt: string, stage: ClusterKey, deskId: string) => {
+    const code = roomCodeRef.current;
+    if (!code) return;
+    void roomRequest(DEFAULT_API_URL, `/${encodeURIComponent(code)}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, stt, stage, deskId }),
+    }).then(applyRoomState).catch(() => undefined);
+  };
 
   const value = useMemo<GuestSimulationValue>(() => {
     const tables = buildTables(base, assignments, fields);
+    const joinUrl = roomCode && typeof window !== 'undefined'
+      ? `${window.location.origin}/guest?room=${encodeURIComponent(roomCode)}`
+      : null;
     return {
       tables,
+      roomCode,
+      roomStatus,
+      roomError,
+      joinUrl,
       seed(next) {
         setBase(next);
         return buildTables(next, assignments, fields);
@@ -133,26 +235,31 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
           ...current.filter((item) => !(item.stt === stt && item.stage === stage && item.status === 'waiting')),
           { stt, stage, deskId, status: 'waiting', at: Date.now() },
         ]);
+        postAction('dispatch', stt, stage, deskId);
       },
       receive(stt, stage) {
+        const target = assignments.find((item) => item.stt === stt && item.stage === stage && item.status === 'waiting');
         setAssignments((current) => current.map((item) =>
           item.stt === stt && item.stage === stage && item.status === 'waiting'
             ? { ...item, status: 'active', at: Date.now() }
             : item,
         ));
+        if (target) postAction('receive', stt, stage, target.deskId);
       },
       complete(stt, stage) {
+        const target = assignments.find((item) => item.stt === stt && item.stage === stage && item.status === 'active');
         setAssignments((current) => current.map((item) =>
           item.stt === stt && item.stage === stage && item.status === 'active'
             ? { ...item, status: 'completed', at: Date.now() }
             : item,
         ));
+        if (target) postAction('complete', stt, stage, target.deskId);
       },
       staffTables(deskId) {
         return remapForStaffRole(tables, deskId);
       },
     };
-  }, [assignments, base, fields]);
+  }, [assignments, base, fields, roomCode, roomStatus, roomError]);
 
   return <GuestSimulationContext.Provider value={value}>{children}</GuestSimulationContext.Provider>;
 }

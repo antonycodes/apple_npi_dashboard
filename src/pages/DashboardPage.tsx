@@ -16,12 +16,14 @@ import SleepOverlay from '@/components/SleepOverlay';
 import { useAdminInfo } from '@/config/adminSession';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import type { WaitingZoneKey } from '@/types/desk';
 
 export default function DashboardPage({ readOnly = false, simulation = false, onGuestBack }: { readOnly?: boolean; simulation?: boolean; onGuestBack?: () => void } = {}) {
   const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, pendingDevice, loading, error, lastUpdated, isMock, refresh } =
     useDashboardData({ guestMode: simulation });
   const session = useAdminInfo();
+  const guestRoom = useGuestSimulation();
   const canDispatch = (simulation || !readOnly) && (simulation || session?.role === 'admin' || session?.role === 'dieuphoi');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -125,6 +127,16 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
             >
               Làm mới
             </button>
+            {simulation && guestRoom?.roomCode && (
+              <button
+                type="button"
+                onClick={() => guestRoom.joinUrl && navigator.clipboard?.writeText(guestRoom.joinUrl)}
+                title={guestRoom.joinUrl ?? undefined}
+                className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"
+              >
+                Phòng {guestRoom.roomCode}
+              </button>
+            )}
             {simulation && onGuestBack && (
               <button
                 type="button"

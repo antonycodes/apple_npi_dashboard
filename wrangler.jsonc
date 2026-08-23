@@ -29,6 +29,10 @@
       {
         "name": "DASHBOARD_SNAPSHOT",
         "class_name": "DashboardSnapshotCoordinator"
+      },
+      {
+        "name": "GUEST_SIMULATION_ROOM",
+        "class_name": "GuestSimulationRoom"
       }
     ]
   },
@@ -36,6 +40,10 @@
     {
       "tag": "v1-dashboard-snapshot",
       "new_sqlite_classes": ["DashboardSnapshotCoordinator"]
+    },
+    {
+      "tag": "v2-guest-simulation-room",
+      "new_sqlite_classes": ["GuestSimulationRoom"]
     }
   ],
   "secrets": {

@@ -16,11 +16,15 @@ const MODES: Array<{ id: GuestMode; code: string; label: string; note: string }>
 ];
 
 export default function GuestPage() {
-  const [mode, setMode] = useState<GuestMode | null>(null);
+  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const initialRole = params?.get('role');
+  const initialMode = MODES.some((item) => item.id === initialRole) ? initialRole as GuestMode : null;
+  const roomCode = params?.get('room');
+  const [mode, setMode] = useState<GuestMode | null>(initialMode);
   const selected = MODES.find((item) => item.id === mode);
 
   return (
-    <GuestSimulationProvider>
+    <GuestSimulationProvider roomCode={roomCode} role={initialMode ? `Guest_${initialMode}` : 'Guest_DP'}>
       {selected ? (
         <div className="min-h-full bg-neutral-100">
           {mode === 'DP' && <DashboardPage readOnly simulation onGuestBack={() => setMode(null)} />}
