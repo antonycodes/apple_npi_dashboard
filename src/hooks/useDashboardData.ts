@@ -17,6 +17,7 @@ import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 import { subscribeDashboardRealtime } from '@/services/dashboardRealtime';
 import { cellToString } from '@/services/larkMapper';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import {
   computeSummary,
   type DashboardSummary,
@@ -104,6 +105,7 @@ export function useDashboardData(options: DashboardDataOptions = {}): UseDashboa
   const guestMode = options.guestMode ?? false;
   const forceMock = options.forceMock ?? false;
   const settings = useLarkSettings();
+  const guestSimulation = useGuestSimulation();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
   const isMock = !guestMode && (forceMock || cfg.useMock);
   // Lock có polling riêng trong SleepOverlay. Không để thay đổi sleepMode
@@ -146,7 +148,9 @@ export function useDashboardData(options: DashboardDataOptions = {}): UseDashboa
           guestMode ? { ...cfg, useMock: false } : cfg,
           req.signal,
         );
-        const tables = guestMode ? guestTables(liveTables, settings.fields) : liveTables;
+        const tables = guestMode
+          ? guestSimulation?.seed(guestTables(liveTables, settings.fields)) ?? guestTables(liveTables, settings.fields)
+          : liveTables;
         if (cancelled) return;
         setRaw({ ...mapDeskStates(tables), pendingDevice: mapPendingDevices(tables) });
         setError(null);
@@ -170,6 +174,13 @@ export function useDashboardData(options: DashboardDataOptions = {}): UseDashboa
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMock, sig, nonce]);
+
+  useEffect(() => {
+    if (!guestMode || !guestSimulation) return;
+    const tables = guestSimulation.tables;
+    setRaw({ ...mapDeskStates(tables, settings.fields), pendingDevice: mapPendingDevices(tables, settings.fields) });
+    setError(null);
+  }, [guestMode, guestSimulation, settings.fields]);
 
   const desks: DeskData[] = ALL_POSITIONS.map((p) => ({
     ...p,

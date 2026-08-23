@@ -15,6 +15,7 @@ import { mapStaffDeskView, type StaffDeskView } from '@/services/staffMapper';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 import { subscribeDashboardRealtime } from '@/services/dashboardRealtime';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 
 const EMPTY_TABLES: LarkTables = {
   checkin: [],
@@ -36,6 +37,7 @@ export interface UseStaffDeskDataResult {
 
 export function useStaffDeskData(deskId: string, guestMode = false): UseStaffDeskDataResult {
   const settings = useLarkSettings();
+  const guestSimulation = useGuestSimulation();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
   const isMock = guestMode || cfg.useMock;
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
@@ -63,7 +65,8 @@ export function useStaffDeskData(deskId: string, guestMode = false): UseStaffDes
       // Guest staff screens intentionally start empty. The guest journey is
       // demonstrated from the real Check-in queue on Guest DP, not from
       // bundled operational fixture data on TV/TC/BK.
-      setView(mapStaffDeskView(guestMode ? EMPTY_TABLES : mockLarkTables, deskId, DEFAULT_FIELD_CONFIG));
+      const guestTables = guestMode ? guestSimulation?.staffTables(deskId) ?? EMPTY_TABLES : mockLarkTables;
+      setView(mapStaffDeskView(guestTables, deskId, DEFAULT_FIELD_CONFIG));
       setError(null);
       setLoading(false);
       setLastUpdated(new Date());
@@ -100,7 +103,7 @@ export function useStaffDeskData(deskId: string, guestMode = false): UseStaffDes
       stopRealtime();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deskId, isMock, sig, nonce]);
+  }, [deskId, isMock, sig, nonce, guestSimulation]);
 
   return { view, loading, error, lastUpdated, isMock, refresh };
 }

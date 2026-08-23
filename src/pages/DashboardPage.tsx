@@ -101,13 +101,13 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
               className={[
                 'rounded-full px-2 py-1 font-semibold',
                 simulation
-                  ? 'bg-neutral-100 text-neutral-600'
+                  ? 'bg-emerald-100 text-emerald-700'
                   : larkConnected
                     ? 'bg-emerald-100 text-emerald-700'
                     : 'bg-red-100 text-red-700',
               ].join(' ')}
             >
-              {simulation ? 'Guest · Chưa có dữ liệu' : larkConnected ? 'Lark Connected' : 'Lark Not connected'}
+              {simulation ? 'Guest Connected' : larkConnected ? 'Lark Connected' : 'Lark Not connected'}
             </span>
             <span className={error ? 'text-red-600' : 'text-neutral-500'}>
               {error

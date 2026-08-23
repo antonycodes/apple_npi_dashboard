@@ -151,7 +151,7 @@ export default function KhoAppPage({
             <span
               className={[
                 'rounded-full px-2 py-0.5 font-semibold',
-                larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
+                guestMode || larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
               ].join(' ')}
             >
                 {guestMode ? 'Guest Connected' : larkConnected ? 'Lark Connected' : 'Lark Not connected'}

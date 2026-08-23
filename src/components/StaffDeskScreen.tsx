@@ -26,6 +26,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { staffActionWebhookUrl, useLarkSettings } from '@/config/larkSettings';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import { formatElapsed, staffTimerStore, useStaffTimers, type TimerEntry } from '@/config/staffTimers';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
 import { sendStaffAction } from '@/services/staffActionWebhook';
@@ -338,6 +339,7 @@ export default function StaffDeskScreen({
   simulation?: boolean;
 }) {
   const submitByMsnv = actorMsnv?.trim() || view.staffId?.trim() || '';
+  const guestSimulation = useGuestSimulation();
   const [pending, setPending] = useState<Pending | null>(null);
   const markPending = (action: Pending['action'], stt: string | null) => {
     if (stt) setPending({ action, stt, at: Date.now() });
@@ -547,6 +549,8 @@ export default function StaffDeskScreen({
           receiveCustomer(stt);
           setLockedReceiveStt(stt);
         }
+        if (formAction === 'hoan_tat') guestSimulation?.complete(stt, view.cluster);
+        else guestSimulation?.receive(stt, view.cluster);
         setFormAction(null);
         setFormCustomer(null);
         setSimulationMessage(

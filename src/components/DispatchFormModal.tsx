@@ -24,6 +24,7 @@ import { useAdminInfo } from '@/config/adminSession';
 import { dispatchWebhookUrl, useLarkSettings } from '@/config/larkSettings';
 import { sendDispatchForm } from '@/services/dispatchWebhook';
 import type { DeskData, RosterEntry } from '@/types/desk';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 
 interface DispatchFormModalProps {
   desks: DeskData[];
@@ -67,6 +68,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const webhook = dispatchWebhookUrl(settings);
   // Danh tính lấy trực tiếp từ tài khoản đăng nhập; không còn gán theo máy.
   const session = useAdminInfo();
+  const guestSimulation = useGuestSimulation();
   const coordinatorId = simulation ? 'Guest_DP' : session?.desk || session?.username || '';
   const coordinatorName = simulation ? 'Guest_DP' : session?.name || session?.username || '';
   const coordinatorSubmitBy = simulation ? 'Guest_DP' : session?.msnv || session?.username || '';
@@ -129,6 +131,12 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
     setStatus({ kind: 'sending' });
     try {
       if (simulation) {
+        const stage = loai.toLowerCase().includes('backup')
+          ? 'backup'
+          : loai.toLowerCase().includes('thu cũ') || loai.toLowerCase().includes('thu cu')
+            ? 'tradein'
+            : 'consult';
+        guestSimulation?.dispatch(stt.trim(), stage, deskId);
         setStatus({ kind: 'sent', confirmed: true });
         setStt('');
         setDeskId('');
