@@ -1136,8 +1136,9 @@ export class DashboardSnapshotCoordinator extends DurableObject {
 const GUEST_ROOM_TTL_MS = 2 * 60 * 60 * 1000;
 
 function guestRoomCode() {
-  const bytes = crypto.getRandomValues(new Uint8Array(4));
-  return `VHWS-${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(5));
+  return `NPI_${Array.from(bytes, (value) => alphabet[value % alphabet.length]).join('')}`;
 }
 
 /** State tạm cho một buổi demo nhiều thiết bị; không liên quan tới Lark Base. */

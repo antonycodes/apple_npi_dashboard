@@ -1,7 +1,8 @@
 /**
  * DashboardPage — the interactive floor map + sidebar + End Flow + popover.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import QRCode from 'qrcode';
 import CustomerPopover from '@/components/CustomerPopover';
 import DeskPopover from '@/components/DeskPopover';
 import DispatchFormModal from '@/components/DispatchFormModal';
@@ -24,6 +25,18 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
     useDashboardData({ guestMode: simulation });
   const session = useAdminInfo();
   const guestRoom = useGuestSimulation();
+  const [showGuestQr, setShowGuestQr] = useState(false);
+  const [guestQrDataUrl, setGuestQrDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!showGuestQr || !guestRoom?.joinUrl) {
+      setGuestQrDataUrl(null);
+      return;
+    }
+    void QRCode.toDataURL(guestRoom.joinUrl, { width: 240, margin: 2, errorCorrectionLevel: 'M' })
+      .then(setGuestQrDataUrl)
+      .catch(() => setGuestQrDataUrl(null));
+  }, [guestRoom?.joinUrl, showGuestQr]);
   const canDispatch = (simulation || !readOnly) && (simulation || session?.role === 'admin' || session?.role === 'dieuphoi');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -130,11 +143,11 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
             {simulation && guestRoom?.roomCode && (
               <button
                 type="button"
-                onClick={() => guestRoom.joinUrl && navigator.clipboard?.writeText(guestRoom.joinUrl)}
+                onClick={() => setShowGuestQr(true)}
                 title={guestRoom.joinUrl ?? undefined}
                 className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"
               >
-                Phòng {guestRoom.roomCode}
+                {guestRoom.roomCode}
               </button>
             )}
             {simulation && onGuestBack && (
@@ -171,6 +184,30 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
           </p>
         )}
       </header>
+
+      {simulation && showGuestQr && guestRoom?.joinUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Mã QR phòng mô phỏng" onClick={() => setShowGuestQr(false)}>
+          <div className="w-full max-w-xs rounded-2xl bg-white p-5 text-center shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-black text-neutral-900">Phòng {guestRoom.roomCode}</h2>
+              <button type="button" onClick={() => setShowGuestQr(false)} aria-label="Đóng" className="text-2xl leading-none text-neutral-400 hover:text-neutral-700">×</button>
+            </div>
+            {guestQrDataUrl ? (
+              <img src={guestQrDataUrl} alt={`QR tham gia phòng ${guestRoom.roomCode}`} className="mx-auto mt-4 h-56 w-56 rounded-lg border border-neutral-200" />
+            ) : (
+              <div className="mx-auto mt-4 flex h-56 w-56 items-center justify-center rounded-lg border border-neutral-200 text-sm text-neutral-500">Đang tạo QR…</div>
+            )}
+            <p className="mt-3 text-sm font-semibold text-neutral-600">Quét mã bằng điện thoại để tham gia</p>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard?.writeText(guestRoom.joinUrl ?? '')}
+              className="mt-3 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm font-bold text-neutral-600 hover:bg-neutral-50"
+            >
+              Copy link phòng
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="px-3 py-3 md:px-6 md:py-5">
         <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
