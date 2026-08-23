@@ -113,6 +113,7 @@ function indexCheckinByStt(rows: LarkRecord[], fm: CheckinFieldMap): Map<string,
       deviceAcceptedText: cellToString(r.fields[fm.deviceAccepted]),
       oldDeviceCheck: cellToString(r.fields[fm.oldDeviceCheck]),
       backupCheck: cellToString(r.fields[fm.backupCheck]),
+      backupStatus: cellToString(r.fields[fm.backupStatus]),
       receiveUrl: cellToUrl(r.fields[fm.receiveHyperlink]),
       endFlow: cellToString(r.fields[fm.endFlow])?.trim().toLowerCase() === 'end flow',
     });

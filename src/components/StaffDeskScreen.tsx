@@ -30,7 +30,7 @@ import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import { formatElapsed, staffTimerStore, useStaffTimers, type TimerEntry } from '@/config/staffTimers';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
 import { sendStaffAction } from '@/services/staffActionWebhook';
-import type { StaffCustomer, StaffDeskView } from '@/services/staffMapper';
+import type { PrevImage, StaffCustomer, StaffDeskView } from '@/services/staffMapper';
 import StaffReceiveFormModal, { type ReceiveFormValues } from './StaffReceiveFormModal';
 import ThuMayModal, { type ThuMayValues } from './ThuMayModal';
 import type { ClusterKey } from '@/types/desk';
@@ -478,7 +478,22 @@ export default function StaffDeskScreen({
     try {
       if (simulation) {
         setVuaThu((p) => ({ ...p, [stt]: Date.now() }));
-        guestSimulation?.quickDevice(stt, view.cluster);
+        const now = Date.now();
+        const simulatedImages: PrevImage[] = [
+          ...values.anhGiuLai,
+          ...values.anhMoi.map((file, index) => ({
+            fileToken: `guest-file-${stt}-${now}-${index}`,
+            name: file.name || `Ảnh nghiệm thu ${index + 1}`,
+          })),
+        ].slice(0, 3);
+        guestSimulation?.quickDevice(stt, view.cluster, view.id, {
+          scanQr: values.scanQr.trim() || undefined,
+          imei: values.imei.trim() || undefined,
+          hinhNghiemThu: simulatedImages.map((image) => ({
+            file_token: image.fileToken,
+            ...(image.name ? { name: image.name } : {}),
+          })),
+        });
         setSimulationMessage(`Thành công · mô phỏng thu máy STT ${stt}.`);
         setThuMayOpen(false);
         setActionError(null);

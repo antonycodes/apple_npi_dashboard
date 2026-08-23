@@ -110,8 +110,8 @@ export default function CustomerPopover({ desk, customer, onClose }: CustomerPop
           />
           <Row
             label="Backup check"
-            value={customer.backupCheck ?? null}
-            tone={oldDeviceCheckTone(customer.backupCheck)}
+            value={customer.backupStatus ?? customer.backupCheck ?? null}
+            tone={oldDeviceCheckTone(customer.backupStatus ?? customer.backupCheck)}
           />
           <Row label="Nhân sự" value={dispatchSummary(customer)} />
         </dl>

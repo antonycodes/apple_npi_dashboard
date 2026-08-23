@@ -43,6 +43,7 @@ function indexCheckinDetailByStt(rows: LarkRecord[], fm: FieldConfig['checkin'])
       deviceAcceptedText: cellToString(r.fields[fm.deviceAccepted]),
       oldDeviceCheck: cellToString(r.fields[fm.oldDeviceCheck]),
       backupCheck: cellToString(r.fields[fm.backupCheck]),
+      backupStatus: cellToString(r.fields[fm.backupStatus]),
     });
   }
   return m;

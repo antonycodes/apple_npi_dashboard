@@ -480,6 +480,11 @@ function json(body, status = 200) {
   });
 }
 
+function guestCellText(value) {
+  if (Array.isArray(value)) return value.map((part) => typeof part === 'string' ? part : part?.text || '').join('').trim();
+  return value == null ? '' : String(value).trim();
+}
+
 // Cache map optionId→tên hiển thị theo TỪNG BẢNG (10 phút) — tránh gọi lại
 // API field-metadata mỗi request.
 const fieldOptionCache = new Map();
@@ -1204,6 +1209,21 @@ export class GuestSimulationRoom extends DurableObject {
       const action = String(body?.action || '').trim();
       const checkBackup = body?.checkBackup === 'Có' || body?.checkBackup === 'Không' ? body.checkBackup : null;
       const thuLaiMay = body?.thuLaiMay === 'Thu máy ngay' || body?.thuLaiMay === 'Thu máy sau' ? body.thuLaiMay : null;
+      const scanQr = typeof body?.scanQr === 'string' ? body.scanQr.trim().slice(0, 200) : null;
+      const imei = typeof body?.imei === 'string' ? body.imei.trim().slice(0, 80) : null;
+      let hinhNghiemThu = null;
+      if (typeof body?.hinhNghiemThu === 'string') {
+        try { hinhNghiemThu = JSON.parse(body.hinhNghiemThu); } catch { hinhNghiemThu = null; }
+      } else if (Array.isArray(body?.hinhNghiemThu)) {
+        hinhNghiemThu = body.hinhNghiemThu;
+      }
+      hinhNghiemThu = Array.isArray(hinhNghiemThu)
+        ? hinhNghiemThu.slice(0, 3).map((image) => {
+            const fileToken = typeof image?.file_token === 'string' ? image.file_token.trim().slice(0, 160) : '';
+            const name = typeof image?.name === 'string' ? image.name.trim().slice(0, 120) : '';
+            return fileToken ? { file_token: fileToken, ...(name ? { name } : {}) } : null;
+          }).filter(Boolean)
+        : null;
       if (!stt || !stage || !deskId || !['dispatch', 'receive', 'complete', 'device'].includes(action)) {
         return json({ code: -1, msg: 'Guest room action không hợp lệ.' }, 400);
       }
@@ -1213,9 +1233,32 @@ export class GuestSimulationRoom extends DurableObject {
         );
         this.state.assignments.push({ stt, stage, deskId, status: 'waiting', at: Date.now() });
       } else if (action === 'device') {
+        let matched = false;
         this.state.assignments = this.state.assignments.map((item) =>
-          item.stt === stt && item.stage === stage ? { ...item, thuLaiMay: 'Thu máy ngay', at: Date.now() } : item,
+          item.stt === stt && item.stage === stage
+            ? {
+                ...(matched = true, item),
+                thuLaiMay: 'Thu máy ngay',
+                at: Date.now(),
+                ...(scanQr ? { scanQr } : {}),
+                ...(imei ? { imei } : {}),
+                ...(hinhNghiemThu?.length ? { hinhNghiemThu } : {}),
+              }
+            : item,
         );
+        if (!matched) {
+          this.state.assignments.push({
+            stt,
+            stage,
+            deskId,
+            status: 'completed',
+            at: Date.now(),
+            thuLaiMay: 'Thu máy ngay',
+            ...(scanQr ? { scanQr } : {}),
+            ...(imei ? { imei } : {}),
+            ...(hinhNghiemThu?.length ? { hinhNghiemThu } : {}),
+          });
+        }
       } else {
         let matched = false;
         this.state.assignments = this.state.assignments.map((item) =>
@@ -1229,10 +1272,13 @@ export class GuestSimulationRoom extends DurableObject {
           this.state.assignments.push({ stt, stage, deskId, status: 'active', at: Date.now() });
         }
         if (action === 'complete' && checkBackup) {
-          const checkinRow = this.state.baseTables.checkin.find((row) => Object.entries(row.fields).some(([key, value]) => key.trim().toLowerCase() === 'stt' && String(value) === stt));
+          const checkinRow = this.state.baseTables.checkin.find((row) => Object.entries(row.fields).some(([key, value]) => key.trim().toLowerCase() === 'stt' && guestCellText(value) === stt));
           if (checkinRow) {
-            const backupKey = Object.keys(checkinRow.fields).find((key) => key.toLowerCase().includes('backup check'));
-            if (backupKey) checkinRow.fields[backupKey] = checkBackup;
+            const backupKey = Object.keys(checkinRow.fields).find((key) => key.trim().toLowerCase() === 'backup check');
+            const backupStatusKey = Object.keys(checkinRow.fields).find((key) => key.trim().toLowerCase() === 'bc_check backup');
+            const backupValue = checkBackup === 'Có' ? 'Có Backup' : 'Không Backup';
+            if (backupKey) checkinRow.fields[backupKey] = backupValue;
+            if (backupStatusKey) checkinRow.fields[backupStatusKey] = backupValue;
           }
           const row = checkinRow;
           if (row) {

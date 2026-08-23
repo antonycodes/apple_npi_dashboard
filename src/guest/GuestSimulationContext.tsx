@@ -16,6 +16,15 @@ interface Assignment {
   at: number;
   checkBackup?: 'Có' | 'Không';
   thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau';
+  scanQr?: string;
+  imei?: string;
+  hinhNghiemThu?: Array<{ file_token: string; name?: string }>;
+}
+
+interface GuestDeviceData {
+  scanQr?: string;
+  imei?: string;
+  hinhNghiemThu?: Array<{ file_token: string; name?: string }>;
 }
 
 interface GuestSimulationValue {
@@ -28,7 +37,7 @@ interface GuestSimulationValue {
   dispatch: (stt: string, stage: ClusterKey, deskId: string) => void;
   receive: (stt: string, stage: ClusterKey, deskId?: string) => void;
   complete: (stt: string, stage: ClusterKey, checkBackup?: 'Có' | 'Không', thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau') => void;
-  quickDevice: (stt: string, stage: ClusterKey) => void;
+  quickDevice: (stt: string, stage: ClusterKey, deskId?: string, device?: GuestDeviceData) => void;
   staffTables: (deskId: string) => LarkTables;
 }
 
@@ -83,6 +92,9 @@ function buildTables(base: LarkTables, assignments: Assignment[], fields: FieldC
       [fields.master.time]: item.at,
       [fields.master.sttInput]: item.stt,
       ...(item.thuLaiMay ? { [fields.master.thuLaiMay]: item.thuLaiMay } : {}),
+      ...(item.scanQr ? { [fields.master.scanQr]: item.scanQr } : {}),
+      ...(item.imei ? { [fields.master.imei]: item.imei } : {}),
+      ...(item.hinhNghiemThu?.length ? { [fields.master.hinhNghiemThu]: item.hinhNghiemThu } : {}),
     }));
   });
 
@@ -170,7 +182,14 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
             const stt = cellToString(row.fields[fields.checkin.stt]);
             const checkBackup = stt ? backupByStt.get(stt) : undefined;
             return checkBackup
-              ? { ...row, fields: { ...row.fields, [fields.checkin.backupCheck]: checkBackup } }
+              ? {
+                  ...row,
+                  fields: {
+                    ...row.fields,
+                    [fields.checkin.backupCheck]: checkBackup === 'Có' ? 'Có Backup' : 'Không Backup',
+                    [fields.checkin.backupStatus]: checkBackup === 'Có' ? 'Có Backup' : 'Không Backup',
+                  },
+                }
               : row;
           }),
         }
@@ -342,7 +361,14 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
             ...current,
             checkin: current.checkin.map((row) =>
               cellToString(row.fields[fields.checkin.stt]) === stt
-                ? { ...row, fields: { ...row.fields, [fields.checkin.backupCheck]: checkBackup } }
+                ? {
+                    ...row,
+                    fields: {
+                      ...row.fields,
+                      [fields.checkin.backupCheck]: checkBackup === 'Có' ? 'Có Backup' : 'Không Backup',
+                      [fields.checkin.backupStatus]: checkBackup === 'Có' ? 'Có Backup' : 'Không Backup',
+                    },
+                  }
                 : row,
             ),
           }));
@@ -350,14 +376,27 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         markEndFlowIfReady(nextAssignments, stt, checkBackup);
         if (target) postAction('complete', stt, stage, target.deskId, { ...(checkBackup ? { checkBackup } : {}), ...(thuLaiMay ? { thuLaiMay } : {}) });
       },
-      quickDevice(stt, stage) {
+      quickDevice(stt, stage, guestDeskId, device) {
         const target = assignments.find((item) => item.stt === stt && item.stage === stage);
-        setAssignments((current) => current.map((item) =>
-          item.stt === stt && item.stage === stage
-            ? { ...item, thuLaiMay: 'Thu máy ngay' }
-          : item,
-        ));
-        if (target) postAction('device', stt, stage, target.deskId);
+        const resolvedDesk = target?.deskId ?? (guestDeskId ? deskForGuestRole(guestDeskId) : null);
+        if (!resolvedDesk) return;
+        const deviceFields = {
+          thuLaiMay: 'Thu máy ngay' as const,
+          ...(device?.scanQr ? { scanQr: device.scanQr } : {}),
+          ...(device?.imei ? { imei: device.imei } : {}),
+          ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
+        };
+        setAssignments((current) => current.some((item) => item.stt === stt && item.stage === stage)
+          ? current.map((item) =>
+              item.stt === stt && item.stage === stage ? { ...item, ...deviceFields } : item,
+            )
+          : [...current, { stt, stage, deskId: resolvedDesk, status: 'completed', at: Date.now(), ...deviceFields }],
+        );
+        postAction('device', stt, stage, resolvedDesk, {
+            ...(device?.scanQr ? { scanQr: device.scanQr } : {}),
+            ...(device?.imei ? { imei: device.imei } : {}),
+            ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: JSON.stringify(device.hinhNghiemThu) } : {}),
+        });
       },
       staffTables(deskId) {
         return remapForStaffRole(tables, deskId);

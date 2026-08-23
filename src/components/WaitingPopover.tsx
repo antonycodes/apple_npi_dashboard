@@ -147,8 +147,8 @@ export default function WaitingPopover({ zoneLabel, zone, customer, index, onDis
           />
           <Row
             label="Backup check"
-            value={customer.backupCheck ?? null}
-            tone={oldDeviceCheckTone(customer.backupCheck)}
+            value={customer.backupStatus ?? customer.backupCheck ?? null}
+            tone={oldDeviceCheckTone(customer.backupStatus ?? customer.backupCheck)}
           />
           <Row label="Nhân sự" value={dispatchSummary(customer)} />
         </dl>

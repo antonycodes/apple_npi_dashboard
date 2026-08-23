@@ -47,6 +47,8 @@ export interface CheckinFieldMap {
   oldDeviceCheck: string;
   /** Cột "Backup check" — hiển thị ngay dưới "Thu cũ check" trong các popover khách. */
   backupCheck: string;
+  /** Cột công thức trạng thái Backup dùng cho Dashboard. */
+  backupStatus: string;
   /** Link điều phối cho khách đang ở khu Đã check-in. */
   dispatchHyperlink: string;
   /**
@@ -177,6 +179,7 @@ export const DEFAULT_CHECKIN_FIELDS: CheckinFieldMap = {
   deviceAccepted: 'Check nghiệm thu',
   oldDeviceCheck: 'Thu cũ check',
   backupCheck: 'Backup check',
+  backupStatus: 'BC_Check backup',
   dispatchHyperlink: 'Hyperlink Điều phối',
   receiveHyperlink: 'Hyperlink Tiếp nhận',
   doneInFlow: 'Done in Flow',

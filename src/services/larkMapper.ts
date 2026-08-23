@@ -212,6 +212,8 @@ interface CheckinIndexEntry {
   oldDeviceCheck: string | null;
   /** Cột "Backup check" — nguyên văn lựa chọn. */
   backupCheck: string | null;
+  /** Cột công thức "BC_Check backup" — trạng thái hiển thị trên Dashboard. */
+  backupStatus: string | null;
   /** Khâu vừa hoàn tất (Check-in cột "Done in Flow") — chỉ có ý nghĩa khi khách đã xong 1 khâu. */
   doneInFlow: string | null;
   /** Đã hoàn tất toàn bộ quy trình (Check-in cột "End flow"). */
@@ -237,6 +239,7 @@ function indexCheckinByName(rows: LarkRecord[], fm: CheckinFieldMap): Map<string
         deviceAcceptedText: cellToString(r.fields[fm.deviceAccepted]),
         oldDeviceCheck: cellToString(r.fields[fm.oldDeviceCheck]),
         backupCheck: cellToString(r.fields[fm.backupCheck]),
+        backupStatus: cellToString(r.fields[fm.backupStatus]),
         doneInFlow: cellToString(r.fields[fm.doneInFlow]),
         endFlow: isEndFlowValue(r.fields[fm.endFlow]),
       });
@@ -484,6 +487,7 @@ function indexMasterByDeskCode(
         hyperlink: hyperlinkByName.get(row.name) ?? null,
         oldDeviceCheck: ci?.oldDeviceCheck ?? null,
         backupCheck: ci?.backupCheck ?? null,
+        backupStatus: ci?.backupStatus ?? null,
         dsTuVan: dd?.dsTuVan ?? null,
         dsThuCu: dd?.dsThuCu ?? null,
         dsBackup: dd?.dsBackup ?? null,
@@ -799,6 +803,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       hyperlink: hyperlinkByName.get(row.name) ?? null,
       oldDeviceCheck: ci?.oldDeviceCheck ?? null,
       backupCheck: ci?.backupCheck ?? null,
+      backupStatus: ci?.backupStatus ?? null,
     });
     completedByDeskCode.set(row.deskCode, list);
   }
@@ -853,6 +858,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       hyperlink: hyperlinkByName.get(row.name) ?? null,
       oldDeviceCheck: ci?.oldDeviceCheck ?? null,
       backupCheck: ci?.backupCheck ?? null,
+      backupStatus: ci?.backupStatus ?? null,
       dsTuVan: dd?.dsTuVan ?? null,
       dsThuCu: dd?.dsThuCu ?? null,
       dsBackup: dd?.dsBackup ?? null,
@@ -890,6 +896,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       deviceAcceptedText: cellToString(r.fields[checkin.deviceAccepted]),
       oldDeviceCheck: cellToString(r.fields[checkin.oldDeviceCheck]),
       backupCheck: cellToString(r.fields[checkin.backupCheck]),
+      backupStatus: cellToString(r.fields[checkin.backupStatus]),
       hyperlink: cellToUrl(r.fields[checkin.dispatchHyperlink]),
       dsTuVan: dd?.dsTuVan ?? null,
       dsThuCu: dd?.dsThuCu ?? null,
@@ -912,6 +919,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       hyperlink: hyperlinkByName.get(name) ?? null,
       oldDeviceCheck: ci.oldDeviceCheck,
       backupCheck: ci.backupCheck,
+      backupStatus: ci.backupStatus,
       dsTuVan: dd?.dsTuVan ?? null,
       dsThuCu: dd?.dsThuCu ?? null,
       dsBackup: dd?.dsBackup ?? null,

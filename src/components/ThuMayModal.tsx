@@ -162,11 +162,21 @@ export default function ThuMayModal({
                     {/* Token KHÔNG phải URL — phải đi qua `/media/<token>` của
                         worker, vì link Lark trả về đòi Bearer nên thẻ <img>
                         không tự tải được. */}
-                    <img
-                      src={`${workerBaseUrl()}/media/${encodeURIComponent(img.fileToken)}`}
-                      alt={img.name ?? 'Ảnh nghiệm thu'}
-                      className="h-20 w-20 rounded-xl border border-neutral-300 object-cover"
-                    />
+                    {img.fileToken.startsWith('guest-file-') ? (
+                      <div
+                        className="flex h-20 w-20 flex-col items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-1 text-center text-[10px] font-semibold text-emerald-700"
+                        title={img.name ?? 'Ảnh mô phỏng'}
+                      >
+                        <span className="text-lg">▣</span>
+                        <span className="line-clamp-2">Ảnh mô phỏng</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={`${workerBaseUrl()}/media/${encodeURIComponent(img.fileToken)}`}
+                        alt={img.name ?? 'Ảnh nghiệm thu'}
+                        className="h-20 w-20 rounded-xl border border-neutral-300 object-cover"
+                      />
+                    )}
                     <button
                       type="button"
                       aria-label="Bỏ ảnh này"

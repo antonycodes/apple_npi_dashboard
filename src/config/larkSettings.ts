@@ -232,6 +232,7 @@ export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
   deviceAccepted: 'Check nghiệm thu (đã thu máy cũ)',
   oldDeviceCheck: 'Thu cũ check (lựa chọn — hiển thị nguyên văn)',
   backupCheck: 'Backup check (lựa chọn — hiển thị nguyên văn)',
+  backupStatus: 'BC_Check backup (công thức trạng thái Dashboard)',
   dispatchHyperlink: 'Hyperlink Điều phối (khách Đã check-in)',
   receiveHyperlink: 'Hyperlink Tiếp nhận — theo KHÁCH (nút Tiếp nhận ở màn hình NV)',
   doneInFlow: 'Done in Flow (khâu vừa hoàn tất)',
