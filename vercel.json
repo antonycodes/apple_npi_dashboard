@@ -23,15 +23,6 @@
       "destination": "/app",
       "permanent": false
     },
-    {
-      "source": "/guest",
-      "destination": "/index.html",
-      "permanent": false
-    },
-    {
-      "source": "/guest/:path*",
-      "destination": "/index.html",
-      "permanent": false
     }
   ],
   "rewrites": [
@@ -41,6 +32,14 @@
     },
     {
       "source": "/app/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/guest",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/guest/:path*",
       "destination": "/index.html"
     }
   ]
