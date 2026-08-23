@@ -67,9 +67,9 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const webhook = dispatchWebhookUrl(settings);
   // Danh tính lấy trực tiếp từ tài khoản đăng nhập; không còn gán theo máy.
   const session = useAdminInfo();
-  const coordinatorId = session?.desk || session?.username || '';
-  const coordinatorName = session?.name || session?.username || '';
-  const coordinatorSubmitBy = session?.msnv || session?.username || '';
+  const coordinatorId = simulation ? 'Guest_DP' : session?.desk || session?.username || '';
+  const coordinatorName = simulation ? 'Guest_DP' : session?.name || session?.username || '';
+  const coordinatorSubmitBy = simulation ? 'Guest_DP' : session?.msnv || session?.username || '';
 
   const [stt, setStt] = useState(initialStt);
   const [loai, setLoai] = useState('');

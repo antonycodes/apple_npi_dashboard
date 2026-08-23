@@ -21,17 +21,17 @@ export default function GuestPage() {
   if (selected) {
     return (
       <div className="min-h-full bg-neutral-100">
-        <div className="fixed left-3 top-3 z-50 flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+        <div className="fixed right-3 top-3 z-50 flex items-center gap-1 rounded-full border border-neutral-200 bg-white/95 px-1.5 py-1.5 shadow-sm backdrop-blur">
           <button
             type="button"
             onClick={() => setMode(null)}
             aria-label="Chọn màn hình khác"
             title="Chọn màn hình khác"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-neutral-600 hover:bg-neutral-100"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-600 hover:bg-neutral-100"
           >
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
-          <span className="pr-1 text-sm font-bold text-neutral-700">{selected.code}</span>
+          <span className="pr-1 text-xs font-bold text-neutral-700">{selected.code}</span>
         </div>
         {mode === 'DP' && <DashboardPage readOnly simulation />}
         {mode !== 'DP' && mode !== 'KHO' && (

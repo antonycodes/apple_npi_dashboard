@@ -94,8 +94,9 @@ export function useDashboardData(forceMock = false): UseDashboardDataResult {
     const controller = new AbortController();
 
     if (isMock) {
-      // Mock uses default column names.
-      setRaw({
+      // Guest DP là canvas rỗng để mô phỏng từ đầu, không trộn dữ liệu mẫu vào
+      // bản trình diễn. Chế độ mock thật vẫn giữ nguyên cho các route #/mock.
+      setRaw(forceMock ? EMPTY : {
         ...mapDeskStates(mockLarkTables, DEFAULT_FIELD_CONFIG),
         pendingDevice: mapPendingDevices(mockLarkTables, DEFAULT_FIELD_CONFIG),
       });
