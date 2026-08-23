@@ -234,7 +234,7 @@ export function mapStaffDeskView(
     Guest_TC: 'TC1',
     Guest_BK: 'BK1',
   };
-  const templateId = guestTemplate[deskId] ?? deskId;
+  const templateId = guestTemplate[deskId] ?? deskId.replace(/^Guest_((?:TV|TC|BK)\d+)$/, '$1');
   const pos = ALL_POSITIONS.find((p) => p.id === templateId);
   if (!pos) return null;
 

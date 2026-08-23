@@ -1202,7 +1202,9 @@ export class GuestSimulationRoom extends DurableObject {
       const stage = String(body?.stage || '').trim();
       const deskId = String(body?.deskId || '').trim();
       const action = String(body?.action || '').trim();
-      if (!stt || !stage || !deskId || !['dispatch', 'receive', 'complete'].includes(action)) {
+      const checkBackup = body?.checkBackup === 'Có' || body?.checkBackup === 'Không' ? body.checkBackup : null;
+      const thuLaiMay = body?.thuLaiMay === 'Thu máy ngay' || body?.thuLaiMay === 'Thu máy sau' ? body.thuLaiMay : null;
+      if (!stt || !stage || !deskId || !['dispatch', 'receive', 'complete', 'device'].includes(action)) {
         return json({ code: -1, msg: 'Guest room action không hợp lệ.' }, 400);
       }
       if (action === 'dispatch') {
@@ -1210,12 +1212,38 @@ export class GuestSimulationRoom extends DurableObject {
           (item) => !(item.stt === stt && item.stage === stage && item.status === 'waiting'),
         );
         this.state.assignments.push({ stt, stage, deskId, status: 'waiting', at: Date.now() });
+      } else if (action === 'device') {
+        this.state.assignments = this.state.assignments.map((item) =>
+          item.stt === stt && item.stage === stage ? { ...item, thuLaiMay: 'Thu máy ngay', at: Date.now() } : item,
+        );
       } else {
         this.state.assignments = this.state.assignments.map((item) =>
           item.stt === stt && item.stage === stage && item.status === (action === 'receive' ? 'waiting' : 'active')
-            ? { ...item, status: action === 'receive' ? 'active' : 'completed', at: Date.now() }
+            ? { ...item, status: action === 'receive' ? 'active' : 'completed', at: Date.now(), ...(checkBackup ? { checkBackup } : {}), ...(thuLaiMay ? { thuLaiMay } : {}) }
             : item,
         );
+        if (action === 'complete' && checkBackup) {
+          const checkinRow = this.state.baseTables.checkin.find((row) => Object.entries(row.fields).some(([key, value]) => key.trim().toLowerCase() === 'stt' && String(value) === stt));
+          if (checkinRow) {
+            const backupKey = Object.keys(checkinRow.fields).find((key) => key.toLowerCase().includes('backup check'));
+            if (backupKey) checkinRow.fields[backupKey] = checkBackup;
+          }
+          const row = checkinRow;
+          if (row) {
+            const oldDeviceKey = Object.keys(row.fields).find((key) => key.toLowerCase().includes('thu cũ check') || key.toLowerCase().includes('thu cu check'));
+            const backupKey = Object.keys(row.fields).find((key) => key.toLowerCase().includes('backup check'));
+            const oldDevice = oldDeviceKey ? String(row.fields[oldDeviceKey] ?? '').toLowerCase() : '';
+            const backup = backupKey ? String(row.fields[backupKey] ?? '').toLowerCase() : checkBackup.toLowerCase();
+            const completed = new Set(this.state.assignments.filter((item) => item.stt === stt && item.status === 'completed').map((item) => item.stage));
+            const ready = completed.has('consult')
+              && (!(oldDevice.includes('có') || oldDevice.includes('thu cũ') || oldDevice.includes('thu cu')) || completed.has('tradein'))
+              && (!(backup.includes('có') || backup.includes('backup')) || completed.has('backup'));
+            if (ready) {
+              const endFlowKey = Object.keys(row.fields).find((key) => key.toLowerCase().includes('end flow'));
+              if (endFlowKey) row.fields[endFlowKey] = 'End flow';
+            }
+          }
+        }
       }
       await this.save();
       return json({ code: 0, msg: 'success', data: this.state });

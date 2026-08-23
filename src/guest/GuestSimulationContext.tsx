@@ -14,6 +14,8 @@ interface Assignment {
   deskId: string;
   status: SimulationStatus;
   at: number;
+  checkBackup?: 'Có' | 'Không';
+  thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau';
 }
 
 interface GuestSimulationValue {
@@ -25,7 +27,8 @@ interface GuestSimulationValue {
   seed: (tables: LarkTables) => LarkTables;
   dispatch: (stt: string, stage: ClusterKey, deskId: string) => void;
   receive: (stt: string, stage: ClusterKey) => void;
-  complete: (stt: string, stage: ClusterKey) => void;
+  complete: (stt: string, stage: ClusterKey, checkBackup?: 'Có' | 'Không', thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau') => void;
+  quickDevice: (stt: string, stage: ClusterKey) => void;
   staffTables: (deskId: string) => LarkTables;
 }
 
@@ -37,6 +40,8 @@ function record(id: string, fields: Record<string, unknown>): LarkRecord {
 }
 
 function deskForGuestRole(deskId: string): string | null {
+  const exact = deskId.match(/^Guest_(TV|TC|BK)(\d+)$/);
+  if (exact) return `${exact[1]}${exact[2]}`;
   if (deskId === 'Guest_TV') return 'TV1';
   if (deskId === 'Guest_TC') return 'TC1';
   if (deskId === 'Guest_BK') return 'BK1';
@@ -77,6 +82,7 @@ function buildTables(base: LarkTables, assignments: Assignment[], fields: FieldC
       [fields.master.stage]: STAGE_LABEL[item.stage],
       [fields.master.time]: item.at,
       [fields.master.sttInput]: item.stt,
+      ...(item.thuLaiMay ? { [fields.master.thuLaiMay]: item.thuLaiMay } : {}),
     }));
   });
 
@@ -105,17 +111,15 @@ function remapForStaffRole(tables: LarkTables, deskId: string): LarkTables {
       typeof value === 'string' && value.startsWith(prefix) ? targetDesk : value,
     ])),
   });
+  const exactDesk = /^Guest_(TV|TC|BK)\d+$/.test(deskId);
+  const matchesDesk = (row: LarkRecord) => Object.values(row.fields).some(
+    (value) => typeof value === 'string' && (exactDesk ? value === targetDesk : value.startsWith(prefix)),
+  );
   return {
     ...tables,
-    master: tables.master.filter((row) => {
-      const desk = Object.values(row.fields).find((value) => typeof value === 'string' && value.startsWith(prefix));
-      return Boolean(desk);
-    }).map(remap),
+    master: tables.master.filter(matchesDesk).map(remap),
     dispatch: tables.dispatch.map(remap),
-    dsMaster: tables.dsMaster.filter((row) => {
-      const desk = Object.values(row.fields).find((value) => typeof value === 'string' && value.startsWith(prefix));
-      return Boolean(desk);
-    }).map(remap),
+    dsMaster: tables.dsMaster.filter(matchesDesk).map(remap),
   };
 }
 
@@ -205,14 +209,34 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
     return () => window.clearInterval(timer);
   }, [roomCode]);
 
-  const postAction = (action: string, stt: string, stage: ClusterKey, deskId: string) => {
+  const postAction = (action: string, stt: string, stage: ClusterKey, deskId: string, extra: Record<string, string> = {}) => {
     const code = roomCodeRef.current;
     if (!code) return;
     void roomRequest(DEFAULT_API_URL, `/${encodeURIComponent(code)}/action`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, stt, stage, deskId }),
+      body: JSON.stringify({ action, stt, stage, deskId, ...extra }),
     }).then(applyRoomState).catch(() => undefined);
+  };
+
+  const markEndFlowIfReady = (nextAssignments: Assignment[], stt: string, latestBackup?: 'Có' | 'Không') => {
+    const customer = base.checkin.find((row) => cellToString(row.fields[fields.checkin.stt]) === stt);
+    if (!customer) return;
+    const oldDevice = cellToString(customer.fields[fields.checkin.oldDeviceCheck])?.toLowerCase() ?? '';
+    const backup = (latestBackup ?? cellToString(customer.fields[fields.checkin.backupCheck]))?.toLowerCase() ?? '';
+    const needsTradein = oldDevice.includes('có') || oldDevice.includes('thu cũ') || oldDevice.includes('thu cu');
+    const needsBackup = backup.includes('có') || backup.includes('backup');
+    const completed = new Set(nextAssignments.filter((item) => item.stt === stt && item.status === 'completed').map((item) => item.stage));
+    const ready = completed.has('consult') && (!needsTradein || completed.has('tradein')) && (!needsBackup || completed.has('backup'));
+    if (!ready) return;
+    setBase((current) => ({
+      ...current,
+      checkin: current.checkin.map((row) =>
+        cellToString(row.fields[fields.checkin.stt]) === stt
+          ? { ...row, fields: { ...row.fields, [fields.checkin.endFlow]: 'End flow' } }
+          : row,
+      ),
+    }));
   };
 
   const value = useMemo<GuestSimulationValue>(() => {
@@ -241,19 +265,40 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         const target = assignments.find((item) => item.stt === stt && item.stage === stage && item.status === 'waiting');
         setAssignments((current) => current.map((item) =>
           item.stt === stt && item.stage === stage && item.status === 'waiting'
-            ? { ...item, status: 'active', at: Date.now() }
+            ? { ...item, status: 'active' as const, at: Date.now() }
             : item,
         ));
         if (target) postAction('receive', stt, stage, target.deskId);
       },
-      complete(stt, stage) {
+      complete(stt, stage, checkBackup, thuLaiMay) {
         const target = assignments.find((item) => item.stt === stt && item.stage === stage && item.status === 'active');
-        setAssignments((current) => current.map((item) =>
+        const nextAssignments = assignments.map((item) =>
           item.stt === stt && item.stage === stage && item.status === 'active'
-            ? { ...item, status: 'completed', at: Date.now() }
+            ? { ...item, status: 'completed' as const, at: Date.now(), ...(checkBackup ? { checkBackup } : {}), ...(thuLaiMay ? { thuLaiMay } : {}) }
             : item,
+        );
+        setAssignments(nextAssignments);
+        if (checkBackup) {
+          setBase((current) => ({
+            ...current,
+            checkin: current.checkin.map((row) =>
+              cellToString(row.fields[fields.checkin.stt]) === stt
+                ? { ...row, fields: { ...row.fields, [fields.checkin.backupCheck]: checkBackup } }
+                : row,
+            ),
+          }));
+        }
+        markEndFlowIfReady(nextAssignments, stt, checkBackup);
+        if (target) postAction('complete', stt, stage, target.deskId, { ...(checkBackup ? { checkBackup } : {}), ...(thuLaiMay ? { thuLaiMay } : {}) });
+      },
+      quickDevice(stt, stage) {
+        const target = assignments.find((item) => item.stt === stt && item.stage === stage);
+        setAssignments((current) => current.map((item) =>
+          item.stt === stt && item.stage === stage
+            ? { ...item, thuLaiMay: 'Thu máy ngay' }
+          : item,
         ));
-        if (target) postAction('complete', stt, stage, target.deskId);
+        if (target) postAction('device', stt, stage, target.deskId);
       },
       staffTables(deskId) {
         return remapForStaffRole(tables, deskId);

@@ -4,24 +4,32 @@ import DashboardPage from './DashboardPage';
 import StaffPage from './StaffPage';
 import KhoAppPage from './KhoAppPage';
 import { GuestSimulationProvider } from '@/guest/GuestSimulationContext';
+import { ALL_POSITIONS, CLUSTER_LABELS } from '@/config/layoutConfig';
 
-type GuestMode = 'DP' | 'TV' | 'TC' | 'BK' | 'KHO';
+type GuestMode = 'DP' | 'KHO' | `TV${number}` | `TC${number}` | `BK${number}`;
 
 const MODES: Array<{ id: GuestMode; code: string; label: string; note: string }> = [
   { id: 'DP', code: 'Guest_DP', label: 'Điều phối', note: 'Sơ đồ bàn và form điều phối' },
-  { id: 'TV', code: 'Guest_TV', label: 'Tư vấn', note: 'Màn hình bàn nhân viên Tư vấn' },
-  { id: 'TC', code: 'Guest_TC', label: 'Thu cũ', note: 'Màn hình bàn nhân viên Thu cũ' },
-  { id: 'BK', code: 'Guest_BK', label: 'Backup', note: 'Màn hình bàn nhân viên Backup' },
+  { id: 'TV1', code: 'Guest_TV', label: 'Tư vấn', note: 'Chọn bàn TV khi tham gia phòng' },
+  { id: 'TC1', code: 'Guest_TC', label: 'Thu cũ', note: 'Chọn bàn TC khi tham gia phòng' },
+  { id: 'BK1', code: 'Guest_BK', label: 'Backup', note: 'Chọn bàn BK khi tham gia phòng' },
   { id: 'KHO', code: 'Guest_KHO', label: 'Kho', note: 'Bàn giao và bảng kho' },
 ];
 
+const DESK_ROLES = ALL_POSITIONS.map((position) => ({
+  id: position.id as GuestMode,
+  code: `Guest_${position.id}`,
+  label: position.label,
+  note: CLUSTER_LABELS[position.cluster],
+}));
+
 export default function GuestPage() {
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const initialRole = params?.get('role');
-  const initialMode = MODES.some((item) => item.id === initialRole) ? initialRole as GuestMode : null;
+  const initialRole = params?.get('role')?.replace(/^Guest_/, '');
+  const initialMode = [...MODES, ...DESK_ROLES].some((item) => item.id === initialRole) ? initialRole as GuestMode : null;
   const roomCode = params?.get('room');
   const [mode, setMode] = useState<GuestMode | null>(initialMode);
-  const selected = MODES.find((item) => item.id === mode);
+  const selected = mode !== null;
 
   return (
     <GuestSimulationProvider roomCode={roomCode} role={initialMode ? `Guest_${initialMode}` : 'Guest_DP'}>
@@ -45,7 +53,7 @@ export default function GuestPage() {
               </a>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {MODES.map((item) => (
+              {(roomCode ? DESK_ROLES : MODES).map((item) => (
                 <button
                   key={item.id}
                   type="button"

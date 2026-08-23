@@ -478,6 +478,7 @@ export default function StaffDeskScreen({
     try {
       if (simulation) {
         setVuaThu((p) => ({ ...p, [stt]: Date.now() }));
+        guestSimulation?.quickDevice(stt, view.cluster);
         setSimulationMessage(`Thành công · mô phỏng thu máy STT ${stt}.`);
         setThuMayOpen(false);
         setActionError(null);
@@ -549,8 +550,14 @@ export default function StaffDeskScreen({
           receiveCustomer(stt);
           setLockedReceiveStt(stt);
         }
-        if (formAction === 'hoan_tat') guestSimulation?.complete(stt, view.cluster);
-        else guestSimulation?.receive(stt, view.cluster);
+        if (formAction === 'hoan_tat') {
+          guestSimulation?.complete(
+            stt,
+            view.cluster,
+            values.checkBackup ? (values.checkBackup as 'Có' | 'Không') : undefined,
+            values.thuLaiMay ? (values.thuLaiMay as 'Thu máy ngay' | 'Thu máy sau') : undefined,
+          );
+        } else guestSimulation?.receive(stt, view.cluster);
         setFormAction(null);
         setFormCustomer(null);
         setSimulationMessage(
