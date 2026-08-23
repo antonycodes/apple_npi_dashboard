@@ -228,12 +228,6 @@ export default function AppPage() {
   const session = useAdminInfo();
   const settings = useLarkSettings();
   const [picking, setPicking] = useState(false);
-  const [guest, setGuest] = useState(false);
-
-  if (guest && !session) {
-    return <DashboardPage readOnly />;
-  }
-
   // Có phiên thì rẽ nhánh NGAY, trước cả kiểm tra cấu hình: phiên "chế độ thử"
   // bên dưới cũng đi qua đúng đường này, nên giao diện xem trước là giao diện
   // thật chứ không phải một bản mô phỏng riêng.
@@ -310,7 +304,7 @@ export default function AppPage() {
             </a>
             <button
               type="button"
-              onClick={() => setGuest(true)}
+              onClick={() => { window.location.href = '/guest'; }}
               className="mt-3 min-h-12 w-full rounded-2xl border border-neutral-300 bg-white text-base font-bold text-neutral-700 transition-colors hover:bg-neutral-50"
             >
               Đăng nhập với tư cách khách
@@ -336,5 +330,5 @@ export default function AppPage() {
     );
   }
 
-  return <AppLogin onGuest={() => setGuest(true)} />;
+  return <AppLogin onGuest={() => { window.location.href = '/guest'; }} />;
 }

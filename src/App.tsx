@@ -32,6 +32,7 @@ type Route =
   | {
       kind:
         | 'settings'
+        | 'guest'
         | 'dashboard'
         | 'tuvanview'
         | 'kythuatview'
@@ -60,6 +61,7 @@ function useHashRoute(): Route {
   // Hash route phải được xét trước pathname `/app`: AppHome dùng các link
   // `#/settings`... và vẫn có thể đang nằm tại URL `/app`.
   if (path.startsWith('admin')) return { kind: 'app' };
+  if (path === 'guest' || pathname === 'guest' || pathname.startsWith('guest/')) return { kind: 'guest' };
   if (path.startsWith('settings')) return { kind: 'settings' };
   if (path === 'mock') return { kind: 'dashboard' };
   if (path.startsWith('tuvanview')) return { kind: 'tuvanview' };
@@ -91,6 +93,7 @@ export default function App() {
   // đặt ở đây để MỌI màn hình đều được áp, kể cả điện thoại nhân viên.
   useSharedSettingsSync();
   if (route.kind === 'settings') return <SettingsPage />;
+  if (route.kind === 'guest') return <DashboardPage readOnly />;
   if (route.kind === 'tuvanview') return <QueueBoardPage cluster="consult" />;
   if (route.kind === 'kythuatview') return <QueueBoardPage cluster="tradein" />;
   if (route.kind === 'backupview') return <QueueBoardPage cluster="backup" />;

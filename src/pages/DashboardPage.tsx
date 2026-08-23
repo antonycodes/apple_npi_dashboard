@@ -14,6 +14,7 @@ import StatusLegend from '@/components/StatusLegend';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useAdminInfo } from '@/config/adminSession';
+import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import type { WaitingZoneKey } from '@/types/desk';
 
@@ -88,14 +89,6 @@ export default function DashboardPage({ readOnly = false }: { readOnly?: boolean
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <ViewSwitcher active="main" />
-            {readOnly && (
-              <a
-                href="/app"
-                className="flex min-h-8 items-center rounded border border-neutral-300 px-3 font-semibold text-neutral-700 hover:bg-neutral-50"
-              >
-                Về đăng nhập
-              </a>
-            )}
             {session?.role === 'admin' && (
               <a
                 href="#/settings"
@@ -223,6 +216,19 @@ export default function DashboardPage({ readOnly = false }: { readOnly?: boolean
         />
       )}
       <SleepOverlay />
+      {readOnly && (
+        <div className="fixed bottom-3 left-3 z-50 flex items-center gap-3 rounded-full border border-neutral-200 bg-white/95 px-4 py-2 shadow-[0_8px_24px_rgba(17,24,39,0.12)] backdrop-blur">
+          <span className="text-sm font-bold text-neutral-600">Chế độ khách</span>
+          <a
+            href="/app"
+            aria-label="Về đăng nhập"
+            title="Về đăng nhập"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-neutral-600 transition-colors hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            <ArrowLeftIcon className="h-5 w-5" />
+          </a>
+        </div>
+      )}
     </div>
   );
 }
