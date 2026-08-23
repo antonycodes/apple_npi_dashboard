@@ -26,6 +26,7 @@ import AdminLoginForm from '@/components/AdminLoginForm';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import StaffDeskPicker from '@/components/StaffDeskPicker';
 import StaffDeskScreen from '@/components/StaffDeskScreen';
+import SleepOverlay from '@/components/SleepOverlay';
 import { adminSessionStore, useAdminInfo, useAdminToken } from '@/config/adminSession';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import { useLarkSettings } from '@/config/larkSettings';
@@ -35,9 +36,7 @@ import { useStaffDeskData } from '@/hooks/useStaffDeskData';
 
 /** Khung chung: nền sáng, cột hẹp canh giữa, chừa safe area trên cùng. */
 function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-full bg-neutral-100 pt-[env(safe-area-inset-top)] text-neutral-800">{children}</div>
-  );
+  return <div className="min-h-full bg-neutral-100 pt-[env(safe-area-inset-top)] text-neutral-800">{children}</div>;
 }
 
 /** Hàng "link riêng của bàn này" — chỉ hiện ở bản admin (`#/nv`). */
@@ -104,7 +103,7 @@ export default function StaffPage({
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
   // ── 1. Đăng nhập (admin không mật khẩu; nhân viên có mật khẩu) ───────────
-  const loginPossible = Boolean(settings.apiUrl.trim()) && !settings.useMock;
+  const loginPossible = Boolean(settings.apiUrl.trim());
   const sessionMatchesPage = locked
     ? session?.role === 'staff' && session.desk === lockedDeskId
     : session?.role === 'admin';
@@ -221,7 +220,10 @@ export default function StaffPage({
       </header>
 
       {view ? (
-        <StaffDeskScreen view={view} />
+        <>
+          <StaffDeskScreen view={view} actorMsnv={session?.msnv} />
+          <SleepOverlay />
+        </>
       ) : (
         <div className="mx-auto w-full max-w-[430px] px-4 py-10 text-center">
           <p className="text-sm text-neutral-500">

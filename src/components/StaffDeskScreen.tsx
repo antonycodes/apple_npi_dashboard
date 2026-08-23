@@ -326,7 +326,15 @@ function ActionButton({
   );
 }
 
-export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
+export default function StaffDeskScreen({
+  view,
+  actorMsnv,
+}: {
+  view: StaffDeskView;
+  /** MSNV từ phiên đăng nhập; roster chỉ là fallback cho link bàn cũ. */
+  actorMsnv?: string | null;
+}) {
+  const submitByMsnv = actorMsnv?.trim() || view.staffId?.trim() || '';
   const [pending, setPending] = useState<Pending | null>(null);
   const markPending = (action: Pending['action'], stt: string | null) => {
     if (stt) setPending({ action, stt, at: Date.now() });
@@ -492,10 +500,9 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
         stt,
         hoTen: khach.name ?? '',
         maBan: view.id,
-        msnv: view.staffId ?? '',
+        msnv: submitByMsnv,
         phanLoai: STAGE_LABEL[view.cluster],
-        nhanSu: view.staffName ?? '',
-        submitBy: view.staffId ?? '',
+        submitBy: submitByMsnv,
         thoiGian: new Date().toISOString(),
         thuLaiMay: 'Thu máy ngay',
         ...(tokens.length ? { hinhNghiemThu: tokens } : {}),
@@ -597,11 +604,10 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
         stt,
         hoTen: values.hoTen.trim(),
         maBan: values.maBan.trim(),
-        msnv: values.msnv.trim(),
+        msnv: submitByMsnv,
         phanLoai: values.phanLoai,
-        nhanSu: values.nhanSu.trim(),
         // Submit by bên Lark thống nhất là MSNV, giống webhook Điều phối.
-        submitBy: values.msnv.trim(),
+        submitBy: submitByMsnv,
         thoiGian: new Date().toISOString(),
         ...(checkBackup ? { checkBackup } : {}),
         ...(thuLaiMay ? { thuLaiMay } : {}),
@@ -876,10 +882,10 @@ export default function StaffDeskScreen({ view }: { view: StaffDeskView }) {
             stt: formCustomer.stt ?? '',
             hoTen: formCustomer.name ?? '',
             maBan: view.id,
-            msnv: view.staffId ?? '',
+            msnv: submitByMsnv,
             phanLoai: STAGE_LABEL[view.cluster],
             nhanSu: view.staffName ?? '',
-            submitBy: view.staffId ?? '',
+            submitBy: submitByMsnv,
             ...buildDeviceDefaults(formCustomer, view.cluster, formAction).values,
           }}
           busy={sending}

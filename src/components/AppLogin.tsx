@@ -23,7 +23,7 @@ function loadLastUser(): string {
   }
 }
 
-export default function AppLogin() {
+export default function AppLogin({ onGuest }: { onGuest?: () => void }) {
   const [username, setUsername] = useState(loadLastUser);
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -102,6 +102,16 @@ export default function AppLogin() {
           >
             {busy ? 'Đang kiểm tra…' : 'Đăng nhập'}
           </button>
+
+          {onGuest && (
+            <button
+              type="button"
+              onClick={onGuest}
+              className="min-h-12 w-full rounded-xl border border-neutral-300 bg-white text-base font-bold text-neutral-700 transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:bg-neutral-100"
+            >
+              Đăng nhập với tư cách khách
+            </button>
+          )}
 
           {error && (
             <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">

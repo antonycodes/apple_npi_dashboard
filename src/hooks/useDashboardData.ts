@@ -75,8 +75,12 @@ export function useDashboardData(): UseDashboardDataResult {
   const settings = useLarkSettings();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
   const isMock = cfg.useMock;
-  // Signature that changes when anything affecting a fetch/map changes.
-  const sig = useMemo(() => JSON.stringify(settings), [settings]);
+  // Lock có polling riêng trong SleepOverlay. Không để thay đổi sleepMode
+  // khởi động lại snapshot Lark 5 bảng và làm chậm việc hiện overlay trên DP.
+  const sig = useMemo(() => {
+    const { sleepMode: _sleepMode, ...dataSettings } = settings;
+    return JSON.stringify(dataSettings);
+  }, [settings]);
 
   const [raw, setRaw] = useState<RawState>(EMPTY);
   const [loading, setLoading] = useState(true);

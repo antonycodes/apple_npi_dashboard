@@ -3,6 +3,8 @@
  */
 
 interface FilterBarProps {
+  /** Phiên khách chỉ xem dashboard, không được mở form ghi Điều phối. */
+  readOnly?: boolean;
   /** Số khách đã "End flow" — hiện badge trên nút. */
   endFlowCount: number;
   /** Bảng End Flow đang mở hay không (viền nổi bật khi mở). */
@@ -18,6 +20,7 @@ interface FilterBarProps {
 }
 
 export default function FilterBar({
+  readOnly = false,
   endFlowCount,
   endFlowOpen,
   onToggleEndFlow,
@@ -34,9 +37,11 @@ export default function FilterBar({
         trong ca (mở form ghi ra Lark), còn End Flow chỉ để tra cứu — nút phụ
         nên giữ dạng viền nhạt, chỉ tô đỏ khi đang mở.
       */}
-      <Chip solid active={dispatchFormOpen} onClick={onToggleDispatchForm}>
-        Điều phối
-      </Chip>
+      {!readOnly && (
+        <Chip solid active={dispatchFormOpen} onClick={onToggleDispatchForm}>
+          Điều phối
+        </Chip>
+      )}
       <Chip active={endFlowOpen} onClick={onToggleEndFlow}>
         End Flow{endFlowCount > 0 ? ` (${endFlowCount})` : ''}
       </Chip>

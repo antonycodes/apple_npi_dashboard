@@ -42,6 +42,56 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
   );
 }
 
+function SleepModePush({ settings }: { settings: LarkSettings }) {
+  const session = useAdminInfo();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (session?.role !== 'admin') return null;
+
+  const push = async (desired: boolean) => {
+    setBusy(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const next = { ...settings, sleepMode: desired };
+      await pushSharedSettings(toSharedSettings(next));
+      larkSettingsStore.save(next);
+      setMessage(desired ? 'Đã Lock các máy nhân viên.' : 'Đã chuyển máy nhân viên sang Hoạt động.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={() => void push(true)}
+          disabled={busy || settings.sleepMode}
+          className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-red-700 disabled:opacity-40"
+        >
+          {busy ? 'Đang cập nhật…' : 'Lock'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void push(false)}
+          disabled={busy || !settings.sleepMode}
+          className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40"
+        >
+          Hoạt động
+        </button>
+      </div>
+      {message && <p className="text-sm text-emerald-700">✓ {message}</p>}
+      {error && <p className="text-sm text-red-600">✗ {error}</p>}
+    </div>
+  );
+}
+
 /**
  * SettingsPage — connect the dashboard to a real Lark Base at runtime.
  *
@@ -64,11 +114,8 @@ import {
   type LarkSettings,
 } from '@/config/larkSettings';
 import type { CheckinFieldMap, DsMasterFieldMap, MasterFieldMap } from '@/config/larkConfig';
-import CoordinatorAssignModal from '@/components/CoordinatorAssignModal';
 import AdminLoginForm from '@/components/AdminLoginForm';
 import { useAdminInfo } from '@/config/adminSession';
-import { useDeviceCoordinatorId } from '@/config/deviceIdentity';
-import { useCoordinators } from '@/hooks/useCoordinators';
 import { fetchLarkData } from '@/services/larkService';
 import { mapDeskStates } from '@/services/larkMapper';
 import type { ClusterKey } from '@/types/desk';
@@ -174,30 +221,8 @@ export default function SettingsPage() {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-6 py-6">
-        {/* Nguồn dữ liệu */}
-        <Section title="1 · Nguồn dữ liệu">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="radio"
-              name="src"
-              checked={draft.useMock}
-              onChange={() => setTop('useMock', true)}
-            />
-            <span>Mock (dữ liệu mẫu, không cần Lark)</span>
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="radio"
-              name="src"
-              checked={!draft.useMock}
-              onChange={() => setTop('useMock', false)}
-            />
-            <span>Lark Base (dữ liệu thật, tự làm mới)</span>
-          </label>
-        </Section>
-
         {/* Kết nối */}
-        <Section title="2 · Kết nối Lark" disabled={draft.useMock}>
+        <Section title="1 · Kết nối Lark">
           <div className="flex items-start gap-2">
             <div className="flex-1">
               <Input
@@ -220,7 +245,7 @@ export default function SettingsPage() {
 
         {/* Ánh xạ trường */}
         <SettingsLockContext.Provider value={locked}>
-          <Section title="3 · Ánh xạ trường" disabled={locked}>
+        <Section title="2 · Ánh xạ trường" disabled={locked}>
           <MapBlock title="Check in (bảng Master_Check in)">
             {(Object.keys(CHECKIN_LABELS) as Array<keyof CheckinFieldMap>).map((k) => (
               <Input
@@ -283,7 +308,7 @@ export default function SettingsPage() {
             Mô tả cố ý KHÔNG liệt kê từng field payload: bản cũ liệt kê rồi để
             lỗi thời khi payload thêm field, mà chú thích sai nằm ngay cạnh ô
             nhập thì người sau đọc vào sẽ tin. Danh sách field đầy đủ ở README. */}
-        <Section title="4 · Webhook Điều phối">
+        <Section title="3 · Webhook Điều phối">
           <Input
             label="Webhook URL"
             placeholder="https://<worker>.workers.dev/dispatch-record"
@@ -300,14 +325,18 @@ export default function SettingsPage() {
           />
         </Section>
 
-        {/* Đồng bộ cấu hình toàn thiết bị — thứ khiến máy nhân viên live theo admin */}
-        <Section title="5 · Đồng bộ cấu hình toàn thiết bị">
-          <SharedSettingsPush settings={saved} dirty={dirty} />
+        <Section title="4 · Chế độ màn hình nhân viên">
+          <p className="mb-3 text-sm text-neutral-500">
+            Lock khóa toàn bộ màn hình vận hành, trừ admin và nhân viên MSNV S12196.
+          </p>
+          <div>
+            <SleepModePush settings={saved} />
+          </div>
         </Section>
 
-        {/* Danh tính máy — thứ DUY NHẤT nên khác nhau giữa các máy điều phối */}
-        <Section title="6 · Thiết lập Điều phối viên">
-          <DeviceIdentityPicker />
+        {/* Đồng bộ cấu hình toàn thiết bị — thứ khiến máy nhân viên theo admin */}
+        <Section title="5 · Đồng bộ cấu hình toàn thiết bị">
+          <SharedSettingsPush settings={saved} dirty={dirty} />
         </Section>
 
         {/* Actions */}
@@ -323,7 +352,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={runTest}
-            disabled={draft.useMock || testing}
+            disabled={testing}
             className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40"
           >
             {testing ? 'Đang kiểm tra…' : 'Kiểm tra kết nối'}
@@ -376,51 +405,6 @@ function SettingsAccessGate() {
           <AdminLoginForm fixedUsername="admin" submitLabel="Đăng nhập để truy cập Cài đặt" />
         </section>
       </main>
-    </div>
-  );
-}
-
-/**
- * Hiện "máy này là điều phối viên nào" + nút Đổi. Việc đổi phải qua đăng nhập
- * admin nên nằm trong `CoordinatorAssignModal`, không sửa thẳng ở đây — tránh
- * điều phối viên tự gán mình thành người khác.
- */
-function DeviceIdentityPicker() {
-  const { coordinators, loading, error } = useCoordinators();
-  const currentId = useDeviceCoordinatorId();
-  const current = coordinators.find((c) => c.id === currentId) ?? null;
-  const [assigning, setAssigning] = useState(false);
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-neutral-500">Điều phối viên:</span>
-        {current ? (
-          <b className="text-sm text-neutral-800">
-            {current.id} - {current.msnv || '—'} - {current.name}
-            {current.position ? ` · ${current.position}` : ''}
-          </b>
-        ) : (
-          <span className="text-sm text-amber-700">Chưa gán</span>
-        )}
-        <button
-          type="button"
-          onClick={() => setAssigning(true)}
-          className="rounded border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
-        >
-          Đổi (cần admin)
-        </button>
-      </div>
-
-      {loading && <p className="text-xs text-neutral-400">Đang tải danh sách…</p>}
-      {error && <p className="text-xs text-red-600">✗ {error}</p>}
-      {currentId && !current && !loading && !error && (
-        <p className="text-xs text-red-600">
-          ID “{currentId}” không còn trong danh sách (admin đã xoá/đổi) — chọn lại.
-        </p>
-      )}
-
-      {assigning && <CoordinatorAssignModal onClose={() => setAssigning(false)} />}
     </div>
   );
 }

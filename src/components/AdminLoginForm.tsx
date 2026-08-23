@@ -1,6 +1,6 @@
 /**
  * AdminLoginForm — phần nhập tài khoản/mật khẩu, dùng lại ở 3 chỗ: popup "đổi
- * điều phối viên" (`CoordinatorAssignModal`), trang `#/admin` (`LoginGate`) và
+ * trang Cài đặt (`LoginGate`) và
  * màn hình nhân viên `#/nv` (`StaffPage`).
  *
  * `fixedUsername` (2026-08-12, yêu cầu user cho màn hình nhân viên): khoá cứng

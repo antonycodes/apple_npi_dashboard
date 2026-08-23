@@ -37,7 +37,7 @@ export interface DispatchFormPayload {
   msnv: string;
   /** Thời điểm bấm gửi, ISO 8601. */
   thoiGian: string;
-  /** Máy nào gửi — ID điều phối viên gán ở `#/admin` (xem `config/deviceIdentity.ts`). */
+  /** ID của tài khoản Điều phối đang đăng nhập. */
   dieuPhoiId: string;
   dieuPhoiTen: string;
   dieuPhoiViTri: string;

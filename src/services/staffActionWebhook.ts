@@ -68,8 +68,6 @@ export interface StaffActionPayload {
    * mở đường cho báo cáo đọc sai khâu.
    */
   phanLoai: string;
-  /** Tên NV đang ngồi bàn đó (rỗng nếu dashboard chưa biết). */
-  nhanSu: string;
   /** Username/email Lark của nhân viên tương ứng với mã bàn. */
   submitBy: string;
   /** Thời điểm bấm nút, ISO 8601. */

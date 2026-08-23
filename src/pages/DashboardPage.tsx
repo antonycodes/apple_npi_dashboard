@@ -12,12 +12,16 @@ import LayoutDashboard from '@/components/LayoutDashboard';
 import Sidebar from '@/components/Sidebar';
 import StatusLegend from '@/components/StatusLegend';
 import ViewSwitcher from '@/components/ViewSwitcher';
+import SleepOverlay from '@/components/SleepOverlay';
+import { useAdminInfo } from '@/config/adminSession';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import type { WaitingZoneKey } from '@/types/desk';
 
-export default function DashboardPage() {
+export default function DashboardPage({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, pendingDevice, loading, error, lastUpdated, isMock, refresh } =
     useDashboardData();
+  const session = useAdminInfo();
+  const canDispatch = !readOnly && (session?.role === 'admin' || session?.role === 'dieuphoi');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<{ deskId: string; index: number } | null>(null);
@@ -84,12 +88,14 @@ export default function DashboardPage() {
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <ViewSwitcher active="main" />
-            <a
-              href="#/settings"
-              className="flex min-h-8 items-center rounded border border-brand px-3 font-semibold text-brand hover:bg-brand hover:text-white"
-            >
-              Cài đặt
-            </a>
+            {session?.role === 'admin' && (
+              <a
+                href="#/settings"
+                className="flex min-h-8 items-center rounded border border-brand px-3 font-semibold text-brand hover:bg-brand hover:text-white"
+              >
+                Cài đặt
+              </a>
+            )}
             <span
               className={[
                 'rounded-full px-2 py-1 font-semibold',
@@ -142,6 +148,7 @@ export default function DashboardPage() {
         <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           <StatusLegend />
           <FilterBar
+            readOnly={!canDispatch}
             endFlowCount={endFlow.length}
             endFlowOpen={showEndFlow}
             onToggleEndFlow={() => setShowEndFlow((v) => !v)}
@@ -190,7 +197,7 @@ export default function DashboardPage() {
             selectedWaiting={selectedWaiting}
             onSelectWaiting={handleSelectWaiting}
             onCloseWaiting={() => setSelectedWaiting(null)}
-            onDispatchWaiting={handleDispatchWaiting}
+            onDispatchWaiting={canDispatch ? handleDispatchWaiting : undefined}
           />
         </div>
       </main>
@@ -199,7 +206,7 @@ export default function DashboardPage() {
       {showPendingDevice && (
         <PendingDeviceTable customers={pendingDevice} onClose={() => setShowPendingDevice(false)} />
       )}
-      {showDispatchForm && (
+      {canDispatch && showDispatchForm && (
         <DispatchFormModal
           desks={desks}
           roster={roster}
@@ -207,6 +214,7 @@ export default function DashboardPage() {
           onClose={() => setShowDispatchForm(false)}
         />
       )}
+      <SleepOverlay />
     </div>
   );
 }

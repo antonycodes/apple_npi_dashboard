@@ -1,7 +1,7 @@
 /**
  * staffDeskIdentity — "điện thoại này là bàn nào".
  *
- * Song song với `deviceIdentity.ts` (máy điều phối ↔ điều phối viên) nhưng cho
+ * Dùng cho
  * màn hình nhân viên `#/nv`: mỗi máy chỉ lưu MÃ BÀN (vd "TV7"), mọi thứ khác —
  * tên NV, khách, STT — luôn đọc từ Lark. Link nhân viên dùng mã bàn trong URL;
  * bản `#/nv` chỉ giữ lựa chọn trong phiên hiện tại, không lưu localStorage.
