@@ -9,7 +9,7 @@ import { ALL_POSITIONS, CLUSTER_LABELS } from '@/config/layoutConfig';
 type GuestMode = 'DP' | 'KHO' | `TV${number}` | `TC${number}` | `BK${number}`;
 
 const MODES: Array<{ id: GuestMode; code: string; label: string; note: string }> = [
-  { id: 'DP', code: 'Guest_DP', label: 'Điều phối', note: 'Sơ đồ bàn và form điều phối' },
+  { id: 'DP', code: 'Guest_DP', label: 'Dashboard điều phối', note: 'Sơ đồ bàn và form điều phối' },
   { id: 'TV1', code: 'Guest_TV', label: 'Tư vấn', note: 'Chọn bàn TV khi tham gia phòng' },
   { id: 'TC1', code: 'Guest_TC', label: 'Thu cũ', note: 'Chọn bàn TC khi tham gia phòng' },
   { id: 'BK1', code: 'Guest_BK', label: 'Backup', note: 'Chọn bàn BK khi tham gia phòng' },
@@ -41,7 +41,6 @@ export default function GuestPage() {
   const [mode, setMode] = useState<GuestMode | null>(initialMode);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     'Màn hình chính': true,
-    'Điều phối & Kho': true,
   });
   const selected = mode !== null;
 
@@ -66,32 +65,34 @@ export default function GuestPage() {
                 <ArrowLeftIcon className="h-4 w-4" /> Về đăng nhập
               </a>
             </div>
-            <div className="space-y-6">
+            <div className="space-y-3">
               {ROLE_GROUPS(Boolean(roomCode)).map((group) => (
-                <section key={group.label} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+                <section key={group.label} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
                   <button
                     type="button"
                     onClick={() => setOpenGroups((current) => ({ ...current, [group.label]: !current[group.label] }))}
-                    className="flex min-h-12 w-full items-center justify-between px-4 text-left"
+                    className="flex min-h-14 w-full items-center justify-between gap-3 px-4 text-left transition hover:bg-neutral-50"
                     aria-expanded={Boolean(openGroups[group.label])}
                   >
-                    <span className="text-xs font-black uppercase tracking-[0.16em] text-neutral-400">{group.label}</span>
-                    <span className="text-lg font-semibold text-neutral-400">{openGroups[group.label] ? '−' : '+'}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-sm font-black text-neutral-800">{group.label}</span>
+                      <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-bold text-neutral-500">{group.items.length}</span>
+                    </span>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-lg leading-none font-medium text-neutral-500" aria-hidden="true">{openGroups[group.label] ? '−' : '+'}</span>
                   </button>
-                  {openGroups[group.label] && <div className="grid gap-3 border-t border-neutral-100 bg-neutral-50/60 p-3 sm:grid-cols-2">
+                  {openGroups[group.label] && <div className="grid grid-cols-2 gap-2 border-t border-neutral-100 bg-neutral-50/60 p-3 sm:grid-cols-3 md:grid-cols-4">
                     {group.items.map((item) => (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => setMode(item.id)}
-                        className="rounded-2xl border border-neutral-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md"
+                        className="flex min-h-16 items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-left transition hover:border-brand hover:bg-brand/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-xl font-black text-neutral-900">{item.label}</span>
-                          <span className="rounded-full bg-neutral-100 px-2.5 py-1 font-mono text-xs font-bold text-neutral-500">{item.code}</span>
-                        </div>
-                        <p className="mt-2 text-sm text-neutral-500">{item.note}</p>
-                        <span className="mt-5 inline-flex text-sm font-bold text-brand">Mở màn hình →</span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-black text-neutral-900">{item.label}</span>
+                          <span className="mt-0.5 block truncate font-mono text-[10px] font-bold uppercase tracking-wide text-neutral-400">{item.code}</span>
+                        </span>
+                        <span className="shrink-0 text-lg leading-none text-neutral-300" aria-hidden="true">›</span>
                       </button>
                     ))}
                   </div>}

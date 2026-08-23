@@ -7,7 +7,7 @@
  *   - `staff` 1 bàn  → thẳng màn hình bàn đó (`StaffPage`);
  *   - `staff` ≥2 bàn → hỏi chọn bàn 1 lần, nhớ trong phiên, có nút đổi lại;
  *   - `kho`          → module kho (`KhoAppPage`): bàn giao máy + bảng kho;
- *   - `admin`        → danh mục mở mọi màn hình cũ.
+ *   - `admin`        → danh mục các màn hình quản trị và vận hành chính.
  *
  * **Các route cũ không đụng tới**: dashboard điều phối (`#/`), 3 màn hình STT
  * chiếu ngoài hội trường và `#/khoview` vẫn mở-là-chạy, KHÔNG qua cổng đăng
@@ -178,13 +178,10 @@ function SessionBar({
   );
 }
 
-/** Danh mục của admin — mở thẳng các màn hình sẵn có, mỗi cái một tab mới. */
+/** Danh mục của admin — chỉ giữ các màn hình quản trị/vận hành chính. */
 function AdminHome({ name }: { name: string }) {
   const links: Array<{ href: string; label: string }> = [
     { href: '#/', label: 'Dashboard điều phối' },
-    { href: '#/tuvanview', label: 'Màn hình STT · Tư vấn' },
-    { href: '#/kythuatview', label: 'Màn hình STT · Thu cũ' },
-    { href: '#/backupview', label: 'Màn hình STT · Backup' },
     { href: '#/khoview', label: 'Bảng kho' },
     { href: '#/nv', label: 'Màn hình nhân viên' },
     { href: '#/settings', label: 'Cài đặt' },
