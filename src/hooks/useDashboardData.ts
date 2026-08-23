@@ -16,6 +16,7 @@ import { mapPendingDevices, type StaffCustomer } from '@/services/staffMapper';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 import { subscribeDashboardRealtime } from '@/services/dashboardRealtime';
+import { cellToString } from '@/services/larkMapper';
 import {
   computeSummary,
   type DashboardSummary,
@@ -71,10 +72,40 @@ export interface UseDashboardDataResult {
   refresh: () => void;
 }
 
-export function useDashboardData(forceMock = false): UseDashboardDataResult {
+interface DashboardDataOptions {
+  /** Chế độ khách: đọc Check-in thật nhưng cô lập dữ liệu demo khỏi vận hành. */
+  guestMode?: boolean;
+  /** Giữ API này cho các caller muốn ép fixture mock. */
+  forceMock?: boolean;
+}
+
+function guestTables(tables: LarkTables, fields = DEFAULT_FIELD_CONFIG): LarkTables {
+  const candidates = tables.checkin
+    .filter((row) => {
+      const name = cellToString(row.fields[fields.checkin.name]);
+      const stt = cellToString(row.fields[fields.checkin.stt]);
+      const endFlow = cellToString(row.fields[fields.checkin.endFlow])?.toLowerCase();
+      return Boolean(name && stt && endFlow !== 'end flow');
+    })
+    .slice(0, 5);
+
+  // Chỉ đưa 5 khách Check-in vào bản mô phỏng. Không đưa Master/Dispatch/DS
+  // Master vào để sơ đồ bàn và các khâu thật không lộ dữ liệu vận hành.
+  return {
+    checkin: candidates,
+    orders: candidates,
+    master: [],
+    dispatch: [],
+    dsMaster: [],
+  };
+}
+
+export function useDashboardData(options: DashboardDataOptions = {}): UseDashboardDataResult {
+  const guestMode = options.guestMode ?? false;
+  const forceMock = options.forceMock ?? false;
   const settings = useLarkSettings();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
-  const isMock = forceMock || cfg.useMock;
+  const isMock = !guestMode && (forceMock || cfg.useMock);
   // Lock có polling riêng trong SleepOverlay. Không để thay đổi sleepMode
   // khởi động lại snapshot Lark 5 bảng và làm chậm việc hiện overlay trên DP.
   const sig = useMemo(() => {
@@ -94,8 +125,6 @@ export function useDashboardData(forceMock = false): UseDashboardDataResult {
     const controller = new AbortController();
 
     if (isMock) {
-      // Guest DP là canvas rỗng để mô phỏng từ đầu, không trộn dữ liệu mẫu vào
-      // bản trình diễn. Chế độ mock thật vẫn giữ nguyên cho các route #/mock.
       setRaw(forceMock ? EMPTY : {
         ...mapDeskStates(mockLarkTables, DEFAULT_FIELD_CONFIG),
         pendingDevice: mapPendingDevices(mockLarkTables, DEFAULT_FIELD_CONFIG),
@@ -113,7 +142,11 @@ export function useDashboardData(forceMock = false): UseDashboardDataResult {
       // Hết giờ thì BỎ lượt này để vòng poll đi tiếp — xem `requestTimeout.ts`.
       const req = withRequestTimeout(controller.signal);
       try {
-        const tables = realtimeTables ?? await fetchLarkData(cfg, req.signal);
+        const liveTables = realtimeTables ?? await fetchLarkData(
+          guestMode ? { ...cfg, useMock: false } : cfg,
+          req.signal,
+        );
+        const tables = guestMode ? guestTables(liveTables, settings.fields) : liveTables;
         if (cancelled) return;
         setRaw({ ...mapDeskStates(tables), pendingDevice: mapPendingDevices(tables) });
         setError(null);

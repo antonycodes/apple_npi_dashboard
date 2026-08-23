@@ -28,11 +28,13 @@ type Tab = 'handover' | 'board';
 export default function KhoAppPage({
   onChangeDesk,
   onLogout,
+  onGuestBack,
   guestMode = false,
 }: {
   /** Chỉ có khi tài khoản còn chỗ khác trong roster (vd vừa KHO1 vừa bàn TV4). */
   onChangeDesk?: () => void;
   onLogout?: () => void;
+  onGuestBack?: () => void;
   guestMode?: boolean;
 }) {
   const session = useAdminInfo();
@@ -170,6 +172,17 @@ export default function KhoAppPage({
             >
               Làm mới
             </button>
+            {guestMode && onGuestBack && (
+              <button
+                type="button"
+                onClick={onGuestBack}
+                aria-label="Quay lại chọn màn hình khách"
+                title="Quay lại chọn màn hình khách"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-300 text-neutral-600 active:bg-neutral-100"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+              </button>
+            )}
           </div>
           {dataError && (
             <p className="mt-1 truncate text-[11px] text-red-600" title={dataError}>

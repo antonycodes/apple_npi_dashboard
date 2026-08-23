@@ -75,6 +75,7 @@ export default function StaffPage({
   lockedDeskId,
   onChangeDesk,
   onLogout,
+  onGuestBack,
   guestMode = false,
 }: {
   lockedDeskId?: string;
@@ -86,6 +87,8 @@ export default function StaffPage({
   onChangeDesk?: () => void;
   /** Chỉ truyền từ app gộp — link riêng từng bàn không cho thoát. */
   onLogout?: () => void;
+  /** Nút quay lại bộ chọn màn hình trong chế độ khách. */
+  onGuestBack?: () => void;
   guestMode?: boolean;
 }) {
   const token = useAdminToken();
@@ -202,6 +205,17 @@ export default function StaffPage({
             >
               Làm mới
             </button>
+            {guestMode && onGuestBack && (
+              <button
+                type="button"
+                onClick={onGuestBack}
+                aria-label="Quay lại chọn màn hình khách"
+                title="Quay lại chọn màn hình khách"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-300 text-neutral-600 active:bg-neutral-100"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+              </button>
+            )}
             {token && (!locked || onLogout) && (
               <button
                 type="button"

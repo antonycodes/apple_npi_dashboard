@@ -14,12 +14,13 @@ import StatusLegend from '@/components/StatusLegend';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useAdminInfo } from '@/config/adminSession';
+import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import type { WaitingZoneKey } from '@/types/desk';
 
-export default function DashboardPage({ readOnly = false, simulation = false }: { readOnly?: boolean; simulation?: boolean } = {}) {
+export default function DashboardPage({ readOnly = false, simulation = false, onGuestBack }: { readOnly?: boolean; simulation?: boolean; onGuestBack?: () => void } = {}) {
   const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, pendingDevice, loading, error, lastUpdated, isMock, refresh } =
-    useDashboardData(simulation);
+    useDashboardData({ guestMode: simulation });
   const session = useAdminInfo();
   const canDispatch = (simulation || !readOnly) && (simulation || session?.role === 'admin' || session?.role === 'dieuphoi');
 
@@ -124,6 +125,17 @@ export default function DashboardPage({ readOnly = false, simulation = false }: 
             >
               Làm mới
             </button>
+            {simulation && onGuestBack && (
+              <button
+                type="button"
+                onClick={onGuestBack}
+                aria-label="Quay lại chọn màn hình khách"
+                title="Quay lại chọn màn hình khách"
+                className="flex h-8 w-8 items-center justify-center rounded border border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
         {error && (

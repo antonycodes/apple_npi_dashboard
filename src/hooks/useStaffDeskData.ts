@@ -16,6 +16,14 @@ import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 import { subscribeDashboardRealtime } from '@/services/dashboardRealtime';
 
+const EMPTY_TABLES: LarkTables = {
+  checkin: [],
+  orders: [],
+  master: [],
+  dispatch: [],
+  dsMaster: [],
+};
+
 export interface UseStaffDeskDataResult {
   /** null = chưa chọn bàn, mã bàn không hợp lệ, hoặc chưa tải xong lần đầu. */
   view: StaffDeskView | null;
@@ -52,7 +60,10 @@ export function useStaffDeskData(deskId: string, guestMode = false): UseStaffDes
     }
 
     if (isMock) {
-      setView(mapStaffDeskView(mockLarkTables, deskId, DEFAULT_FIELD_CONFIG));
+      // Guest staff screens intentionally start empty. The guest journey is
+      // demonstrated from the real Check-in queue on Guest DP, not from
+      // bundled operational fixture data on TV/TC/BK.
+      setView(mapStaffDeskView(guestMode ? EMPTY_TABLES : mockLarkTables, deskId, DEFAULT_FIELD_CONFIG));
       setError(null);
       setLoading(false);
       setLastUpdated(new Date());

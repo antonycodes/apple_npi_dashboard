@@ -21,14 +21,11 @@ export default function GuestPage() {
   if (selected) {
     return (
       <div className="min-h-full bg-neutral-100">
-        <div className="fixed right-3 top-3 z-50 rounded-full border border-neutral-200 bg-white/90 px-2 py-1 text-[10px] font-bold tracking-tight text-neutral-500 shadow-sm backdrop-blur">
-          {selected.code}
-        </div>
-        {mode === 'DP' && <DashboardPage readOnly simulation />}
+        {mode === 'DP' && <DashboardPage readOnly simulation onGuestBack={() => setMode(null)} />}
         {mode !== 'DP' && mode !== 'KHO' && (
-          <StaffPage lockedDeskId={`Guest_${mode}`} guestMode />
+          <StaffPage lockedDeskId={`Guest_${mode}`} guestMode onGuestBack={() => setMode(null)} />
         )}
-        {mode === 'KHO' && <KhoAppPage guestMode />}
+        {mode === 'KHO' && <KhoAppPage guestMode onGuestBack={() => setMode(null)} />}
       </div>
     );
   }
