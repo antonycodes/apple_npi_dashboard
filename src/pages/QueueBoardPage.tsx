@@ -10,6 +10,7 @@
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import QueueBoard from '@/components/QueueBoard';
 import ViewSwitcher from '@/components/ViewSwitcher';
+import SleepOverlay from '@/components/SleepOverlay';
 import { useQueueBoardData } from '@/hooks/useQueueBoardData';
 import type { ClusterKey } from '@/types/desk';
 
@@ -60,6 +61,7 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
       <main className="px-3 py-4 md:px-6 md:py-6">
         <QueueBoard desks={desks} />
       </main>
+      <SleepOverlay />
     </div>
   );
 }

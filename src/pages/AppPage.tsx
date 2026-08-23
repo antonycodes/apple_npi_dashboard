@@ -188,7 +188,6 @@ function AdminHome({ name }: { name: string }) {
     { href: '#/khoview', label: 'Bảng kho' },
     { href: '#/nv', label: 'Màn hình nhân viên' },
     { href: '#/settings', label: 'Cài đặt' },
-    { href: '#/admin', label: 'Quản trị' },
   ];
 
   return (
@@ -229,6 +228,11 @@ export default function AppPage() {
   const session = useAdminInfo();
   const settings = useLarkSettings();
   const [picking, setPicking] = useState(false);
+  const [guest, setGuest] = useState(false);
+
+  if (guest && !session) {
+    return <DashboardPage readOnly />;
+  }
 
   // Có phiên thì rẽ nhánh NGAY, trước cả kiểm tra cấu hình: phiên "chế độ thử"
   // bên dưới cũng đi qua đúng đường này, nên giao diện xem trước là giao diện
@@ -287,21 +291,8 @@ export default function AppPage() {
   // Chưa cấu hình worker (hoặc đang chạy dữ liệu mẫu) thì `/admin/login` không
   // tồn tại — bắt đăng nhập ở đó chỉ khiến máy bị khoá cứng với một lỗi mạng
   // khó hiểu. Nói thẳng nguyên nhân và mở đường sang Cài đặt.
-  const loginPossible = Boolean(settings.apiUrl.trim()) && !settings.useMock;
+  const loginPossible = Boolean(settings.apiUrl.trim());
   if (!loginPossible) {
-    // Phiên GIẢ cho chế độ thử: token rác là cố ý — nó chỉ mở giao diện, mọi
-    // đường ghi thật đều đi qua worker và sẽ bị từ chối. Chỉ dùng khi đang
-    // chạy dữ liệu mẫu.
-    const demoSession = (role: 'kho' | 'staff', desk: string) => {
-      adminSessionStore.set('demo', 12 * 60 * 60 * 1000, role, desk, {
-        desks: [desk],
-        workspaces: [{ desk, loai: role === 'kho' ? 'Kho' : 'Tư vấn', role, name: 'Chế độ thử', msnv: '' }],
-        username: role === 'kho' ? 'KHO-DEMO' : desk,
-        msnv: '',
-        name: 'Chế độ thử',
-      });
-    };
-
     return (
       <Shell>
         <div className="mx-auto w-full max-w-[430px] px-4 py-8">
@@ -309,9 +300,7 @@ export default function AppPage() {
           <p className="mt-1 text-sm text-neutral-500">All in One</p>
           <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5">
             <p className="text-sm font-semibold text-amber-800">
-              {settings.useMock
-                ? 'Máy này đang chạy DỮ LIỆU MẪU nên chưa có tài khoản để đăng nhập.'
-                : 'Máy này chưa có API URL của worker nên chưa đăng nhập được.'}
+              Máy này chưa có API URL của worker nên chưa đăng nhập được.
             </p>
             <a
               href="#/settings"
@@ -319,28 +308,14 @@ export default function AppPage() {
             >
               Mở Cài đặt
             </a>
+            <button
+              type="button"
+              onClick={() => setGuest(true)}
+              className="mt-3 min-h-12 w-full rounded-2xl border border-neutral-300 bg-white text-base font-bold text-neutral-700 transition-colors hover:bg-neutral-50"
+            >
+              Đăng nhập với tư cách khách
+            </button>
           </div>
-          {settings.useMock && (
-            <div className="mt-4 rounded-3xl border border-neutral-200 bg-white p-4">
-              <h2 className="text-sm font-bold text-neutral-800">Chế độ thử</h2>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => demoSession('kho', 'KHO1')}
-                  className="min-h-12 rounded-xl bg-neutral-800 text-sm font-bold text-white"
-                >
-                  Thử màn Kho
-                </button>
-                <button
-                  type="button"
-                  onClick={() => demoSession('staff', 'TV1')}
-                  className="min-h-12 rounded-xl bg-neutral-800 text-sm font-bold text-white"
-                >
-                  Thử màn bàn TV1
-                </button>
-              </div>
-            </div>
-          )}
 
           <div className="mt-4 space-y-2">
             <a
@@ -361,5 +336,5 @@ export default function AppPage() {
     );
   }
 
-  return <AppLogin />;
+  return <AppLogin onGuest={() => setGuest(true)} />;
 }

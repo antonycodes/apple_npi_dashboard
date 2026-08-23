@@ -13,7 +13,7 @@
  */
 import { useEffect } from 'react';
 import { larkSettingsStore, type LarkSettings } from '@/config/larkSettings';
-import { DEFAULT_API_URL, LEGACY_API_URL } from '@/config/larkConfig';
+import { DEFAULT_API_URL, LEGACY_API_URL, LEGACY_PUBLIC_API_URL } from '@/config/larkConfig';
 import { fetchSharedSettings } from '@/services/appConfigApi';
 
 const SYNC_MS = 5_000;
@@ -74,18 +74,26 @@ export function useSharedSettingsSync(): void {
         };
 
         const incomingApiUrl = env.settings.apiUrl?.trim() || '';
-        const apiUrl = incomingApiUrl === LEGACY_API_URL ? DEFAULT_API_URL : incomingApiUrl || current.apiUrl;
+        const apiUrl = incomingApiUrl === LEGACY_API_URL || incomingApiUrl === LEGACY_PUBLIC_API_URL
+          ? DEFAULT_API_URL
+          : incomingApiUrl || current.apiUrl;
         const migrateEndpoint = (value: string, fallback: string) => {
           const trimmed = value.trim();
           if (!trimmed) return fallback;
-          return trimmed.startsWith(LEGACY_API_URL)
-            ? `${DEFAULT_API_URL}${trimmed.slice(LEGACY_API_URL.length)}`
+          const legacyPrefix = trimmed.startsWith(LEGACY_API_URL)
+            ? LEGACY_API_URL
+            : trimmed.startsWith(LEGACY_PUBLIC_API_URL)
+              ? LEGACY_PUBLIC_API_URL
+              : '';
+          return legacyPrefix
+            ? `${DEFAULT_API_URL}${trimmed.slice(legacyPrefix.length)}`
             : trimmed;
         };
 
         larkSettingsStore.save({
           ...current,
-          useMock: env.settings.useMock,
+          // Không kéo Mock từ KV nữa. Mock chỉ có hiệu lực trên /#/mock.
+          sleepMode: Boolean(env.settings.sleepMode),
           apiUrl,
           dispatchWebhookUrl: migrateEndpoint(env.settings.dispatchWebhookUrl, current.dispatchWebhookUrl),
           staffActionWebhookUrl: migrateEndpoint(env.settings.staffActionWebhookUrl, current.staffActionWebhookUrl),
@@ -105,4 +113,5 @@ export function useSharedSettingsSync(): void {
       clearInterval(timer);
     };
   }, []);
+
 }

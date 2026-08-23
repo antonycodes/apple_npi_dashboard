@@ -20,9 +20,8 @@
  * trống ô đó (vd TV7–TV16 chưa gán ai trong `Master_DS`).
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useDeviceCoordinatorId } from '@/config/deviceIdentity';
+import { useAdminInfo } from '@/config/adminSession';
 import { dispatchWebhookUrl, useLarkSettings } from '@/config/larkSettings';
-import { useCoordinators } from '@/hooks/useCoordinators';
 import { sendDispatchForm } from '@/services/dispatchWebhook';
 import type { DeskData, RosterEntry } from '@/types/desk';
 
@@ -65,10 +64,11 @@ type Status =
 export default function DispatchFormModal({ desks, roster, initialStt = '', onClose }: DispatchFormModalProps) {
   const settings = useLarkSettings();
   const webhook = dispatchWebhookUrl(settings);
-  // Danh tính máy — gửi kèm để biết bản ghi do điều phối viên nào submit.
-  const deviceId = useDeviceCoordinatorId();
-  const { coordinators } = useCoordinators();
-  const me = coordinators.find((c) => c.id === deviceId) ?? null;
+  // Danh tính lấy trực tiếp từ tài khoản đăng nhập; không còn gán theo máy.
+  const session = useAdminInfo();
+  const coordinatorId = session?.desk || session?.username || '';
+  const coordinatorName = session?.name || session?.username || '';
+  const coordinatorSubmitBy = session?.msnv || session?.username || '';
 
   const [stt, setStt] = useState(initialStt);
   const [loai, setLoai] = useState('');
@@ -119,12 +119,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const selected = staffOptions.find((e) => e.deskCode === deskId) ?? null;
   const staffNameOf = (e: RosterEntry) => e.staffName || liveStaffByDesk.get(e.deskCode) || '';
   const msnv = selected?.staffId ?? '';
-  const coordinatorEntry = entries.find((e) => {
-    const id = e.deskCode.toUpperCase().replace(/^DP0+(\d+)$/, 'DP$1');
-    const current = deviceId.toUpperCase().replace(/^DP0+(\d+)$/, 'DP$1');
-    return id === current && e.loai === 'Điều phối';
-  });
-  const submitBy = coordinatorEntry?.staffId || me?.msnv || '';
+  const submitBy = coordinatorSubmitBy;
   const canSubmit = Boolean(stt.trim() && loai && deskId) && status.kind !== 'sending';
 
   const submit = async (e: React.FormEvent) => {
@@ -139,13 +134,10 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
         nhanSu: selected ? staffNameOf(selected) : '',
         msnv,
         thoiGian: new Date().toISOString(),
-        dieuPhoiId: deviceId,
-        dieuPhoiTen: me?.name ?? '',
-        dieuPhoiViTri: me?.position ?? '',
-        // Cột Submit by bên webhook Điều phối dùng cùng định danh nhân viên
-        // với webhook2: MSNV lấy trực tiếp từ Master_DS.
-        // Submit by là điều phối viên của máy, không phải nhân viên của bàn
-        // khách đang được chọn.
+        dieuPhoiId: coordinatorId,
+        dieuPhoiTen: coordinatorName,
+        dieuPhoiViTri: '',
+        // Submit by là MSNV của tài khoản Điều phối đang đăng nhập.
         submitBy,
       });
       setStatus({ kind: 'sent', confirmed: res.confirmed });

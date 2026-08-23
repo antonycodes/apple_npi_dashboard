@@ -1,9 +1,5 @@
 /**
- * LoginGate — màn đăng nhập full-page, giờ CHỈ dùng cho trang `#/admin`.
- *
- * Dashboard điều phối KHÔNG đi qua đây nữa (bỏ cổng chặn 2026-08-11): mở app
- * là dùng được, đăng nhập chỉ cần khi đổi điều phối viên của máy
- * (`CoordinatorAssignModal`) hoặc sửa danh sách ở trang admin.
+ * LoginGate — màn đăng nhập full-page cho các trang quản trị còn lại.
  */
 import AdminLoginForm from '@/components/AdminLoginForm';
 

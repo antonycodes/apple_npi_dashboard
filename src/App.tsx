@@ -1,12 +1,9 @@
 /**
  * App — hash router for Main, Tư vấn, Thu cũ, Backup, màn hình nhân viên
- * (`#/nv` + link riêng từng bàn `#/tv4`), Settings and Admin.
+ * (`#/nv` + link riêng từng bàn `#/tv4`) và Settings.
  *
- * KHÔNG có cổng đăng nhập ở đây (bỏ 2026-08-11 theo yêu cầu user): máy điều
- * phối mở app là dùng được ngay, y như trước. Đăng nhập admin chỉ bật lên ở
- * ĐÚNG 2 chỗ — popup "đổi điều phối viên" (`CoordinatorAssignModal`) và trang
- * `#/admin` — tức chỉ chặn việc đổi máy này là ai / sửa danh sách, không chặn
- * việc vận hành.
+ * Các màn hình vận hành đi qua `#/app`: Điều phối phải đăng nhập, còn khách
+ * chỉ được xem ở chế độ read-only.
  *
  * **App gộp `#/app`** (2026-08-19, yêu cầu user — nay là "NPI-CPS All in One"):
  * MỘT link cho toàn bộ nhân sự, đăng nhập bằng tài khoản trong `Master_DS`
@@ -24,7 +21,6 @@ import { useEffect, useState } from 'react';
 import { applyLinkConfigFromHash, hashPath } from './config/staffLink';
 import { useSharedSettingsSync } from './hooks/useSharedSettingsSync';
 import { normalizeDeskCode } from './services/larkMapper';
-import AdminPage from './pages/AdminPage';
 import AppPage from './pages/AppPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
@@ -35,7 +31,6 @@ import StaffPage from './pages/StaffPage';
 type Route =
   | {
       kind:
-        | 'admin'
         | 'settings'
         | 'dashboard'
         | 'tuvanview'
@@ -62,13 +57,16 @@ function useHashRoute(): Route {
   // `/#/app`. Vercel rewrite chỉ giúp trả `index.html`; router phía client vẫn
   // cần nhận diện pathname, nếu không hash rỗng sẽ rơi về Dashboard.
   const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
-  if (pathname === 'app' || pathname.startsWith('app/')) return { kind: 'app' };
-  if (path.startsWith('admin')) return { kind: 'admin' };
+  // Hash route phải được xét trước pathname `/app`: AppHome dùng các link
+  // `#/settings`... và vẫn có thể đang nằm tại URL `/app`.
+  if (path.startsWith('admin')) return { kind: 'app' };
   if (path.startsWith('settings')) return { kind: 'settings' };
+  if (path === 'mock') return { kind: 'dashboard' };
   if (path.startsWith('tuvanview')) return { kind: 'tuvanview' };
   if (path.startsWith('kythuatview') || path.startsWith('thucuvview')) return { kind: 'kythuatview' };
   if (path.startsWith('backupview')) return { kind: 'backupview' };
   if (path.startsWith('khoview')) return { kind: 'khoview' };
+  if (pathname === 'app' || pathname.startsWith('app/')) return { kind: 'app' };
   // App gộp — MỘT link phát cho toàn bộ nhân sự, xem `pages/AppPage.tsx`.
   // `startsWith` chứ không phải `===`: link chép tay hay dán từ chat rất hay
   // dính dấu `/` ở cuối (`#/app/`), mà rơi khỏi route này thì im lặng nhảy về
@@ -92,7 +90,6 @@ export default function App() {
   // Kéo cấu hình Lark dùng chung từ worker (admin đổi 1 lần, mọi máy theo) —
   // đặt ở đây để MỌI màn hình đều được áp, kể cả điện thoại nhân viên.
   useSharedSettingsSync();
-  if (route.kind === 'admin') return <AdminPage />;
   if (route.kind === 'settings') return <SettingsPage />;
   if (route.kind === 'tuvanview') return <QueueBoardPage cluster="consult" />;
   if (route.kind === 'kythuatview') return <QueueBoardPage cluster="tradein" />;

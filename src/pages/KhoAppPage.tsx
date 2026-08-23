@@ -21,6 +21,7 @@ import { useKhoHandoverData } from '@/hooks/useKhoHandoverData';
 import { staffActionWebhookUrl, useLarkSettings } from '@/config/larkSettings';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
 import { sendStaffAction } from '@/services/staffActionWebhook';
+import SleepOverlay from '@/components/SleepOverlay';
 
 type Tab = 'handover' | 'board';
 
@@ -85,7 +86,6 @@ export default function KhoAppPage({
         msnv: session?.msnv || session?.username || '',
         // Không ghi `Loại 2` — xem `StaffActionPayload.phanLoai`.
         phanLoai: '',
-        nhanSu: staff?.name ?? '',
         submitBy: session?.msnv || session?.username || '',
         thoiGian: new Date().toISOString(),
         scanQr: values.scanQr,
@@ -103,7 +103,7 @@ export default function KhoAppPage({
   };
 
   return (
-    <div className="flex min-h-full flex-col bg-neutral-100 pt-[env(safe-area-inset-top)] text-neutral-800">
+    <div className="flex min-h-full flex-col bg-neutral-100 pt-[env(safe-area-inset-top)] text-neutral-800"><SleepOverlay />
       <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/95 backdrop-blur">
         <div className="mx-auto w-full max-w-[430px] px-4 py-3">
           <div className="flex items-center justify-between gap-3">

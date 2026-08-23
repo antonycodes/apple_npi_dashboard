@@ -203,6 +203,7 @@ function normalizeAppSettings(input) {
   const str = (v) => (typeof v === 'string' ? v.trim() : '');
   return {
     useMock: Boolean(s.useMock),
+    sleepMode: Boolean(s.sleepMode),
     apiUrl: str(s.apiUrl),
     dispatchWebhookUrl: str(s.dispatchWebhookUrl),
     staffActionWebhookUrl: str(s.staffActionWebhookUrl),
@@ -661,15 +662,14 @@ async function handleLarkEvent(request, env, ctx) {
 // record: route tự dò schema, cột nào không có thì bỏ qua và báo trong
 // `data.skipped` để sửa lại map này.
 //
-// `nhanSu` → "Người" cố ý GIỮ trong map dù biết sẽ bị bỏ qua (person field cần
-// open_id): để phản hồi nói rõ lý do, thay vì im lặng như thể chưa từng có.
 const RECORD_FIELD_MAP = {
   stt: 'STT Input',
   hoTen: 'Họ và tên',
   maBan: 'TV_MãNV',
   trangThai: 'Trạng thái',
-  msnv: 'Submit by',
-  nhanSu: 'Người',
+  // Contract chính của payload là `submitBy`. Giữ fallback `msnv` ở route
+  // /record để không làm hỏng payload cũ (đời trước chỉ gửi msnv).
+  submitBy: 'Submit by',
   phanLoai: 'Loại 2',
   thoiGian: 'Thời gian',
   checkBackup: 'Back up',
@@ -1403,10 +1403,21 @@ export default {
 
       if (request.method === 'GET') {
         const raw = await env.CONFIG.get(KV_APP_SETTINGS);
+        const parsed = raw ? JSON.parse(raw) : { settings: null, updatedAt: null };
+        if (new URL(request.url).searchParams.get('mode') === 'sleep') {
+          return json({
+            code: 0,
+            msg: 'success',
+            data: {
+              sleepMode: Boolean(parsed.settings?.sleepMode),
+              updatedAt: parsed.updatedAt ?? null,
+            },
+          });
+        }
         return json({
           code: 0,
           msg: 'success',
-          data: raw ? JSON.parse(raw) : { settings: null, updatedAt: null },
+          data: parsed,
         });
       }
 
@@ -1721,6 +1732,12 @@ export default {
         payload = await request.json();
       } catch {
         return json({ code: -1, msg: 'Body không phải JSON' }, 400);
+      }
+
+      // Payload cũ của app/k6 chỉ có `msnv`; payload hiện tại có `submitBy`.
+      // Chuẩn hóa một lần trước khi map để cột Master luôn nhận đúng định danh.
+      if (payload.submitBy == null || String(payload.submitBy).trim() === '') {
+        payload.submitBy = payload.msnv;
       }
 
       try {

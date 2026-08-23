@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import KhoBoard from '@/components/KhoBoard';
 import ViewSwitcher from '@/components/ViewSwitcher';
+import SleepOverlay from '@/components/SleepOverlay';
 import { useKhoBoardData } from '@/hooks/useKhoBoardData';
 import type { ClusterKey } from '@/types/desk';
 
@@ -136,6 +137,7 @@ export default function KhoBoardPage() {
           <KhoBoard desks={shown} showCompleted={showCompleted} columns={COLUMNS[filter]} />
         )}
       </main>
+      <SleepOverlay />
     </div>
   );
 }

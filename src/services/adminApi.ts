@@ -16,12 +16,12 @@ import {
   type Workspace,
 } from '@/config/adminSession';
 import { larkSettingsStore } from '@/config/larkSettings';
-import type { CoordinatorConfig } from '@/types/coordinator';
+import { DEFAULT_API_URL } from '@/config/larkConfig';
 
 /** Base URL của worker — dùng chung ô "API URL" ở trang Cài đặt. */
 export function workerBaseUrl(): string {
   const url = larkSettingsStore.getSnapshot().apiUrl.trim().replace(/\/+$/, '');
-  return url || 'https://api.vhws.online';
+  return url || DEFAULT_API_URL;
 }
 
 async function parse(res: Response): Promise<{ data?: unknown }> {
@@ -68,24 +68,4 @@ export async function login(username: string, password: string): Promise<StoredS
   const session = adminSessionStore.getInfo();
   if (!session) throw new Error('Không lưu được phiên đăng nhập trên máy này.');
   return session;
-}
-
-/** Đọc công khai — máy điều phối gọi được mà không cần đăng nhập admin. */
-export async function fetchCoordinators(signal?: AbortSignal): Promise<CoordinatorConfig> {
-  const res = await fetch(`${workerBaseUrl()}/config/coordinators`, { signal });
-  const body = await parse(res);
-  return body.data as CoordinatorConfig;
-}
-
-/** Ghi — bắt buộc có token admin còn hạn. */
-export async function saveCoordinators(config: CoordinatorConfig): Promise<CoordinatorConfig> {
-  const token = adminSessionStore.getSnapshot();
-  if (!token) throw new Error('Phiên đăng nhập đã hết hạn — đăng nhập lại.');
-  const res = await fetch(`${workerBaseUrl()}/config/coordinators`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ coordinators: config.coordinators }),
-  });
-  const body = await parse(res);
-  return body.data as CoordinatorConfig;
 }

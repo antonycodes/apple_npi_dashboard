@@ -25,6 +25,8 @@ export type ConnMode = 'proxy';
 
 export interface LarkSettings {
   useMock: boolean;
+  /** Khóa các màn hình nhân viên từ xa; máy Điều phối không bị khóa. */
+  sleepMode: boolean;
   mode: ConnMode;
   apiUrl: string;
   host: string;
@@ -55,6 +57,7 @@ export interface LarkSettings {
 export function defaultSettings(): LarkSettings {
   return {
     useMock: ENV_DEFAULTS.useMock,
+    sleepMode: false,
     mode: 'proxy',
     apiUrl: ENV_DEFAULTS.apiUrl,
     host: ENV_DEFAULTS.host,
@@ -163,7 +166,8 @@ export function toRuntimeConfig(s: LarkSettings = settings): LarkRuntimeConfig {
     dsMaster: str(s.tableIds.dsMaster),
   };
   return {
-    useMock: s.useMock,
+    // Mock là một route riêng (`/#/mock`), không còn là cờ cấu hình dùng chung.
+    useMock: typeof window !== 'undefined' && window.location.hash.replace(/^#\/?/, '').split('?')[0].toLowerCase() === 'mock',
     apiUrl: str(s.apiUrl),
     host: str(s.host) ?? ENV_DEFAULTS.host,
     appToken: undefined,

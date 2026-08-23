@@ -1,4 +1,29 @@
 {
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "dashboard.vhws.online"
+        }
+      ],
+      "destination": "/app",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "hcm.vhws.online" }],
+      "destination": "/app",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "hn.vhws.online" }],
+      "destination": "/app",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/app",
