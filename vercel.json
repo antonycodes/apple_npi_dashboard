@@ -22,7 +22,6 @@
       "has": [{ "type": "host", "value": "hn.vhws.online" }],
       "destination": "/app",
       "permanent": false
-    },
     }
   ],
   "rewrites": [
