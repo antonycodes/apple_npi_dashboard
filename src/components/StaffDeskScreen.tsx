@@ -557,7 +557,7 @@ export default function StaffDeskScreen({
             values.checkBackup ? (values.checkBackup as 'Có' | 'Không') : undefined,
             values.thuLaiMay ? (values.thuLaiMay as 'Thu máy ngay' | 'Thu máy sau') : undefined,
           );
-        } else guestSimulation?.receive(stt, view.cluster);
+        } else guestSimulation?.receive(stt, view.cluster, view.id);
         setFormAction(null);
         setFormCustomer(null);
         setSimulationMessage(
@@ -705,7 +705,7 @@ export default function StaffDeskScreen({
   }, [lockedReceiveStt, nextStt]);
   // Đã gửi webhook mà quá lâu Lark vẫn chưa hiện record → nói thẳng, đừng để
   // NV ngồi nhìn nhãn "đang chờ" mãi rồi tưởng xong.
-  const slowConfirm = Boolean(pending) && webhookMode && now - (pending?.at ?? now) > CONFIRM_WARN_MS;
+  const slowConfirm = !simulation && Boolean(pending) && webhookMode && now - (pending?.at ?? now) > CONFIRM_WARN_MS;
 
   return (
     <>

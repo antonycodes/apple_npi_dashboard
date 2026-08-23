@@ -26,7 +26,7 @@ interface GuestSimulationValue {
   joinUrl: string | null;
   seed: (tables: LarkTables) => LarkTables;
   dispatch: (stt: string, stage: ClusterKey, deskId: string) => void;
-  receive: (stt: string, stage: ClusterKey) => void;
+  receive: (stt: string, stage: ClusterKey, deskId?: string) => void;
   complete: (stt: string, stage: ClusterKey, checkBackup?: 'Có' | 'Không', thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau') => void;
   quickDevice: (stt: string, stage: ClusterKey) => void;
   staffTables: (deskId: string) => LarkTables;
@@ -314,14 +314,20 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         ]);
         postAction('dispatch', stt, stage, deskId);
       },
-      receive(stt, stage) {
+      receive(stt, stage, guestDeskId) {
         const target = assignments.find((item) => item.stt === stt && item.stage === stage && item.status === 'waiting');
-        setAssignments((current) => current.map((item) =>
-          item.stt === stt && item.stage === stage && item.status === 'waiting'
-            ? { ...item, status: 'active' as const, at: Date.now() }
-            : item,
-        ));
-        if (target) postAction('receive', stt, stage, target.deskId);
+        const deskId = target?.deskId ?? (guestDeskId ? deskForGuestRole(guestDeskId) : null);
+        if (!deskId) return;
+        const at = Date.now();
+        const nextAssignments = assignments.some((item) => item.stt === stt && item.stage === stage)
+          ? assignments.map((item) =>
+              item.stt === stt && item.stage === stage && item.status === 'waiting'
+                ? { ...item, status: 'active' as const, at }
+                : item,
+            )
+          : [...assignments, { stt, stage, deskId, status: 'active' as const, at }];
+        setAssignments(nextAssignments);
+        postAction('receive', stt, stage, deskId);
       },
       complete(stt, stage, checkBackup, thuLaiMay) {
         const target = assignments.find((item) => item.stt === stt && item.stage === stage && item.status === 'active');

@@ -39,6 +39,10 @@ export default function GuestPage() {
   const initialMode = [...MODES, ...DESK_ROLES].some((item) => item.id === initialRole) ? initialRole as GuestMode : null;
   const roomCode = params?.get('room');
   const [mode, setMode] = useState<GuestMode | null>(initialMode);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    'Màn hình chính': true,
+    'Điều phối & Kho': true,
+  });
   const selected = mode !== null;
 
   return (
@@ -64,9 +68,17 @@ export default function GuestPage() {
             </div>
             <div className="space-y-6">
               {ROLE_GROUPS(Boolean(roomCode)).map((group) => (
-                <section key={group.label}>
-                  <h2 className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-neutral-400">{group.label}</h2>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                <section key={group.label} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setOpenGroups((current) => ({ ...current, [group.label]: !current[group.label] }))}
+                    className="flex min-h-12 w-full items-center justify-between px-4 text-left"
+                    aria-expanded={Boolean(openGroups[group.label])}
+                  >
+                    <span className="text-xs font-black uppercase tracking-[0.16em] text-neutral-400">{group.label}</span>
+                    <span className="text-lg font-semibold text-neutral-400">{openGroups[group.label] ? '−' : '+'}</span>
+                  </button>
+                  {openGroups[group.label] && <div className="grid gap-3 border-t border-neutral-100 bg-neutral-50/60 p-3 sm:grid-cols-2">
                     {group.items.map((item) => (
                       <button
                         key={item.id}
@@ -82,7 +94,7 @@ export default function GuestPage() {
                         <span className="mt-5 inline-flex text-sm font-bold text-brand">Mở màn hình →</span>
                       </button>
                     ))}
-                  </div>
+                  </div>}
                 </section>
               ))}
             </div>
