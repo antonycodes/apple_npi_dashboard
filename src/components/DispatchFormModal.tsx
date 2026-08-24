@@ -84,6 +84,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const [loai, setLoai] = useState('');
   const [khachDoiY, setKhachDoiY] = useState('');
   const [deskId, setDeskId] = useState('');
+  const [busyDeskConfirmOpen, setBusyDeskConfirmOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmProgress, setConfirmProgress] = useState(0);
   const confirmProgressRef = useRef(0);
@@ -157,6 +158,9 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   );
 
   const selected = staffOptions.find((e) => e.deskCode === deskId) ?? null;
+  const selectedDesk = desks.find((desk) => desk.id === deskId) ?? null;
+  const selectedDeskCustomers = selectedDesk?.receivedCustomers ?? [];
+  const selectedDeskBusy = Boolean(selectedDesk?.isOccupied || selectedDeskCustomers.length > 0);
   const staffNameOf = (e: RosterEntry) => e.staffName || liveStaffByDesk.get(e.deskCode) || '';
   const msnv = khachDoiY ? '' : selected?.staffId ?? '';
   const submitBy = coordinatorSubmitBy;
@@ -216,6 +220,10 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
       setConfirmCompleted(false);
       setConfirmSending(false);
       setConfirmOpen(true);
+      return;
+    }
+    if (selectedDeskBusy) {
+      setBusyDeskConfirmOpen(true);
       return;
     }
     await sendDispatch();
@@ -506,6 +514,67 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
                     {confirmCompleted ? 'Đã xác nhận thành công' : confirmSending ? 'Đang gửi về Lark…' : 'Xác nhận khách đồng ý thay đổi'}
                   </span>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {busyDeskConfirmOpen && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Xác nhận điều phối vào bàn đang phục vụ"
+            onClick={() => setBusyDeskConfirmOpen(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl sm:p-7"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 3 2.8 19a1.5 1.5 0 0 0 1.3 2.2h15.8a1.5 1.5 0 0 0 1.3-2.2L12 3Z" />
+                    <path d="M12 9v4M12 17h.01" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-neutral-900">Bàn đang tiếp nhận khách</h3>
+                  <p className="mt-1 text-sm leading-5 text-neutral-600">
+                    {deskId} đang phục vụ {selectedDeskCustomers.length || 1} khách. Bạn vẫn muốn điều phối thêm khách vào bàn này?
+                  </p>
+                </div>
+              </div>
+
+              {selectedDeskCustomers.length > 0 && (
+                <div className="mt-4 rounded-xl bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                  {selectedDeskCustomers.map((customer) => (
+                    <div key={customer.stt ?? customer.name} className="flex items-center gap-2 py-1">
+                      <span className="font-bold">STT {customer.stt ?? '—'}</span>
+                      <span className="truncate">{customer.name ?? 'Chưa có tên khách'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBusyDeskConfirmOpen(false)}
+                  className="min-h-12 flex-1 rounded-xl border border-neutral-300 px-4 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+                >
+                  Quay lại
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBusyDeskConfirmOpen(false);
+                    void sendDispatch();
+                  }}
+                  className="min-h-12 flex-[1.4] rounded-xl bg-brand px-4 text-sm font-bold text-white hover:opacity-90"
+                >
+                  Xác nhận điều phối
+                </button>
               </div>
             </div>
           </div>
