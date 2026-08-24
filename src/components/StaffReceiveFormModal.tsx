@@ -130,7 +130,7 @@ export default function StaffReceiveFormModal({
 
           {showBackupCheck && (
             <div>
-              <span className="text-xs font-semibold text-neutral-500">Check Backup</span>
+              <span className="text-xs font-semibold text-neutral-500">Khách có Backup/Chuyển dữ liệu không?</span>
               <div className="mt-1 flex gap-2">
                 {(['Có', 'Không'] as const).map((opt) => (
                   <button
