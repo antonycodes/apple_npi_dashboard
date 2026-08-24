@@ -19,7 +19,7 @@
  * `desks` vẫn nhận vào để lấp tên NV đang thật sự ngồi bàn khi roster bỏ
  * trống ô đó (vd TV7–TV16 chưa gán ai trong `Master_DS`).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAdminInfo } from '@/config/adminSession';
 import { dispatchWebhookUrl, useLarkSettings } from '@/config/larkSettings';
 import { sendDispatchForm } from '@/services/dispatchWebhook';
@@ -84,13 +84,41 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const [loai, setLoai] = useState('');
   const [khachDoiY, setKhachDoiY] = useState('');
   const [deskId, setDeskId] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmProgress, setConfirmProgress] = useState(0);
+  const [confirmCompleted, setConfirmCompleted] = useState(false);
+  const [confirmSending, setConfirmSending] = useState(false);
+  const confirmSliderRef = useRef<HTMLInputElement>(null);
+  const [confirmSliderWidth, setConfirmSliderWidth] = useState(380);
+  const confirmReleaseTimer = useRef<number | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (confirmOpen) {
+        setConfirmOpen(false);
+        if (confirmCompleted) onClose();
+      }
+      else onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [confirmCompleted, confirmOpen, onClose]);
+
+  useEffect(() => {
+    if (!confirmOpen || !confirmSliderRef.current) return;
+    const slider = confirmSliderRef.current;
+    const updateWidth = () => setConfirmSliderWidth(slider.getBoundingClientRect().width);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(slider);
+    return () => observer.disconnect();
+  }, [confirmOpen]);
+
+  useEffect(() => () => {
+    if (confirmReleaseTimer.current !== null) window.clearTimeout(confirmReleaseTimer.current);
+  }, []);
 
   /*
     Đồng bộ lại STT khi `initialStt` đổi, KHÔNG chỉ dựa vào việc form unmount
@@ -133,12 +161,15 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const submitBy = coordinatorSubmitBy;
   const canSubmit = Boolean(stt.trim() && (khachDoiY || (loai && deskId))) && status.kind !== 'sending';
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit) return;
+  const sendDispatch = async (): Promise<boolean> => {
     setStatus({ kind: 'sending' });
     try {
       if (simulation) {
+        if (khachDoiY) {
+          setStatus({ kind: 'sent', confirmed: true });
+          setStt('');
+          return true;
+        }
         const stage = loai.toLowerCase().includes('backup')
           ? 'backup'
           : loai.toLowerCase().includes('thu cũ') || loai.toLowerCase().includes('thu cu')
@@ -148,7 +179,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
         setStatus({ kind: 'sent', confirmed: true });
         setStt('');
         setDeskId('');
-        return;
+        return true;
       }
       const res = await sendDispatchForm(webhook, {
         stt: stt.trim(),
@@ -168,9 +199,46 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
       // Giữ nguyên "Phân loại" để nhập liên tiếp nhiều khách cùng khâu.
       setStt('');
       setDeskId('');
+      return true;
     } catch (err) {
       setStatus({ kind: 'error', msg: err instanceof Error ? err.message : String(err) });
+      return false;
     }
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+    if (khachDoiY) {
+      setConfirmProgress(0);
+      setConfirmCompleted(false);
+      setConfirmSending(false);
+      setConfirmOpen(true);
+      return;
+    }
+    await sendDispatch();
+  };
+
+  const updateConfirmProgress = (value: number) => {
+    setConfirmProgress(value);
+  };
+
+  const releaseConfirmSlider = () => {
+    if (confirmReleaseTimer.current !== null) window.clearTimeout(confirmReleaseTimer.current);
+    if (confirmProgress < 85) {
+      setConfirmProgress(0);
+      return;
+    }
+
+    setConfirmProgress(100);
+    setConfirmSending(true);
+    confirmReleaseTimer.current = window.setTimeout(async () => {
+      const delivered = await sendDispatch();
+      setConfirmSending(false);
+      setConfirmProgress(0);
+      setConfirmCompleted(delivered);
+      confirmReleaseTimer.current = null;
+    }, 180);
   };
 
   return (
@@ -315,6 +383,101 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
             </p>
           )}
         </form>
+
+        {confirmOpen && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Xác nhận khách đổi ý"
+            onClick={() => {
+              setConfirmOpen(false);
+              if (confirmCompleted) onClose();
+            }}
+            onKeyDown={(e) => e.key === 'Escape' && setConfirmOpen(false)}
+          >
+            <div
+              className="max-h-[90dvh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-6 shadow-2xl sm:p-8"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Khách đổi ý</p>
+                  <h3 className="mt-1 text-2xl font-bold text-neutral-900 sm:text-3xl">Xác nhận thao tác</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmOpen(false);
+                    onClose();
+                  }}
+                  aria-label="Hủy xác nhận"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-2xl leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+                >
+                  ×
+                </button>
+              </div>
+
+              <img
+                src="/confirm-change-shield.png"
+                alt=""
+                aria-hidden="true"
+                className="mx-auto mt-3 h-20 w-20 object-contain sm:h-24 sm:w-24"
+              />
+
+              <div className="mt-6 flex items-center gap-3 rounded-xl bg-neutral-100 px-4 py-3">
+                <span className="text-sm font-semibold text-neutral-500">STT {stt || '—'}</span>
+                <span className="h-1 w-1 rounded-full bg-neutral-400" aria-hidden="true" />
+                <span className="text-sm font-semibold text-neutral-700">{khachDoiY}</span>
+              </div>
+
+              <div className="mx-auto mt-8 w-full max-w-[380px]">
+                <label htmlFor="confirm-change-slider" className="sr-only">
+                  Kéo để xác nhận khách đồng ý thay đổi
+                </label>
+                <div className="relative">
+                  <input
+                    id="confirm-change-slider"
+                    ref={confirmSliderRef}
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={confirmProgress}
+                    disabled={confirmCompleted || status.kind === 'sending'}
+                    onChange={(e) => updateConfirmProgress(Number(e.target.value))}
+                    onPointerUp={releaseConfirmSlider}
+                    onPointerCancel={releaseConfirmSlider}
+                    onKeyUp={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') releaseConfirmSlider();
+                    }}
+                    aria-valuetext={confirmCompleted ? 'Đã xác nhận thành công' : confirmSending ? 'Đang gửi về Lark' : 'Chưa xác nhận'}
+                    className="confirm-slider"
+                    style={{
+                      background: `linear-gradient(90deg, #b91c1c 0%, #ef4444 100%) 0 0 / ${confirmSliderWidth * (confirmProgress / 100)}px 100% no-repeat, #dc2626`,
+                    }}
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="confirm-slider-handle"
+                    style={{ left: `${28 + (Math.max(confirmSliderWidth, 56) - 56) * (confirmProgress / 100)}px` }}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="8.25" />
+                      {confirmCompleted ? <path d="m8 12 2.5 2.5L16 9" /> : <><path d="M8 12h7" /><path d="m12 8 4 4-4 4" /></>}
+                    </svg>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute inset-y-0 left-14 right-3 z-[2] flex items-center justify-center text-sm font-semibold text-white transition-opacity duration-200 ${confirmProgress > 0 && !confirmCompleted && !confirmSending ? 'opacity-0' : 'opacity-90'}`}
+                  >
+                    {confirmCompleted ? 'Đã xác nhận thành công' : confirmSending ? 'Đang gửi về Lark…' : 'Xác nhận khách đồng ý thay đổi'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
