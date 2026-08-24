@@ -86,6 +86,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const [deskId, setDeskId] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmProgress, setConfirmProgress] = useState(0);
+  const confirmProgressRef = useRef(0);
   const [confirmCompleted, setConfirmCompleted] = useState(false);
   const [confirmSending, setConfirmSending] = useState(false);
   const confirmSliderRef = useRef<HTMLInputElement>(null);
@@ -210,6 +211,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
     e.preventDefault();
     if (!canSubmit) return;
     if (khachDoiY) {
+      confirmProgressRef.current = 0;
       setConfirmProgress(0);
       setConfirmCompleted(false);
       setConfirmSending(false);
@@ -220,21 +222,33 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   };
 
   const updateConfirmProgress = (value: number) => {
-    setConfirmProgress(value);
+    const nextValue = Math.max(0, Math.min(100, value));
+    confirmProgressRef.current = nextValue;
+    setConfirmProgress(nextValue);
+  };
+
+  const updateConfirmProgressFromPointer = (clientX: number, element: HTMLDivElement) => {
+    const rect = element.getBoundingClientRect();
+    if (!rect.width) return;
+    updateConfirmProgress(((clientX - rect.left) / rect.width) * 100);
   };
 
   const releaseConfirmSlider = () => {
+    if (confirmCompleted || confirmSending) return;
     if (confirmReleaseTimer.current !== null) window.clearTimeout(confirmReleaseTimer.current);
-    if (confirmProgress < 85) {
+    if (confirmProgressRef.current < 85) {
+      confirmProgressRef.current = 0;
       setConfirmProgress(0);
       return;
     }
 
+    confirmProgressRef.current = 100;
     setConfirmProgress(100);
     setConfirmSending(true);
     confirmReleaseTimer.current = window.setTimeout(async () => {
       const delivered = await sendDispatch();
       setConfirmSending(false);
+      confirmProgressRef.current = 0;
       setConfirmProgress(0);
       setConfirmCompleted(delivered);
       confirmReleaseTimer.current = null;
@@ -435,7 +449,27 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
                 <label htmlFor="confirm-change-slider" className="sr-only">
                   Kéo để xác nhận khách đồng ý thay đổi
                 </label>
-                <div className="relative">
+                <div
+                  className="relative touch-none select-none"
+                  onPointerDown={(e) => {
+                    if (confirmCompleted || confirmSending) return;
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    updateConfirmProgressFromPointer(e.clientX, e.currentTarget);
+                  }}
+                  onPointerMove={(e) => {
+                    if (!e.currentTarget.hasPointerCapture(e.pointerId) || confirmCompleted || confirmSending) return;
+                    updateConfirmProgressFromPointer(e.clientX, e.currentTarget);
+                  }}
+                  onPointerUp={(e) => {
+                    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+                    releaseConfirmSlider();
+                  }}
+                  onPointerCancel={(e) => {
+                    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+                    confirmProgressRef.current = 0;
+                    setConfirmProgress(0);
+                  }}
+                >
                   <input
                     id="confirm-change-slider"
                     ref={confirmSliderRef}
@@ -446,15 +480,13 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
                     value={confirmProgress}
                     disabled={confirmCompleted || status.kind === 'sending'}
                     onChange={(e) => updateConfirmProgress(Number(e.target.value))}
-                    onPointerUp={releaseConfirmSlider}
-                    onPointerCancel={releaseConfirmSlider}
                     onKeyUp={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') releaseConfirmSlider();
                     }}
                     aria-valuetext={confirmCompleted ? 'Đã xác nhận thành công' : confirmSending ? 'Đang gửi về Lark' : 'Chưa xác nhận'}
-                    className="confirm-slider"
+                    className="confirm-slider pointer-events-none"
                     style={{
-                      background: `linear-gradient(90deg, #b91c1c 0%, #ef4444 100%) 0 0 / ${confirmSliderWidth * (confirmProgress / 100)}px 100% no-repeat, #dc2626`,
+                      background: `linear-gradient(90deg, #dc2626 0%, #f87171 100%) 0 0 / ${confirmSliderWidth * (confirmProgress / 100)}px 100% no-repeat, #b91c1c`,
                     }}
                   />
                   <span
