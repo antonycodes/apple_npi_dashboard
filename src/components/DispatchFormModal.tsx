@@ -50,6 +50,13 @@ const FALLBACK_LOAI: Record<string, string> = {
   backup: 'Backup',
 };
 
+const KHACH_DOI_Y_OPTIONS = [
+  'Không thu cũ nữa',
+  'Không backup nữa',
+  'Muốn thu cũ',
+  'Muốn backup',
+] as const;
+
 /*
   Ô nhập dùng chung: `text-base` = 16px là NGƯỠNG của Safari iOS — dưới mức đó
   trình duyệt tự phóng to trang khi focus vào input, làm lệch cả sơ đồ phía
@@ -75,6 +82,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
 
   const [stt, setStt] = useState(initialStt);
   const [loai, setLoai] = useState('');
+  const [khachDoiY, setKhachDoiY] = useState('');
   const [deskId, setDeskId] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
@@ -121,9 +129,9 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
 
   const selected = staffOptions.find((e) => e.deskCode === deskId) ?? null;
   const staffNameOf = (e: RosterEntry) => e.staffName || liveStaffByDesk.get(e.deskCode) || '';
-  const msnv = selected?.staffId ?? '';
+  const msnv = khachDoiY ? '' : selected?.staffId ?? '';
   const submitBy = coordinatorSubmitBy;
-  const canSubmit = Boolean(stt.trim() && loai && deskId) && status.kind !== 'sending';
+  const canSubmit = Boolean(stt.trim() && (khachDoiY || (loai && deskId))) && status.kind !== 'sending';
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,9 +152,9 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
       }
       const res = await sendDispatchForm(webhook, {
         stt: stt.trim(),
-        phanLoai: loai,
-        maBan: deskId,
-        nhanSu: selected ? staffNameOf(selected) : '',
+        phanLoai: khachDoiY ? '' : loai,
+        maBan: khachDoiY ? '' : deskId,
+        nhanSu: khachDoiY || !selected ? '' : staffNameOf(selected),
         msnv,
         thoiGian: new Date().toISOString(),
         dieuPhoiId: coordinatorId,
@@ -154,6 +162,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
         dieuPhoiViTri: '',
         // Submit by là MSNV của tài khoản Điều phối đang đăng nhập.
         submitBy,
+        ...(khachDoiY ? { khachDoiY } : {}),
       });
       setStatus({ kind: 'sent', confirmed: res.confirmed });
       // Giữ nguyên "Phân loại" để nhập liên tiếp nhiều khách cùng khâu.
@@ -198,42 +207,68 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
             />
           </Field>
 
-          <Field label="Phân loại">
+          <Field label="Khách đổi ý">
             <select
-              value={loai}
+              value={khachDoiY}
               onChange={(e) => {
-                setLoai(e.target.value);
-                setDeskId(''); // bàn cũ không còn thuộc phân loại mới
+                const value = e.target.value;
+                setKhachDoiY(value);
+                if (value) {
+                  setLoai('');
+                  setDeskId('');
+                }
               }}
               className={`${FIELD_BASE} border-neutral-300 bg-white focus:border-brand focus:outline-none`}
             >
-              <option value="">— Chọn phân loại —</option>
-              {loaiChoices.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              <option value="">— Không có thay đổi —</option>
+              {KHACH_DOI_Y_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
                 </option>
               ))}
             </select>
           </Field>
 
-          <Field label="Danh sách Nhân sự">
-            <select
-              value={deskId}
-              onChange={(e) => setDeskId(e.target.value)}
-              disabled={!loai}
-              className={`${FIELD_BASE} border-neutral-300 bg-white focus:border-brand focus:outline-none disabled:bg-neutral-100 disabled:text-neutral-400`}
-            >
-              <option value="">{loai ? '— Chọn nhân sự —' : '— Chọn phân loại trước —'}</option>
-              {staffOptions.map((e) => {
-                const name = staffNameOf(e);
-                return (
-                  <option key={e.deskCode} value={e.deskCode}>
-                    {name ? `${e.deskCode} — ${name}` : `${e.deskCode} (chưa gán NV)`}
-                  </option>
-                );
-              })}
-            </select>
-          </Field>
+          {!khachDoiY && (
+            <>
+              <Field label="Phân loại">
+                <select
+                  value={loai}
+                  onChange={(e) => {
+                    setLoai(e.target.value);
+                    setDeskId(''); // bàn cũ không còn thuộc phân loại mới
+                  }}
+                  className={`${FIELD_BASE} border-neutral-300 bg-white focus:border-brand focus:outline-none`}
+                >
+                  <option value="">— Chọn phân loại —</option>
+                  {loaiChoices.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Danh sách Nhân sự">
+                <select
+                  value={deskId}
+                  onChange={(e) => setDeskId(e.target.value)}
+                  disabled={!loai}
+                  className={`${FIELD_BASE} border-neutral-300 bg-white focus:border-brand focus:outline-none disabled:bg-neutral-100 disabled:text-neutral-400`}
+                >
+                  <option value="">{loai ? '— Chọn nhân sự —' : '— Chọn phân loại trước —'}</option>
+                  {staffOptions.map((e) => {
+                    const name = staffNameOf(e);
+                    return (
+                      <option key={e.deskCode} value={e.deskCode}>
+                        {name ? `${e.deskCode} — ${name}` : `${e.deskCode} (chưa gán NV)`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </Field>
+            </>
+          )}
 
           <Field label="Submit by">
             <input

@@ -43,6 +43,8 @@ export interface DispatchFormPayload {
   dieuPhoiViTri: string;
   /** Giá trị ghi vào cột "Submit by" bên Lark — chính là MSNV nhân viên. */
   submitBy: string;
+  /** Lựa chọn khi khách thay đổi nhu cầu sau check-in. */
+  khachDoiY?: string;
 }
 
 export interface DispatchSendResult {

@@ -731,6 +731,7 @@ const DISPATCH_FIELD_MAP = {
   stt: 'STT input',
   phanLoai: 'Phân loại',
   submitBy: 'Submit by',
+  khachDoiY: 'Khách đổi ý',
 };
 
 /**
