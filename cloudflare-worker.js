@@ -1225,6 +1225,7 @@ export class GuestSimulationRoom extends DurableObject {
           dsMaster: [],
         },
         assignments: [],
+        alerts: [],
         participants: [],
         createdAt: Date.now(),
         expiresAt: Date.now() + GUEST_ROOM_TTL_MS,
@@ -1268,10 +1269,23 @@ export class GuestSimulationRoom extends DurableObject {
             return fileToken ? { file_token: fileToken, ...(name ? { name } : {}) } : null;
           }).filter(Boolean)
         : null;
-      if (!stt || !stage || !deskId || !['dispatch', 'receive', 'complete', 'device'].includes(action)) {
+      if (!stage || !deskId || !['dispatch', 'receive', 'complete', 'device', 'help', 'help-clear'].includes(action)) {
         return json({ code: -1, msg: 'Guest room action không hợp lệ.' }, 400);
       }
-      if (action === 'dispatch') {
+      if (action === 'help') {
+        const alertId = `guest-alert-${deskId}`;
+        this.state.alerts = (this.state.alerts || []).filter((item) => item.deskId !== deskId);
+        this.state.alerts.push({
+          id: alertId,
+          deskId,
+          role: String(body?.role || ''),
+          stt: stt || null,
+          customerName: body?.customerName || null,
+          createdAt: Date.now(),
+        });
+      } else if (action === 'help-clear') {
+        this.state.alerts = (this.state.alerts || []).filter((item) => item.deskId !== deskId);
+      } else if (action === 'dispatch') {
         this.state.assignments = this.state.assignments.filter(
           (item) => !(item.stt === stt && item.stage === stage && item.status === 'waiting'),
         );

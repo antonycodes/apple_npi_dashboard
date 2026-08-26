@@ -34,6 +34,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   const [showGuestQr, setShowGuestQr] = useState(false);
   const [guestQrDataUrl, setGuestQrDataUrl] = useState<string | null>(null);
   const [deskAlerts, setDeskAlerts] = useState<DeskAlert[]>([]);
+  const visibleDeskAlerts = simulation ? guestRoom?.alerts ?? [] : deskAlerts;
   const realtimeApiUrl = toRuntimeConfig(settings).apiUrl;
 
   useEffect(() => {
@@ -287,16 +288,18 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
               onSelect={handleSelect}
               onSelectCustomer={handleSelectCustomer}
               selectedCustomer={selectedCustomer}
-              alertedDeskIds={new Set(deskAlerts.map((alert) => alert.deskId))}
+              alertedDeskIds={new Set(visibleDeskAlerts.map((alert) => alert.deskId))}
               overlay={
                 selectedDesk ? (
                   <DeskPopover
                     desk={selectedDesk}
                     onClose={() => setSelectedId(null)}
-                    onAcknowledgeAlert={deskAlerts.some((alert) => alert.deskId === selectedDesk.id) ? () => {
-                      deskAlerts
+                    onAcknowledgeAlert={visibleDeskAlerts.some((alert) => alert.deskId === selectedDesk.id) ? () => {
+                      visibleDeskAlerts
                         .filter((alert) => alert.deskId === selectedDesk.id)
-                        .forEach((alert) => clearDeskAlert(realtimeApiUrl, alert.id));
+                        .forEach((alert) => simulation
+                          ? guestRoom?.clearCoordinatorAlert(alert.deskId)
+                          : clearDeskAlert(realtimeApiUrl, alert.id));
                     } : undefined}
                   />
                 ) : selectedCustomerData ? (

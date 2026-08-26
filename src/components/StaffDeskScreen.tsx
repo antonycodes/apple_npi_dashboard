@@ -471,7 +471,16 @@ export default function StaffDeskScreen({
   const [deskAlertMessage, setDeskAlertMessage] = useState<string | null>(null);
 
   const callCoordinator = () => {
-    if (simulation) return;
+    if (simulation) {
+      guestSimulation?.callCoordinator(
+        view.id,
+        STAGE_LABEL[view.cluster],
+        primary?.stt ?? ghost?.stt ?? null,
+        primary?.name ?? ghost?.name ?? null,
+      );
+      setDeskAlertMessage('Đã báo Điều phối trong phòng mô phỏng.');
+      return;
+    }
     const sent = sendDeskAlert(realtimeApiUrl, {
       deskId: view.id,
       role: STAGE_LABEL[view.cluster],
@@ -905,7 +914,7 @@ export default function StaffDeskScreen({
         <button
           type="button"
           onClick={callCoordinator}
-          disabled={simulation}
+          disabled={!simulation && !realtimeApiUrl}
           className="flex min-h-14 w-full items-center justify-center gap-2 rounded-3xl border-2 border-amber-300 bg-amber-50 text-base font-bold text-amber-800 shadow-sm active:bg-amber-100 disabled:opacity-40"
         >
           <BellIcon />

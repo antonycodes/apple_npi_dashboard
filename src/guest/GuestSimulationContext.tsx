@@ -5,6 +5,7 @@ import type { FieldConfig } from '@/config/larkConfig';
 import { cellToString } from '@/services/larkMapper';
 import type { LarkCellValue, LarkRecord, LarkTables } from '@/services/larkTypes';
 import type { ClusterKey } from '@/types/desk';
+import type { DeskAlert } from '@/services/deskAlerts';
 
 type SimulationStatus = 'waiting' | 'active' | 'completed';
 
@@ -38,6 +39,9 @@ interface GuestSimulationValue {
   receive: (stt: string, stage: ClusterKey, deskId?: string) => void;
   complete: (stt: string, stage: ClusterKey, checkBackup?: 'Có' | 'Không', thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau', device?: GuestDeviceData) => void;
   quickDevice: (stt: string, stage: ClusterKey, deskId?: string, device?: GuestDeviceData) => void;
+  callCoordinator: (deskId: string, role: string, stt: string | null, customerName: string | null) => void;
+  clearCoordinatorAlert: (deskId: string) => void;
+  alerts: DeskAlert[];
   staffTables: (deskId: string) => LarkTables;
 }
 
@@ -151,6 +155,7 @@ const GuestSimulationContext = createContext<GuestSimulationValue | null>(null);
 interface RoomState {
   baseTables: LarkTables;
   assignments: Assignment[];
+  alerts?: DeskAlert[];
   roomCode?: string;
 }
 
@@ -164,6 +169,7 @@ async function roomRequest(apiUrl: string, path: string, init?: RequestInit) {
 export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFIG, roomCode: initialRoomCode = null, role = 'Guest' }: { children: ReactNode; fields?: FieldConfig; roomCode?: string | null; role?: string }) {
   const [base, setBase] = useState<LarkTables>(EMPTY_TABLES);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [alerts, setAlerts] = useState<DeskAlert[]>([]);
   const [roomCode, setRoomCode] = useState(initialRoomCode);
   const [roomStatus, setRoomStatus] = useState<GuestSimulationValue['roomStatus']>(initialRoomCode ? 'creating' : 'local');
   const [roomError, setRoomError] = useState<string | null>(null);
@@ -207,6 +213,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
       : nextBase;
     setBase(syncedBase);
     setAssignments(nextAssignments);
+    setAlerts(next.alerts ?? []);
     setRoomStatus('connected');
     setRoomError(null);
   };
@@ -439,11 +446,18 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
             ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: JSON.stringify(device.hinhNghiemThu) } : {}),
         });
       },
+      callCoordinator(deskId, role, stt, customerName) {
+        postAction('help', stt ?? '', 'consult', deskId, { role, customerName: customerName ?? '' });
+      },
+      clearCoordinatorAlert(deskId) {
+        postAction('help-clear', '', 'consult', deskId);
+      },
+      alerts,
       staffTables(deskId) {
         return remapForStaffRole(tables, deskId, fields);
       },
     };
-  }, [assignments, base, fields, roomCode, roomStatus, roomError]);
+  }, [alerts, assignments, base, fields, roomCode, roomStatus, roomError]);
 
   return <GuestSimulationContext.Provider value={value}>{children}</GuestSimulationContext.Provider>;
 }
