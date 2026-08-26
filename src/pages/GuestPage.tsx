@@ -7,15 +7,31 @@ import { GuestSimulationProvider } from '@/guest/GuestSimulationContext';
 import { ALL_POSITIONS, CLUSTER_LABELS } from '@/config/layoutConfig';
 import { useLarkSettings } from '@/config/larkSettings';
 
-type GuestMode = 'DP' | 'KHO' | `TV${number}` | `TC${number}` | `BK${number}`;
+type GuestMode = 'DP' | 'KHO' | `KHO${number}` | `TV${number}` | `TC${number}` | `BK${number}`;
 
 const MODES: Array<{ id: GuestMode; code: string; label: string; note: string }> = [
   { id: 'DP', code: 'Guest_DP', label: 'Dashboard điều phối', note: 'Sơ đồ bàn và form điều phối' },
   { id: 'TV1', code: 'Guest_TV', label: 'Tư vấn', note: 'Chọn bàn TV khi tham gia phòng' },
   { id: 'TC1', code: 'Guest_TC', label: 'Thu cũ', note: 'Chọn bàn TC khi tham gia phòng' },
   { id: 'BK1', code: 'Guest_BK', label: 'Backup', note: 'Chọn bàn BK khi tham gia phòng' },
-  { id: 'KHO', code: 'Guest_KHO', label: 'Kho', note: 'Bàn giao và bảng kho' },
 ];
+
+const KHO_ROLES: Array<{ id: GuestMode; code: string; label: string; note: string }> = Array.from({ length: 5 }, (_, index) => {
+  const number = index + 1;
+  return {
+    id: `KHO${number}` as GuestMode,
+    code: `Guest_KHO${number}`,
+    label: `Kho ${number}`,
+    note: 'Bàn giao và bảng kho',
+  };
+});
+
+const LEGACY_KHO_MODE: { id: GuestMode; code: string; label: string; note: string } = {
+  id: 'KHO',
+  code: 'Guest_KHO',
+  label: 'Kho',
+  note: 'Bàn giao và bảng kho',
+};
 
 const DESK_ROLES = ALL_POSITIONS.map((position) => ({
   id: position.id as GuestMode,
@@ -24,7 +40,8 @@ const DESK_ROLES = ALL_POSITIONS.map((position) => ({
   note: CLUSTER_LABELS[position.cluster],
 }));
 const ROLE_GROUPS = [
-  { label: 'Điều phối & Kho', items: [MODES[0], MODES[4]] },
+  { label: 'Điều phối', items: [MODES[0]] },
+  { label: 'Kho', items: KHO_ROLES },
   { label: 'Tư vấn', items: DESK_ROLES.filter((item) => item.id.startsWith('TV')) },
   { label: 'Thu cũ', items: DESK_ROLES.filter((item) => item.id.startsWith('TC')) },
   { label: 'Backup', items: DESK_ROLES.filter((item) => item.id.startsWith('BK')) },
@@ -34,7 +51,7 @@ export default function GuestPage() {
   const settings = useLarkSettings();
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialRole = params?.get('role')?.replace(/^Guest_/, '');
-  const initialMode = [...MODES, ...DESK_ROLES].some((item) => item.id === initialRole) ? initialRole as GuestMode : null;
+  const initialMode = [...MODES, ...DESK_ROLES, ...KHO_ROLES, LEGACY_KHO_MODE].some((item) => item.id === initialRole) ? initialRole as GuestMode : null;
   const roomCode = params?.get('room');
   const [mode, setMode] = useState<GuestMode | null>(initialMode);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -47,10 +64,10 @@ export default function GuestPage() {
       {settings.guestLock ? <GuestLockedScreen /> : selected ? (
         <div className="min-h-full bg-neutral-100">
           {mode === 'DP' && <DashboardPage readOnly simulation onGuestBack={() => setMode(null)} />}
-          {mode !== 'DP' && mode !== 'KHO' && (
+          {mode !== 'DP' && !mode.startsWith('KHO') && (
             <StaffPage lockedDeskId={`Guest_${mode}`} guestMode onGuestBack={() => setMode(null)} />
           )}
-          {mode === 'KHO' && <KhoAppPage guestMode onGuestBack={() => setMode(null)} />}
+          {mode.startsWith('KHO') && <KhoAppPage guestMode onGuestBack={() => setMode(null)} />}
         </div>
       ) : (
         <main className="min-h-full bg-neutral-100 px-4 py-8 text-neutral-800 sm:px-6">
