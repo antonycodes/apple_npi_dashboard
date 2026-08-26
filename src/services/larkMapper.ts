@@ -218,6 +218,7 @@ interface CheckinIndexEntry {
   doneInFlow: string | null;
   /** Đã hoàn tất toàn bộ quy trình (Check-in cột "End flow"). */
   endFlow: boolean;
+  endFlowTime: string | null;
 }
 
 /**
@@ -242,10 +243,41 @@ function indexCheckinByName(rows: LarkRecord[], fm: CheckinFieldMap): Map<string
         backupStatus: cellToString(r.fields[fm.backupStatus]),
         doneInFlow: cellToString(r.fields[fm.doneInFlow]),
         endFlow: isEndFlowValue(r.fields[fm.endFlow]),
+        endFlowTime: cellToString(r.fields[fm.endFlowTime]),
       });
     }
   }
   return m;
+}
+
+function indexDeviceReceiptByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<string, WaitingCustomer['deviceReceipt']> {
+  const result = new Map<string, { time: number; value: NonNullable<WaitingCustomer['deviceReceipt']> }>();
+  for (const row of rows) {
+    const stt = cellToString(row.fields[fm.sttInput]);
+    if (!stt) continue;
+    const rawImages = row.fields[fm.hinhNghiemThu];
+    const images = Array.isArray(rawImages)
+      ? rawImages.flatMap((part) => {
+          if (typeof part === 'string') return [];
+          const token = part.file_token;
+          if (typeof token !== 'string' || !token.trim()) return [];
+          let sourceRevision: number | undefined;
+          try {
+            const extra = typeof part.url === 'string' ? new URL(part.url).searchParams.get('extra') : null;
+            const revision = extra ? JSON.parse(extra)?.bitablePerm?.rev : undefined;
+            if (Number.isFinite(Number(revision))) sourceRevision = Number(revision);
+          } catch {
+            // Attachment metadata is optional.
+          }
+          return [{ fileToken: token.trim(), name: typeof part.name === 'string' ? part.name : null, sourceRecordId: row.record_id, sourceRevision }];
+        })
+      : [];
+    const value = { imei: cellToString(row.fields[fm.imei]), scanQr: cellToString(row.fields[fm.scanQr]), images };
+    const time = Number(row.fields[fm.time]) || 0;
+    const previous = result.get(stt);
+    if (!previous || time >= previous.time) result.set(stt, { time, value });
+  }
+  return new Map([...result].map(([stt, entry]) => [stt, entry.value]));
 }
 
 function indexMasterHyperlinkByName(rows: LarkRecord[], fm: MasterFieldMap): Map<string, string> {
@@ -746,6 +778,7 @@ function buildRoster(rows: LarkRecord[], fm: DsMasterFieldMap): RosterEntry[] {
 export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldConfig()): MappedData {
   const { checkin, master, dispatch, dsMaster } = fields;
   const checkinByName = indexCheckinByName(tables.checkin, checkin);
+  const deviceReceiptByStt = indexDeviceReceiptByStt(tables.master, master);
   const hyperlinkByName = indexMasterHyperlinkByName(tables.master, master);
   const staffNameByDeskCode = indexStaffNameByDeskCode(tables.dsMaster, dsMaster);
   const deskCodeByStaffId = indexDeskCodeByStaffId(tables.dsMaster, dsMaster);
@@ -925,6 +958,8 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       dsThuCu: dd?.dsThuCu ?? null,
       dsBackup: dd?.dsBackup ?? null,
       doneInFlow: ci.doneInFlow,
+      endFlowTime: ci.endFlowTime,
+      deviceReceipt: deviceReceiptByStt.get(ci.stt ?? '') ?? null,
     });
   }
 

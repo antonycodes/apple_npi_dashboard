@@ -82,6 +82,18 @@ export interface WaitingCustomer extends DeskCustomer {
   fromCluster?: ClusterKey | null;
   /** Tên khâu vừa hoàn tất, lấy trực tiếp từ Check-in cột "Done in Flow". */
   doneInFlow?: string | null;
+  /** Thời gian End-flow từ Master_Check in. */
+  endFlowTime?: string | null;
+  deviceReceipt?: {
+    imei: string | null;
+    scanQr: string | null;
+    images: Array<{
+      fileToken: string;
+      name: string | null;
+      sourceRecordId?: string;
+      sourceRevision?: number;
+    }>;
+  } | null;
 }
 
 /**

@@ -65,6 +65,8 @@ export interface CheckinFieldMap {
   endFlow: string;
   /** Thời điểm check-in — dùng để sắp khách theo thứ tự trước/sau khi 1 NV phục vụ nhiều khách cùng lúc. */
   time: string;
+  /** Thời gian End-flow hiển thị ở bảng kết thúc. */
+  endFlowTime: string;
 }
 
 /**
@@ -185,6 +187,7 @@ export const DEFAULT_CHECKIN_FIELDS: CheckinFieldMap = {
   doneInFlow: 'Done in Flow',
   endFlow: 'End flow',
   time: 'Thời gian',
+  endFlowTime: 'Thời gian End-flow',
 };
 
 export const DEFAULT_MASTER_FIELDS: MasterFieldMap = {

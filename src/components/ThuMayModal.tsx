@@ -26,6 +26,13 @@ export interface ThuMayValues {
 
 const MAX_ANH = 3;
 
+function mediaUrl(image: PrevImage): string {
+  const query = image.sourceRecordId
+    ? `?table=master&record_id=${encodeURIComponent(image.sourceRecordId)}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${image.sourceRevision ? `&rev=${image.sourceRevision}` : ''}`
+    : '';
+  return `${workerBaseUrl()}/media/${encodeURIComponent(image.fileToken)}${query}`;
+}
+
 export default function ThuMayModal({
   candidates,
   deskLabel,
@@ -52,6 +59,7 @@ export default function ThuMayModal({
   const [chon, setChon] = useState<StaffCustomer | null>(null);
   const [sttNhap, setSttNhap] = useState('');
   const [loiTra, setLoiTra] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<PrevImage | null>(null);
 
   const [values, setValues] = useState<ThuMayValues>({
     anhGiuLai: [],
@@ -82,10 +90,14 @@ export default function ThuMayModal({
   };
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || busy) return;
+      if (previewImage) setPreviewImage(null);
+      else onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [busy, onClose]);
+  }, [busy, onClose, previewImage]);
 
   const conTrong = Math.max(0, MAX_ANH - values.anhGiuLai.length);
 
@@ -171,11 +183,18 @@ export default function ThuMayModal({
                         <span className="line-clamp-2">Ảnh mô phỏng</span>
                       </div>
                     ) : (
-                      <img
-                        src={`${workerBaseUrl()}/media/${encodeURIComponent(img.fileToken)}?table=master&record_id=${encodeURIComponent(img.sourceRecordId ?? '')}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${img.sourceRevision ? `&rev=${img.sourceRevision}` : ''}`}
-                        alt={img.name ?? 'Ảnh nghiệm thu'}
-                        className="h-20 w-20 rounded-xl border border-neutral-300 object-cover"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage(img)}
+                        aria-label={`Xem ảnh lớn ${img.name ?? 'ảnh nghiệm thu'}`}
+                        className="block h-20 w-20 overflow-hidden rounded-xl border border-neutral-300 bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <img
+                          src={mediaUrl(img)}
+                          alt={img.name ?? 'Ảnh nghiệm thu'}
+                          className="h-full w-full object-cover transition-transform hover:scale-105"
+                        />
+                      </button>
                     )}
                     <button
                       type="button"
@@ -267,6 +286,34 @@ export default function ThuMayModal({
           )}
         </div>
       </div>
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xem ảnh nghiệm thu"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative flex max-h-[92dvh] max-w-[96vw] items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={mediaUrl(previewImage)}
+              alt={previewImage.name ?? 'Ảnh nghiệm thu'}
+              className="max-h-[92dvh] max-w-[96vw] rounded-xl object-contain shadow-2xl"
+            />
+            <button
+              type="button"
+              onClick={() => setPreviewImage(null)}
+              aria-label="Đóng ảnh lớn"
+              className="absolute -right-2 -top-2 flex h-10 w-10 items-center justify-center rounded-full bg-white text-2xl leading-none text-neutral-700 shadow-lg"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

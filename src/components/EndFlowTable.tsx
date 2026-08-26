@@ -3,7 +3,8 @@
  * (Check-in "End flow" = "End flow"), dạng bảng thay vì chấm STT trên board.
  * Mở từ nút "End Flow" trên dashboard.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { workerBaseUrl } from '@/services/adminApi';
 import type { WaitingCustomer } from '@/types/desk';
 
 interface EndFlowTableProps {
@@ -22,7 +23,46 @@ function dispatchSummary(c: WaitingCustomer): string {
   return `(${c.dsTuVan ?? ''})(${c.dsThuCu ?? ''})(${c.dsBackup ?? ''})`;
 }
 
+function DeviceReceiptModal({ customer, onClose }: { customer: WaitingCustomer; onClose: () => void }) {
+  const receipt = customer.deviceReceipt;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-neutral-900">Thông tin máy đã nghiệm thu</h3>
+            <p className="text-sm text-neutral-500">STT {customer.stt ?? '—'} · {customer.name ?? '—'}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Đóng" className="text-2xl leading-none text-neutral-400">×</button>
+        </div>
+        <div className="mt-4 grid gap-2 rounded-xl bg-neutral-50 p-4 text-sm sm:grid-cols-2">
+          <div><span className="text-neutral-500">IMEI</span><p className="font-semibold text-neutral-800">{receipt?.imei || '—'}</p></div>
+          <div><span className="text-neutral-500">QR máy cũ</span><p className="font-semibold text-neutral-800">{receipt?.scanQr || '—'}</p></div>
+        </div>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">Ảnh nghiệm thu</p>
+        {receipt?.images.length ? (
+          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {receipt.images.map((image) => {
+              const query = image.sourceRecordId
+                ? `?table=master&record_id=${encodeURIComponent(image.sourceRecordId)}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${image.sourceRevision ? `&rev=${image.sourceRevision}` : ''}`
+                : '';
+              return <img key={image.fileToken} src={`${workerBaseUrl()}/media/${encodeURIComponent(image.fileToken)}${query}`} alt={image.name ?? 'Ảnh nghiệm thu'} className="max-h-64 w-full rounded-xl object-contain" />;
+            })}
+          </div>
+        ) : <p className="mt-2 text-sm text-neutral-400">Không có ảnh nghiệm thu.</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) {
+  const [deviceCustomer, setDeviceCustomer] = useState<WaitingCustomer | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -69,6 +109,7 @@ export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) 
                   <th className="py-2 pr-3">Ghi chú thanh toán</th>
                   <th className="py-2 pr-3">Check thu máy cũ</th>
                   <th className="py-2 pr-3">Khâu cuối</th>
+                  <th className="py-2 pr-3">Thời gian</th>
                   <th className="py-2">Nhân sự</th>
                 </tr>
               </thead>
@@ -80,9 +121,14 @@ export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) 
                     <td className="py-2 pr-3 text-neutral-600">{c.productName ?? '—'}</td>
                     <td className="py-2 pr-3 text-neutral-600">{c.paymentNote ?? '—'}</td>
                     <td className={`py-2 pr-3 ${c.deviceAccepted ? 'font-bold text-red-600' : 'text-neutral-600'}`}>
-                      {c.deviceAcceptedText ?? '—'}
+                      {c.deviceAccepted ? (
+                        <button type="button" onClick={() => setDeviceCustomer(c)} className="text-left underline decoration-dotted underline-offset-2">
+                          {c.deviceAcceptedText ?? 'Đã nghiệm thu'}
+                        </button>
+                      ) : (c.deviceAcceptedText ?? '—')}
                     </td>
                     <td className="py-2 pr-3 text-neutral-600">{c.doneInFlow ?? '—'}</td>
+                    <td className="py-2 pr-3 text-neutral-600">{c.endFlowTime ?? '—'}</td>
                     <td className="py-2 text-neutral-600">{dispatchSummary(c)}</td>
                   </tr>
                 ))}
@@ -91,6 +137,7 @@ export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) 
           </div>
         )}
       </div>
+      {deviceCustomer && <DeviceReceiptModal customer={deviceCustomer} onClose={() => setDeviceCustomer(null)} />}
     </div>
   );
 }

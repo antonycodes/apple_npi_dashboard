@@ -248,6 +248,7 @@ export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
   doneInFlow: 'Done in Flow (khâu vừa hoàn tất)',
   endFlow: 'End flow (đã xong toàn bộ quy trình)',
   time: 'Thời gian check-in (để sắp thứ tự)',
+  endFlowTime: 'Thời gian End-flow',
 };
 
 export const MASTER_FIELD_LABELS: Record<keyof MasterFieldMap, string> = {
