@@ -36,6 +36,15 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   const [deskAlerts, setDeskAlerts] = useState<DeskAlert[]>([]);
   const visibleDeskAlerts = simulation ? guestRoom?.alerts ?? [] : deskAlerts;
   const realtimeApiUrl = toRuntimeConfig(settings).apiUrl;
+  const displayedDesks = useMemo(
+    () => simulation
+      ? desks.map((desk) => {
+          const guestName = settings.guestUsers[desk.id]?.trim() || settings.guestUsers[desk.label]?.trim();
+          return guestName ? { ...desk, staffName: guestName } : desk;
+        })
+      : desks,
+    [desks, settings.guestUsers, simulation],
+  );
 
   useEffect(() => {
     if (simulation) return undefined;
@@ -101,15 +110,15 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
 
   const selectedDesk = useMemo(() => {
     if (!selectedId) return null;
-    return desks.find((d) => d.id === selectedId) ?? null;
-  }, [desks, selectedId]);
+    return displayedDesks.find((d) => d.id === selectedId) ?? null;
+  }, [displayedDesks, selectedId]);
 
   const selectedCustomerData = useMemo(() => {
     if (!selectedCustomer) return null;
-    const desk = desks.find((d) => d.id === selectedCustomer.deskId);
+    const desk = displayedDesks.find((d) => d.id === selectedCustomer.deskId);
     const customer = desk?.receivedCustomers?.[selectedCustomer.index];
     return desk && customer ? { desk, customer } : null;
-  }, [desks, selectedCustomer]);
+  }, [displayedDesks, selectedCustomer]);
 
   const overtimeDesks = useMemo<OvertimeDesk[]>(() => {
     return desks.flatMap((desk) => {
@@ -283,7 +292,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
           */}
           <div className="mx-auto w-full min-w-0 flex-1 max-w-[calc((100dvh-11.5rem)*16/9)] [@media(max-aspect-ratio:8/5)]:max-w-[calc((100dvh-11.5rem)*1.44)]">
             <LayoutDashboard
-              desks={desks}
+              desks={displayedDesks}
               selectedId={selectedId}
               onSelect={handleSelect}
               onSelectCustomer={handleSelectCustomer}

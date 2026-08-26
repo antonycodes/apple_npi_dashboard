@@ -88,9 +88,9 @@ function guestTables(tables: LarkTables, fields = DEFAULT_FIELD_CONFIG): LarkTab
       const endFlow = cellToString(row.fields[fields.checkin.endFlow])?.toLowerCase();
       return Boolean(name && stt && endFlow !== 'end flow');
     })
-    .slice(0, 5);
+    .slice(0, 10);
 
-  // Chỉ đưa 5 khách Check-in vào bản mô phỏng. Không đưa Master/Dispatch/DS
+  // Chỉ đưa 10 khách Check-in vào bản mô phỏng. Không đưa Master/Dispatch/DS
   // Master vào để sơ đồ bàn và các khâu thật không lộ dữ liệu vận hành.
   return {
     checkin: candidates,

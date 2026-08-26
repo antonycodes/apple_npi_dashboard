@@ -1215,13 +1215,13 @@ export class GuestSimulationRoom extends DurableObject {
     if (request.method === 'POST' && path === 'init') {
       const body = await request.json();
       const tables = body?.tables;
-      if (!tables || !Array.isArray(tables.checkin) || tables.checkin.length > 5) {
-        return json({ code: -1, msg: 'Guest room cần tối đa 5 khách Check-in.' }, 400);
+      if (!tables || !Array.isArray(tables.checkin) || tables.checkin.length > 10) {
+        return json({ code: -1, msg: 'Guest room cần tối đa 10 khách Check-in.' }, 400);
       }
       this.state = {
         baseTables: {
           checkin: tables.checkin,
-          orders: Array.isArray(tables.orders) ? tables.orders.slice(0, 5) : tables.checkin,
+          orders: Array.isArray(tables.orders) ? tables.orders.slice(0, 10) : tables.checkin,
           master: [],
           dispatch: [],
           dsMaster: [],
