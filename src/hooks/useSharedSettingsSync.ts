@@ -94,6 +94,7 @@ export function useSharedSettingsSync(): void {
           ...current,
           // Không kéo Mock từ KV nữa. Mock chỉ có hiệu lực trên /#/mock.
           sleepMode: Boolean(env.settings.sleepMode),
+          guestLock: Boolean(env.settings.guestLock),
           apiUrl,
           dispatchWebhookUrl: migrateEndpoint(env.settings.dispatchWebhookUrl, current.dispatchWebhookUrl),
           staffActionWebhookUrl: migrateEndpoint(env.settings.staffActionWebhookUrl, current.staffActionWebhookUrl),

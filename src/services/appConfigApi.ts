@@ -38,6 +38,7 @@ function sharedConfigWorkerUrl(): string {
 export interface SharedSettings {
   useMock: boolean;
   sleepMode: boolean;
+  guestLock: boolean;
   apiUrl: string;
   dispatchWebhookUrl: string;
   staffActionWebhookUrl: string;
@@ -104,6 +105,7 @@ export function toSharedSettings(s: LarkSettings): SharedSettings {
     // được kích hoạt bằng route /#/mock, không đồng bộ theo cấu hình nữa.
     useMock: false,
     sleepMode: s.sleepMode,
+    guestLock: s.guestLock,
     apiUrl: s.apiUrl.trim(),
     dispatchWebhookUrl: s.dispatchWebhookUrl.trim(),
     staffActionWebhookUrl: s.staffActionWebhookUrl.trim(),

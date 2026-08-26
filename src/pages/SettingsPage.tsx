@@ -92,6 +92,44 @@ function SleepModePush({ settings }: { settings: LarkSettings }) {
   );
 }
 
+function GuestLockPush({ settings }: { settings: LarkSettings }) {
+  const session = useAdminInfo();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (session?.role !== 'admin') return null;
+
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    const next = { ...settings, guestLock: !settings.guestLock };
+    try {
+      await pushSharedSettings(toSharedSettings(next));
+      larkSettingsStore.save(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => void toggle()}
+        disabled={busy}
+        className={settings.guestLock
+          ? 'rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40'
+          : 'rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-red-700 disabled:opacity-40'}
+      >
+        {busy ? 'Đang cập nhật…' : settings.guestLock ? 'Active Guest' : 'Lock Guest'}
+      </button>
+      {error && <p className="text-sm text-red-600">✗ {error}</p>}
+    </div>
+  );
+}
+
 /**
  * SettingsPage — connect the dashboard to a real Lark Base at runtime.
  *
@@ -366,11 +404,11 @@ export default function SettingsPage() {
         </Section>
 
         <Section title="5 · Chế độ màn hình nhân viên">
-          <p className="mb-3 text-sm text-neutral-500">
-            Lock khóa toàn bộ màn hình vận hành, trừ admin và nhân viên MSNV S12196.
-          </p>
           <div>
             <SleepModePush settings={saved} />
+          </div>
+          <div className="mt-4">
+            <GuestLockPush settings={saved} />
           </div>
         </Section>
 

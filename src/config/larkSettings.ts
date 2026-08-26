@@ -30,6 +30,8 @@ export interface LarkSettings {
   useMock: boolean;
   /** Khóa các màn hình nhân viên từ xa; máy Điều phối không bị khóa. */
   sleepMode: boolean;
+  /** Khóa route Guest trên toàn bộ thiết bị. */
+  guestLock: boolean;
   mode: ConnMode;
   apiUrl: string;
   host: string;
@@ -63,6 +65,7 @@ export function defaultSettings(): LarkSettings {
   return {
     useMock: ENV_DEFAULTS.useMock,
     sleepMode: false,
+    guestLock: false,
     mode: 'proxy',
     apiUrl: ENV_DEFAULTS.apiUrl,
     host: ENV_DEFAULTS.host,

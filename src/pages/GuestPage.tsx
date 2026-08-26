@@ -5,6 +5,7 @@ import StaffPage from './StaffPage';
 import KhoAppPage from './KhoAppPage';
 import { GuestSimulationProvider } from '@/guest/GuestSimulationContext';
 import { ALL_POSITIONS, CLUSTER_LABELS } from '@/config/layoutConfig';
+import { useLarkSettings } from '@/config/larkSettings';
 
 type GuestMode = 'DP' | 'KHO' | `TV${number}` | `TC${number}` | `BK${number}`;
 
@@ -34,6 +35,7 @@ const ROLE_GROUPS = (room: boolean) => room
     ];
 
 export default function GuestPage() {
+  const settings = useLarkSettings();
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialRole = params?.get('role')?.replace(/^Guest_/, '');
   const initialMode = [...MODES, ...DESK_ROLES].some((item) => item.id === initialRole) ? initialRole as GuestMode : null;
@@ -46,7 +48,7 @@ export default function GuestPage() {
 
   return (
     <GuestSimulationProvider roomCode={roomCode} role={initialMode ? `Guest_${initialMode}` : 'Guest_DP'}>
-      {selected ? (
+      {settings.guestLock ? <GuestLockedScreen /> : selected ? (
         <div className="min-h-full bg-neutral-100">
           {mode === 'DP' && <DashboardPage readOnly simulation onGuestBack={() => setMode(null)} />}
           {mode !== 'DP' && mode !== 'KHO' && (
@@ -106,5 +108,18 @@ export default function GuestPage() {
         </main>
       )}
     </GuestSimulationProvider>
+  );
+}
+
+function GuestLockedScreen() {
+  return (
+    <div className="fixed inset-0 z-[100] flex min-h-dvh items-center justify-center bg-[#d40020]/85 px-6 text-white" role="dialog" aria-modal="true" aria-label="Guest đang bị khóa">
+      <div className="w-full max-w-sm text-center">
+        <div className="mx-auto flex h-52 w-52 items-center justify-center overflow-hidden rounded-[2.5rem]" aria-hidden="true">
+          <img src="/system-issue-sticker.jpg" alt="" className="h-full w-full object-cover" />
+        </div>
+        <h1 className="mt-6 text-xl font-black leading-tight tracking-tight">Oops! Guest đang bị khóa</h1>
+      </div>
+    </div>
   );
 }
