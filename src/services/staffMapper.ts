@@ -32,6 +32,8 @@ import type { LarkRecord, LarkTables } from './larkTypes';
 export interface PrevImage {
   fileToken: string;
   name: string | null;
+  /** Record Master chứa attachment, cần cho quyền Bitable nâng cao. */
+  sourceRecordId?: string;
 }
 
 /**
@@ -44,6 +46,7 @@ export interface PrevDeviceData {
   scanQr: string | null;
   imei: string | null;
   images: PrevImage[];
+  sourceRecordId?: string;
 }
 
 /** 1 khách trên màn hình NV — như `DeskCustomer`, thêm URL cho nút bấm. */
@@ -122,13 +125,13 @@ function indexCheckinByStt(rows: LarkRecord[], fm: CheckinFieldMap): Map<string,
 }
 
 /** Lấy danh sách file_token từ 1 ô đính kèm Bitable (mảng object). */
-function cellToAttachments(v: unknown): PrevImage[] {
+function cellToAttachments(v: unknown, sourceRecordId?: string): PrevImage[] {
   if (!Array.isArray(v)) return [];
   const out: PrevImage[] = [];
   for (const part of v as Array<Record<string, unknown>>) {
     const token = part?.file_token;
     if (typeof token === 'string' && token.trim()) {
-      out.push({ fileToken: token.trim(), name: typeof part.name === 'string' ? part.name : null });
+      out.push({ fileToken: token.trim(), name: typeof part.name === 'string' ? part.name : null, sourceRecordId });
     }
   }
   return out;
@@ -156,7 +159,8 @@ export function indexPrevDeviceByStt(rows: LarkRecord[], fm: MasterFieldMap): Ma
         thuLaiMay,
         scanQr: cellToString(r.fields[fm.scanQr]),
         imei: cellToString(r.fields[fm.imei]),
-        images: cellToAttachments(r.fields[fm.hinhNghiemThu]),
+        images: cellToAttachments(r.fields[fm.hinhNghiemThu], r.record_id),
+        sourceRecordId: r.record_id,
       },
     });
   }

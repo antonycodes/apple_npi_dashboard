@@ -11,8 +11,9 @@ import { useEffect, useState } from 'react';
 import { workerBaseUrl } from '@/services/adminApi';
 import type { StaffCustomer } from '@/services/staffMapper';
 
-function mediaUrl(fileToken: string): string {
-  return `${workerBaseUrl()}/media/${encodeURIComponent(fileToken)}`;
+function mediaUrl(fileToken: string, recordId?: string): string {
+  const query = recordId ? `?table=master&record_id=${encodeURIComponent(recordId)}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}` : '';
+  return `${workerBaseUrl()}/media/${encodeURIComponent(fileToken)}${query}`;
 }
 
 function ImageIcon() {
@@ -76,7 +77,7 @@ function DeviceImagesModal({
         </div>
         <div className="flex min-h-0 items-center justify-center overflow-hidden rounded-xl bg-neutral-100">
           <img
-            src={mediaUrl(current.fileToken)}
+            src={mediaUrl(current.fileToken, current.sourceRecordId ?? customer.prevDevice?.sourceRecordId)}
             alt={current.name ?? `Ảnh máy cũ ${selected + 1}`}
             className="max-h-[68vh] max-w-full object-contain"
           />
@@ -91,7 +92,7 @@ function DeviceImagesModal({
                 aria-label={`Xem ảnh ${index + 1}`}
                 className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 ${index === selected ? 'border-brand' : 'border-transparent'}`}
               >
-                <img src={mediaUrl(image.fileToken)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                <img src={mediaUrl(image.fileToken, image.sourceRecordId ?? customer.prevDevice?.sourceRecordId)} alt="" loading="lazy" className="h-full w-full object-cover" />
               </button>
             ))}
           </div>
