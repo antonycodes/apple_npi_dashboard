@@ -67,7 +67,7 @@ export default function GuestPage() {
           {mode !== 'DP' && !mode.startsWith('KHO') && (
             <StaffPage lockedDeskId={`Guest_${mode}`} guestMode onGuestBack={() => setMode(null)} />
           )}
-          {mode.startsWith('KHO') && <KhoAppPage guestMode onGuestBack={() => setMode(null)} />}
+          {mode.startsWith('KHO') && <KhoAppPage guestMode guestRole={`Guest_${mode}`} onGuestBack={() => setMode(null)} />}
         </div>
       ) : (
         <main className="min-h-full bg-neutral-100 px-4 py-8 text-neutral-800 sm:px-6">

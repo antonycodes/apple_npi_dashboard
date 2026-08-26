@@ -30,12 +30,14 @@ export default function KhoAppPage({
   onLogout,
   onGuestBack,
   guestMode = false,
+  guestRole,
 }: {
   /** Chỉ có khi tài khoản còn chỗ khác trong roster (vd vừa KHO1 vừa bàn TV4). */
   onChangeDesk?: () => void;
   onLogout?: () => void;
   onGuestBack?: () => void;
   guestMode?: boolean;
+  guestRole?: string;
 }) {
   const session = useAdminInfo();
   const settings = useLarkSettings();
@@ -52,6 +54,7 @@ export default function KhoAppPage({
 
   const webhookUrl = staffActionWebhookUrl(settings);
   const larkConnected = !isMock && !dataError && Boolean(lastUpdated);
+  const guestDeskLabel = guestRole?.replace(/^Guest_/, '') || 'Kho';
 
   const submit = async (values: KhoHandoverValues) => {
     if (sending) return;
@@ -117,7 +120,7 @@ export default function KhoAppPage({
         <div className="mx-auto w-full max-w-[430px] px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-xl font-black leading-none text-neutral-900">Kho</h1>
+              <h1 className="text-xl font-black leading-none text-neutral-900">{guestMode ? guestDeskLabel : 'Kho'}</h1>
               <p className="mt-0.5 truncate text-sm text-neutral-500">
                 {session?.desk ? `${session.desk} · ` : ''}
                 {session?.name || session?.username || 'Nhân viên kho'}
