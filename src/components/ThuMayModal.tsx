@@ -172,7 +172,7 @@ export default function ThuMayModal({
                       </div>
                     ) : (
                       <img
-                        src={`${workerBaseUrl()}/media/${encodeURIComponent(img.fileToken)}?table=master&record_id=${encodeURIComponent(img.sourceRecordId ?? '')}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}`}
+                        src={`${workerBaseUrl()}/media/${encodeURIComponent(img.fileToken)}?table=master&record_id=${encodeURIComponent(img.sourceRecordId ?? '')}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${img.sourceRevision ? `&rev=${img.sourceRevision}` : ''}`}
                         alt={img.name ?? 'Ảnh nghiệm thu'}
                         className="h-20 w-20 rounded-xl border border-neutral-300 object-cover"
                       />

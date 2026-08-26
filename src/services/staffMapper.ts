@@ -34,6 +34,7 @@ export interface PrevImage {
   name: string | null;
   /** Record Master chứa attachment, cần cho quyền Bitable nâng cao. */
   sourceRecordId?: string;
+  sourceRevision?: number;
 }
 
 /**
@@ -47,6 +48,7 @@ export interface PrevDeviceData {
   imei: string | null;
   images: PrevImage[];
   sourceRecordId?: string;
+  sourceRevision?: number;
 }
 
 /** 1 khách trên màn hình NV — như `DeskCustomer`, thêm URL cho nút bấm. */
@@ -131,7 +133,15 @@ function cellToAttachments(v: unknown, sourceRecordId?: string): PrevImage[] {
   for (const part of v as Array<Record<string, unknown>>) {
     const token = part?.file_token;
     if (typeof token === 'string' && token.trim()) {
-      out.push({ fileToken: token.trim(), name: typeof part.name === 'string' ? part.name : null, sourceRecordId });
+      let sourceRevision: number | undefined;
+      try {
+        const rawExtra = typeof part.url === 'string' ? new URL(part.url).searchParams.get('extra') : null;
+        const revision = rawExtra ? JSON.parse(rawExtra)?.bitablePerm?.rev : undefined;
+        if (Number.isFinite(Number(revision))) sourceRevision = Number(revision);
+      } catch {
+        // Attachment metadata is optional.
+      }
+      out.push({ fileToken: token.trim(), name: typeof part.name === 'string' ? part.name : null, sourceRecordId, sourceRevision });
     }
   }
   return out;
@@ -161,6 +171,7 @@ export function indexPrevDeviceByStt(rows: LarkRecord[], fm: MasterFieldMap): Ma
         imei: cellToString(r.fields[fm.imei]),
         images: cellToAttachments(r.fields[fm.hinhNghiemThu], r.record_id),
         sourceRecordId: r.record_id,
+        sourceRevision: cellToAttachments(r.fields[fm.hinhNghiemThu], r.record_id)[0]?.sourceRevision,
       },
     });
   }

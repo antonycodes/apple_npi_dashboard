@@ -774,7 +774,7 @@ async function getRecordFieldMeta(env, host, appToken, token, tableId) {
   if (data.code !== 0) throw new Error(`Đọc danh sách cột lỗi: ${data.msg} (code ${data.code})`);
 
   const byName = new Map();
-  for (const f of data?.data?.items ?? []) byName.set(f.field_name, { type: f.type, uiType: f.ui_type });
+  for (const f of data?.data?.items ?? []) byName.set(f.field_name, { id: f.field_id, type: f.type, uiType: f.ui_type });
   recordFieldMetaCache.set(tableId, { byName, expiresAt: now + FIELD_CACHE_MS });
   return byName;
 }
@@ -1782,10 +1782,36 @@ export default {
       if (!fileToken) return json({ code: -1, msg: 'Thiếu file_token' }, 400);
       try {
         const bearerToken = await getToken(env, host);
-        const r = await fetch(
-          `${host}/open-apis/drive/v1/medias/${encodeURIComponent(fileToken)}/download`,
-          { headers: { Authorization: `Bearer ${bearerToken}` } },
-        );
+        const mediaRequest = new URL(request.url);
+        const mediaTable = mediaRequest.searchParams.get('table') || 'master';
+        const mediaRecordId = mediaRequest.searchParams.get('record_id') || '';
+        const mediaFieldName = mediaRequest.searchParams.get('field') || 'Hình nghiệm thu máy cũ';
+        const mediaTableEnv = TABLE_ENV[mediaTable];
+        const mediaTableId = mediaTableEnv ? env[mediaTableEnv] : '';
+        if (!mediaTableId || !mediaRecordId) return json({ code: -1, msg: 'Thiếu ngữ cảnh attachment: table và record_id' }, 400);
+        const mediaAppToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
+        const mediaFields = await getRecordFieldMeta(env, host, mediaAppToken, bearerToken, mediaTableId);
+        const mediaFieldId = mediaFields.get(mediaFieldName)?.id;
+        if (!mediaFieldId) return json({ code: -1, msg: `Không tìm thấy cột attachment "${mediaFieldName}"` }, 500);
+        const rev = mediaRequest.searchParams.get('rev');
+        const extra = JSON.stringify({
+          bitablePerm: {
+            tableId: mediaTableId,
+            ...(rev ? { rev: Number(rev) } : {}),
+            attachments: { [mediaFieldId]: { [mediaRecordId]: [fileToken] } },
+          },
+        });
+        const tmpEndpoint = new URL(`${host}/open-apis/drive/v1/medias/batch_get_tmp_download_url`);
+        tmpEndpoint.searchParams.set('file_tokens', fileToken);
+        tmpEndpoint.searchParams.set('extra', extra);
+        const tmp = await fetch(tmpEndpoint, { headers: { Authorization: `Bearer ${bearerToken}` } });
+        const tmpBody = await tmp.json().catch(() => null);
+        const temporaryUrl = tmpBody?.data?.tmp_download_urls?.find((item) => item?.file_token === fileToken)?.tmp_download_url;
+        const directEndpoint = new URL(`${host}/open-apis/drive/v1/medias/${encodeURIComponent(fileToken)}/download`);
+        directEndpoint.searchParams.set('extra', extra);
+        const r = temporaryUrl
+          ? await fetch(temporaryUrl)
+          : await fetch(directEndpoint, { headers: { Authorization: `Bearer ${bearerToken}` } });
         // Lark báo lỗi bằng JSON; tải được thì trả thẳng bytes ảnh.
         const contentType = r.headers.get('Content-Type') || '';
         if (!r.ok || contentType.includes('application/json')) {
