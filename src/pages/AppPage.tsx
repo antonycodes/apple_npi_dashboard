@@ -40,6 +40,10 @@ function loaiLabel(ws: Workspace): string {
   return 'Bàn phục vụ';
 }
 
+function workspaceDisplayName(ws: Workspace): string {
+  return ws.role === 'dieuphoi' ? 'Điều phối' : ws.desk;
+}
+
 /**
  * Bước chọn CHỖ LÀM VIỆC — chỉ liệt kê chỗ của chính tài khoản đang đăng nhập.
  *
@@ -95,11 +99,11 @@ function DeskChoice({
             >
               <span
                 className={[
-                  'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black',
+                  'flex h-11 min-w-11 shrink-0 items-center justify-center rounded-xl px-2 text-sm font-black',
                   ws.desk === current ? 'bg-white/15 text-white' : 'bg-neutral-100 text-neutral-700',
                 ].join(' ')}
               >
-                {ws.desk}
+                {workspaceDisplayName(ws)}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-base font-bold">{loaiLabel(ws)}</span>
