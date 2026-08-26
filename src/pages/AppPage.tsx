@@ -41,7 +41,9 @@ function loaiLabel(ws: Workspace): string {
 }
 
 function workspaceDisplayName(ws: Workspace): string {
-  return ws.role === 'dieuphoi' ? 'Điều phối' : ws.desk;
+  return ws.role === 'dieuphoi' || /^DP\d*$/i.test(ws.desk.trim())
+    ? 'Điều phối'
+    : ws.desk;
 }
 
 /**
