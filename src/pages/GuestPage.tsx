@@ -23,16 +23,12 @@ const DESK_ROLES = ALL_POSITIONS.map((position) => ({
   label: position.label,
   note: CLUSTER_LABELS[position.cluster],
 }));
-const ROLE_GROUPS = (room: boolean) => room
-  ? [
-      { label: 'Điều phối & Kho', items: [MODES[0], MODES[4]] },
-      { label: 'Tư vấn', items: DESK_ROLES.filter((item) => item.id.startsWith('TV')) },
-      { label: 'Thu cũ', items: DESK_ROLES.filter((item) => item.id.startsWith('TC')) },
-      { label: 'Backup', items: DESK_ROLES.filter((item) => item.id.startsWith('BK')) },
-    ]
-  : [
-      { label: 'Màn hình chính', items: MODES },
-    ];
+const ROLE_GROUPS = [
+  { label: 'Điều phối & Kho', items: [MODES[0], MODES[4]] },
+  { label: 'Tư vấn', items: DESK_ROLES.filter((item) => item.id.startsWith('TV')) },
+  { label: 'Thu cũ', items: DESK_ROLES.filter((item) => item.id.startsWith('TC')) },
+  { label: 'Backup', items: DESK_ROLES.filter((item) => item.id.startsWith('BK')) },
+];
 
 export default function GuestPage() {
   const settings = useLarkSettings();
@@ -68,7 +64,7 @@ export default function GuestPage() {
               </a>
             </div>
             <div className="space-y-3">
-              {ROLE_GROUPS(Boolean(roomCode)).map((group) => (
+              {ROLE_GROUPS.map((group) => (
                 <section key={group.label} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
                   <button
                     type="button"
@@ -92,7 +88,7 @@ export default function GuestPage() {
                       >
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-black text-neutral-900">{item.label}</span>
-                          <span className="mt-0.5 block truncate font-mono text-[10px] font-bold uppercase tracking-wide text-neutral-400">{item.code}</span>
+                        <span className="mt-0.5 block truncate font-mono text-[10px] font-bold uppercase tracking-wide text-neutral-400">{settings.guestUsers[item.id] || item.code}</span>
                         </span>
                         <span className="shrink-0 text-lg leading-none text-neutral-300" aria-hidden="true">›</span>
                       </button>

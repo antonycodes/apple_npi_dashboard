@@ -39,6 +39,7 @@ export interface SharedSettings {
   useMock: boolean;
   sleepMode: boolean;
   guestLock: boolean;
+  guestUsers: Record<string, string>;
   apiUrl: string;
   dispatchWebhookUrl: string;
   staffActionWebhookUrl: string;
@@ -106,6 +107,7 @@ export function toSharedSettings(s: LarkSettings): SharedSettings {
     useMock: false,
     sleepMode: s.sleepMode,
     guestLock: s.guestLock,
+    guestUsers: s.guestUsers,
     apiUrl: s.apiUrl.trim(),
     dispatchWebhookUrl: s.dispatchWebhookUrl.trim(),
     staffActionWebhookUrl: s.staffActionWebhookUrl.trim(),

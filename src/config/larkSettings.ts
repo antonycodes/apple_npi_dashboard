@@ -32,6 +32,8 @@ export interface LarkSettings {
   sleepMode: boolean;
   /** Khóa route Guest trên toàn bộ thiết bị. */
   guestLock: boolean;
+  /** Tên hiển thị thủ công cho từng bàn Guest. */
+  guestUsers: Record<string, string>;
   mode: ConnMode;
   apiUrl: string;
   host: string;
@@ -66,6 +68,7 @@ export function defaultSettings(): LarkSettings {
     useMock: ENV_DEFAULTS.useMock,
     sleepMode: false,
     guestLock: false,
+    guestUsers: {},
     mode: 'proxy',
     apiUrl: ENV_DEFAULTS.apiUrl,
     host: ENV_DEFAULTS.host,

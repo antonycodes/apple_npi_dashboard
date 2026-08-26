@@ -205,6 +205,7 @@ function normalizeAppSettings(input) {
     useMock: Boolean(s.useMock),
     sleepMode: Boolean(s.sleepMode),
     guestLock: Boolean(s.guestLock),
+    guestUsers: s.guestUsers && typeof s.guestUsers === 'object' ? s.guestUsers : {},
     apiUrl: str(s.apiUrl),
     dispatchWebhookUrl: str(s.dispatchWebhookUrl),
     staffActionWebhookUrl: str(s.staffActionWebhookUrl),

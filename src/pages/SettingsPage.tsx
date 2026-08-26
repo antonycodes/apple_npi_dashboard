@@ -92,17 +92,26 @@ function SleepModePush({ settings }: { settings: LarkSettings }) {
   );
 }
 
-function GuestLockPush({ settings }: { settings: LarkSettings }) {
+function GuestModeSettings({ settings }: { settings: LarkSettings }) {
   const session = useAdminInfo();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rows, setRows] = useState(() => Object.entries(settings.guestUsers).map(([code, username]) => ({ code, username })));
+  const [pastedText, setPastedText] = useState('');
+
+  useEffect(() => {
+    setRows(Object.entries(settings.guestUsers).map(([code, username]) => ({ code, username })));
+  }, [settings.guestUsers]);
 
   if (session?.role !== 'admin') return null;
 
-  const toggle = async () => {
+  const save = async (guestLock = settings.guestLock) => {
     setBusy(true);
     setError(null);
-    const next = { ...settings, guestLock: !settings.guestLock };
+    const guestUsers = Object.fromEntries(rows
+      .map((row) => [row.code.trim().toUpperCase(), row.username.trim()] as const)
+      .filter(([code, username]) => code && username));
+    const next = { ...settings, guestLock, guestUsers };
     try {
       await pushSharedSettings(toSharedSettings(next));
       larkSettingsStore.save(next);
@@ -113,21 +122,64 @@ function GuestLockPush({ settings }: { settings: LarkSettings }) {
     }
   };
 
+  const importCsv = async (file: File) => {
+    const text = (await file.text()).replace(/^\uFEFF/, '');
+    setPastedText(text);
+    setRows(parseGuestUsers(text));
+  };
+
+  const importPasted = () => setRows(parseGuestUsers(pastedText));
+
   return (
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={() => void toggle()}
-        disabled={busy}
-        className={settings.guestLock
-          ? 'rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40'
-          : 'rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-red-700 disabled:opacity-40'}
-      >
-        {busy ? 'Đang cập nhật…' : settings.guestLock ? 'Active Guest' : 'Lock Guest'}
-      </button>
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3">
+        <button type="button" onClick={() => void save(!settings.guestLock)} disabled={busy} className={settings.guestLock ? 'rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40' : 'rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-red-700 disabled:opacity-40'}>
+          {busy ? 'Đang cập nhật…' : settings.guestLock ? 'Active Guest' : 'Lock Guest'}
+        </button>
+        <label className="cursor-pointer rounded-lg border border-neutral-300 bg-white px-4 py-2.5 text-sm font-bold text-neutral-700 hover:bg-neutral-50">
+          Upload CSV
+          <input type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importCsv(file); event.currentTarget.value = ''; }} />
+        </label>
+      </div>
+      <div className="space-y-2 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-3">
+        <label className="block text-sm font-bold text-neutral-700" htmlFor="guest-users-paste">Dán dữ liệu từ Excel</label>
+        <textarea
+          id="guest-users-paste"
+          value={pastedText}
+          onChange={(event) => setPastedText(event.target.value)}
+          placeholder={'TV1\tLong Nhân\nTC1\tNguyễn A'}
+          rows={3}
+          className="w-full rounded border border-neutral-200 bg-white px-2 py-1.5 font-mono text-sm"
+        />
+        <button type="button" onClick={importPasted} disabled={!pastedText.trim()} className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-100 disabled:opacity-40">
+          Cập nhật từ dữ liệu đã dán
+        </button>
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-neutral-200">
+        <table className="w-full min-w-[32rem] text-sm">
+          <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500"><tr><th className="px-3 py-2">Mã bàn</th><th className="px-3 py-2">Username</th><th className="w-16 px-3 py-2" /></tr></thead>
+          <tbody>
+            {rows.map((row, index) => <tr key={`${index}-${row.code}`} className="border-t border-neutral-100">
+              <td className="px-3 py-2"><input value={row.code} onChange={(event) => setRows((current) => current.map((item, i) => i === index ? { ...item, code: event.target.value } : item))} className="w-full rounded border border-neutral-200 px-2 py-1.5 uppercase" placeholder="TV1" /></td>
+              <td className="px-3 py-2"><input value={row.username} onChange={(event) => setRows((current) => current.map((item, i) => i === index ? { ...item, username: event.target.value } : item))} className="w-full rounded border border-neutral-200 px-2 py-1.5" placeholder="Long Nhân" /></td>
+              <td className="px-3 py-2"><button type="button" onClick={() => setRows((current) => current.filter((_, i) => i !== index))} className="font-bold text-red-600">Xóa</button></td>
+            </tr>)}
+            {!rows.length && <tr><td colSpan={3} className="px-3 py-6 text-center text-neutral-400">Chưa có Username Guest</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" onClick={() => void save()} disabled={busy} className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-40">Lưu cấu hình Guest</button>
       {error && <p className="text-sm text-red-600">✗ {error}</p>}
     </div>
   );
+}
+
+function parseGuestUsers(text: string): Array<{ code: string; username: string }> {
+  return text.replace(/^\uFEFF/, '').split(/\r?\n/)
+    .map((line) => (line.includes('\t') ? line.split('\t') : line.split(','))
+      .map((cell) => cell.trim().replace(/^"|"$/g, '')))
+    .filter(([code, username]) => code && username && !/^mã bàn$/i.test(code) && !/^username$/i.test(username))
+    .map(([code, username]) => ({ code: code.toUpperCase(), username }));
 }
 
 /**
@@ -407,13 +459,14 @@ export default function SettingsPage() {
           <div>
             <SleepModePush settings={saved} />
           </div>
-          <div className="mt-4">
-            <GuestLockPush settings={saved} />
-          </div>
+        </Section>
+
+        <Section title="6 · Cài đặt Chế độ khách">
+          <GuestModeSettings settings={saved} />
         </Section>
 
         {/* Đồng bộ cấu hình toàn thiết bị — thứ khiến máy nhân viên theo admin */}
-        <Section title="6 · Đồng bộ cấu hình toàn thiết bị">
+        <Section title="7 · Đồng bộ cấu hình toàn thiết bị">
           <SharedSettingsPush settings={saved} dirty={dirty} />
         </Section>
 
