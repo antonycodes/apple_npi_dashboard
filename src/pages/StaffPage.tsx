@@ -106,6 +106,8 @@ export default function StaffPage({
 
   const locked = Boolean(lockedDeskId);
   const deskId = lockedDeskId ?? savedDeskId;
+  const guestDeskCode = guestMode && deskId ? deskId.replace(/^Guest_/, '').toUpperCase() : '';
+  const guestDisplayName = guestDeskCode ? settings.guestUsers[guestDeskCode]?.trim() : '';
   const { view, loading, error, lastUpdated, isMock, refresh } = useStaffDeskData(deskId, guestMode);
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
@@ -159,7 +161,7 @@ export default function StaffPage({
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-black leading-none text-neutral-900">
-                  {view?.label ?? deskId}
+                  {guestDisplayName || view?.label || deskId}
                 </span>
                 <span className="truncate text-sm text-neutral-500">
                   {view ? CLUSTER_LABELS[view.cluster] : 'Bàn không hợp lệ'}
