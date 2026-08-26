@@ -447,10 +447,11 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         });
       },
       callCoordinator(deskId, role, stt, customerName) {
-        postAction('help', stt ?? '', 'consult', deskId, { role, customerName: customerName ?? '' });
+        const resolvedDesk = deskForGuestRole(deskId) ?? deskId;
+        postAction('help', stt ?? '', 'consult', resolvedDesk, { role, customerName: customerName ?? '' });
       },
       clearCoordinatorAlert(deskId) {
-        postAction('help-clear', '', 'consult', deskId);
+        postAction('help-clear', '', 'consult', deskForGuestRole(deskId) ?? deskId);
       },
       alerts,
       staffTables(deskId) {
