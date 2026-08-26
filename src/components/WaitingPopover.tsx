@@ -115,7 +115,7 @@ export default function WaitingPopover({ zoneLabel, zone, customer, index, onDis
                 title={`Điều phối khách STT ${customer.stt ?? ''}`}
                 className="rounded-lg bg-brand px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:opacity-90"
               >
-                DP
+                Điều phối
               </button>
             )}
             <button
