@@ -25,7 +25,7 @@
  * vòng đọc kế tiếp.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { LEADTIME_WARNING_MINUTES, staffActionWebhookUrl, useLarkSettings } from '@/config/larkSettings';
+import { LEADTIME_WARNING_MINUTES, staffActionWebhookUrl, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import { formatElapsed, staffTimerStore, useStaffTimers, type TimerEntry } from '@/config/staffTimers';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
@@ -34,6 +34,7 @@ import type { PrevImage, StaffCustomer, StaffDeskView } from '@/services/staffMa
 import StaffReceiveFormModal, { type ReceiveFormValues } from './StaffReceiveFormModal';
 import ThuMayModal, { type ThuMayValues } from './ThuMayModal';
 import type { ClusterKey } from '@/types/desk';
+import { sendDeskAlert } from '@/services/dashboardRealtime';
 
 /** Trạng thái lạc quan tự huỷ sau 2 phút (NV mở link rồi bỏ ngang). */
 const PENDING_TTL_MS = 120_000;
@@ -454,6 +455,7 @@ export default function StaffDeskScreen({
 
   // ── Nút Tiếp nhận qua webhook: form recheck → POST tạo record SS_Master ──
   const settings = useLarkSettings();
+  const realtimeApiUrl = toRuntimeConfig(settings).apiUrl;
   const leadtimeMinutes = settings.leadtimeMinutes[view.cluster];
   const webhookUrl = staffActionWebhookUrl(settings);
   const [sending, setSending] = useState(false);
@@ -466,6 +468,18 @@ export default function StaffDeskScreen({
   const [quickReceiveError, setQuickReceiveError] = useState<string | null>(null);
   /** Sheet "chỉ thu máy" đang mở hay không (NV gõ STT bên trong sheet). */
   const [thuMayOpen, setThuMayOpen] = useState(false);
+  const [deskAlertMessage, setDeskAlertMessage] = useState<string | null>(null);
+
+  const callCoordinator = () => {
+    if (simulation) return;
+    const sent = sendDeskAlert(realtimeApiUrl, {
+      deskId: view.id,
+      role: STAGE_LABEL[view.cluster],
+      stt: primary?.stt ?? ghost?.stt ?? null,
+      customerName: primary?.name ?? ghost?.name ?? null,
+    });
+    setDeskAlertMessage(sent ? 'Đã báo Điều phối.' : 'Chưa kết nối Dashboard Điều phối. Vui lòng thử lại.');
+  };
 
   /**
    * Gửi record "chỉ thu máy" — không đi qua Tiếp nhận, không cần Điều phối.
@@ -888,6 +902,17 @@ export default function StaffDeskScreen({
           </button>
         )}
 
+        <button
+          type="button"
+          onClick={callCoordinator}
+          disabled={simulation}
+          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-3xl border-2 border-amber-300 bg-amber-50 text-base font-bold text-amber-800 shadow-sm active:bg-amber-100 disabled:opacity-40"
+        >
+          <BellIcon />
+          Gọi Điều phối
+        </button>
+        {deskAlertMessage && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{deskAlertMessage}</p>}
+
         {/* ── Lịch sử khách đã tiếp nhận · hoàn tất (sổ xuống) ─────────── */}
         <CompletedHistorySection customers={view.completedHistory} />
       </main>
@@ -1006,6 +1031,14 @@ function LightningIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6 fill-current">
       <path d="M13.2 2.5 4.7 13.1c-.6.8-.1 1.9.9 1.9h4.8l-.8 6.5c-.1 1.1 1.3 1.6 1.9.6l8.2-11.3c.6-.8 0-1.9-1-1.9h-4.6l1-5.1c.2-1.1-1.2-1.9-1.9-1.3Z" />
+    </svg>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current">
+      <path d="M12 22a2.4 2.4 0 0 0 2.25-1.6h-4.5A2.4 2.4 0 0 0 12 22Zm7-4.1-1.35-1.5V10a5.65 5.65 0 0 0-4.65-5.57V3.7a1 1 0 1 0-2 0v.73A5.65 5.65 0 0 0 6.35 10v6.4L5 17.9v1.1h14v-1.1Z" />
     </svg>
   );
 }

@@ -946,11 +946,13 @@ export class DashboardSnapshotCoordinator extends DurableObject {
     this.lastAttemptAt = 0;
     this.lastWarnings = [];
     this.webSockets = new Set();
+    this.activeAlerts = new Map();
     this.ready = ctx.blockConcurrencyWhile(async () => {
       const values = await ctx.storage.get([
         ...DASHBOARD_TABLES.map((key) => `table:${key}`),
         'dirty',
         'warnings',
+        'desk-alerts',
       ]);
       for (const key of DASHBOARD_TABLES) {
         const saved = values.get(`table:${key}`);
@@ -958,6 +960,10 @@ export class DashboardSnapshotCoordinator extends DurableObject {
       }
       this.dirty = values.get('dirty') !== false;
       this.lastWarnings = Array.isArray(values.get('warnings')) ? values.get('warnings') : [];
+      const alerts = values.get('desk-alerts');
+      if (Array.isArray(alerts)) {
+        for (const alert of alerts) if (alert?.id && alert?.deskId) this.activeAlerts.set(alert.id, alert);
+      }
       this.lastAttemptAt = this.tableState.size
         ? Math.max(...Array.from(this.tableState.values(), (value) => value.updatedAt))
         : 0;
@@ -1021,6 +1027,7 @@ export class DashboardSnapshotCoordinator extends DurableObject {
     this.webSockets.add(server);
     server.serializeAttachment({ connectedAt: Date.now() });
     server.send(JSON.stringify({ type: 'connected', generatedAt: new Date().toISOString() }));
+    for (const alert of this.activeAlerts.values()) server.send(JSON.stringify({ type: 'desk-alert', alert }));
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -1048,8 +1055,37 @@ export class DashboardSnapshotCoordinator extends DurableObject {
     this.webSockets.delete(webSocket);
   }
 
-  webSocketMessage(webSocket, message) {
-    if (message === 'ping' || message?.data === 'ping') webSocket.send('pong');
+  async webSocketMessage(webSocket, message) {
+    const raw = typeof message === 'string' ? message : message?.data;
+    if (raw === 'ping') {
+      webSocket.send('pong');
+      return;
+    }
+    let body;
+    try { body = JSON.parse(String(raw || '{}')); } catch { return; }
+    if (body.type === 'desk-alert') {
+      await this.ready;
+      const input = body.alert || {};
+      const alert = {
+        id: crypto.randomUUID(),
+        deskId: String(input.deskId || '').trim(),
+        role: String(input.role || '').trim(),
+        stt: input.stt == null ? null : String(input.stt),
+        customerName: input.customerName == null ? null : String(input.customerName),
+        createdAt: Date.now(),
+      };
+      if (!alert.deskId) return;
+      this.activeAlerts.set(alert.id, alert);
+      await this.ctx.storage.put('desk-alerts', [...this.activeAlerts.values()]);
+      this.broadcast({ type: 'desk-alert', alert });
+    }
+    if (body.type === 'desk-alert-cleared' && body.alertId) {
+      await this.ready;
+      const alertId = String(body.alertId);
+      if (!this.activeAlerts.delete(alertId)) return;
+      await this.ctx.storage.put('desk-alerts', [...this.activeAlerts.values()]);
+      this.broadcast({ type: 'desk-alert-cleared', alertId });
+    }
   }
 
   broadcast(message) {

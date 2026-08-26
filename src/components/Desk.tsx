@@ -17,6 +17,7 @@ export interface DeskProps {
   x: number;
   y: number;
   selected?: boolean;
+  alert?: boolean;
   /** Dimmed by an active filter — faded and non-interactive. */
   dimmed?: boolean;
   onClick?: (id: string) => void;
@@ -34,6 +35,7 @@ export default function Desk({
   x,
   y,
   selected = false,
+  alert = false,
   dimmed = false,
   onClick,
 }: DeskProps) {
@@ -58,10 +60,18 @@ export default function Desk({
         interactive ? 'cursor-pointer hover:scale-110 hover:shadow-md' : 'cursor-default',
         dimmed ? 'pointer-events-none opacity-15' : '',
         selected ? 'z-20 scale-110 ring-2 ring-blue-500 ring-offset-1' : 'z-10',
+        alert ? 'ring-2 ring-amber-400 ring-offset-2 shadow-[0_0_14px_rgba(245,158,11,0.7)]' : '',
         TONE[status],
       ].join(' ')}
     >
       {id}
+      {alert && (
+        <span aria-label="Cần Điều phối hỗ trợ" className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-amber-950 shadow-sm">
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3 fill-current">
+            <path d="M12 22a2.4 2.4 0 0 0 2.25-1.6h-4.5A2.4 2.4 0 0 0 12 22Zm7-4.1-1.35-1.5V10a5.65 5.65 0 0 0-4.65-5.57V3.7a1 1 0 1 0-2 0v.73A5.65 5.65 0 0 0 6.35 10v6.4L5 17.9v1.1h14v-1.1Z" />
+          </svg>
+        </span>
+      )}
       {nextWaitingStt && (
         <span
           data-desk-badge=""

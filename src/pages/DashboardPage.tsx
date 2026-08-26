@@ -18,9 +18,11 @@ import { useAdminInfo } from '@/config/adminSession';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
-import { LEADTIME_WARNING_MINUTES, useLarkSettings } from '@/config/larkSettings';
+import { LEADTIME_WARNING_MINUTES, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { formatElapsed } from '@/config/staffTimers';
 import type { WaitingZoneKey } from '@/types/desk';
+import { clearDeskAlert, subscribeDeskAlerts } from '@/services/dashboardRealtime';
+import type { DeskAlert } from '@/services/deskAlerts';
 
 export default function DashboardPage({ readOnly = false, simulation = false, onGuestBack }: { readOnly?: boolean; simulation?: boolean; onGuestBack?: () => void } = {}) {
   const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, pendingDevice, loading, error, lastUpdated, isMock, refresh } =
@@ -31,6 +33,17 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   const [now, setNow] = useState(() => Date.now());
   const [showGuestQr, setShowGuestQr] = useState(false);
   const [guestQrDataUrl, setGuestQrDataUrl] = useState<string | null>(null);
+  const [deskAlerts, setDeskAlerts] = useState<DeskAlert[]>([]);
+  const realtimeApiUrl = toRuntimeConfig(settings).apiUrl;
+
+  useEffect(() => {
+    if (simulation) return undefined;
+    return subscribeDeskAlerts(
+      realtimeApiUrl,
+      (alert) => setDeskAlerts((current) => [...current.filter((item) => item.id !== alert.id), alert]),
+      (alertId) => setDeskAlerts((current) => current.filter((alert) => alert.id !== alertId)),
+    );
+  }, [realtimeApiUrl, simulation]);
 
   useEffect(() => {
     if (!showGuestQr || !guestRoom?.joinUrl) {
@@ -240,6 +253,26 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
       )}
 
       <main className="px-3 py-3 md:px-6 md:py-5">
+        {deskAlerts.length > 0 && (
+          <section className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 shadow-sm" aria-live="polite">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-amber-800">Cần Điều phối hỗ trợ ({deskAlerts.length})</h2>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {deskAlerts.map((alert) => (
+                <button
+                  key={alert.id}
+                  type="button"
+                  onClick={() => {
+                    handleSelect(alert.deskId);
+                    clearDeskAlert(realtimeApiUrl, alert.id);
+                  }}
+                  className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-left text-xs font-semibold text-neutral-800 hover:bg-amber-100"
+                >
+                  {alert.deskId} · STT {alert.stt ?? '—'} · {alert.customerName ?? 'Khách'}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
         <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           <StatusLegend />
           <FilterBar
@@ -274,6 +307,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
               onSelect={handleSelect}
               onSelectCustomer={handleSelectCustomer}
               selectedCustomer={selectedCustomer}
+              alertedDeskIds={new Set(deskAlerts.map((alert) => alert.deskId))}
               overlay={
                 selectedDesk ? (
                   <DeskPopover desk={selectedDesk} onClose={() => setSelectedId(null)} />

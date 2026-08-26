@@ -17,6 +17,7 @@ interface LayoutDashboardProps {
   onSelectCustomer?: (deskId: string, index: number) => void;
   /** Chấm khách đang chọn (viền nổi bật). */
   selectedCustomer?: { deskId: string; index: number } | null;
+  alertedDeskIds?: ReadonlySet<string>;
   /** Optional overlay (e.g. the popover) drawn on top of the board. */
   overlay?: React.ReactNode;
 }
@@ -44,6 +45,7 @@ export default function LayoutDashboard({
   onSelect,
   onSelectCustomer,
   selectedCustomer,
+  alertedDeskIds,
   overlay,
 }: LayoutDashboardProps) {
   return (
@@ -84,6 +86,7 @@ export default function LayoutDashboard({
             x={d.x}
             y={d.y}
             selected={selectedId === d.id}
+            alert={alertedDeskIds?.has(d.id)}
             onClick={onSelect}
           />
         ))}
