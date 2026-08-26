@@ -25,7 +25,7 @@ import type { CheckinFieldMap, DsMasterFieldMap, FieldConfig, MasterFieldMap } f
 import { toFieldConfig } from '@/config/larkSettings';
 import { ALL_POSITIONS } from '@/config/layoutConfig';
 import type { ClusterKey, DeskCustomer } from '@/types/desk';
-import { cellToBool, cellToString, cellToUrl, cellToUsername, mapDeskStates, normalizeDeskCode } from './larkMapper';
+import { cellToBool, cellToNumber, cellToString, cellToUrl, cellToUsername, mapDeskStates, normalizeDeskCode } from './larkMapper';
 import type { LarkRecord, LarkTables } from './larkTypes';
 
 /** 1 ảnh nghiệm thu đã ghi vào Base từ lần trước. */
@@ -163,6 +163,29 @@ export function indexPrevDeviceByStt(rows: LarkRecord[], fm: MasterFieldMap): Ma
   return new Map([...best].map(([stt, v]) => [stt, v.data]));
 }
 
+/**
+ * STT còn thực sự đang phục vụ ở bàn nào.
+ *
+ * Master là bảng log nên một khách có thể có cả dòng "Tiếp nhận" cũ và
+ * "Hoàn tất" mới hơn. Chỉ lọc các dòng "Tiếp nhận" sẽ giữ khách bị khóa mãi.
+ */
+function indexActiveStts(rows: LarkRecord[], fm: MasterFieldMap): string[] {
+  const latest = new Map<string, { time: number; status: string | null; stt: string }>();
+  for (const row of rows) {
+    const stt = cellToString(row.fields[fm.sttInput]);
+    if (!stt) continue;
+    const desk = normalizeDeskCode(cellToString(row.fields[fm.deskCode])) ?? `unknown:${stt}`;
+    const key = `${desk}\u0000${stt}`;
+    const time = cellToNumber(row.fields[fm.time]);
+    const previous = latest.get(key);
+    if (previous && time < previous.time) continue;
+    latest.set(key, { time, status: cellToString(row.fields[fm.status]), stt });
+  }
+  return [...latest.values()]
+    .filter((row) => row.status === 'Tiếp nhận')
+    .map((row) => row.stt);
+}
+
 /** Mã bàn → 2 link cấp bàn trong `Master_DS`. */
 function indexDeskUrls(
   rows: LarkRecord[],
@@ -269,10 +292,7 @@ export function mapStaffDeskView(
   const dangOBanNay = new Set(
     (state?.receivedCustomers ?? []).map((c) => c.stt).filter((x): x is string => Boolean(x)),
   );
-  const activeStts = tables.master
-    .filter((r) => cellToString(r.fields[fields.master.status]) === 'Tiếp nhận')
-    .map((r) => cellToString(r.fields[fields.master.sttInput]))
-    .filter((x): x is string => Boolean(x));
+  const activeStts = indexActiveStts(tables.master, fields.master);
   const pendingDevice =
     pos.cluster === 'consult'
       ? []
