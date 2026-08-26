@@ -66,7 +66,11 @@ export default function Desk({
     >
       {id}
       {alert && (
-        <span aria-label="Cần Điều phối hỗ trợ" className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-amber-950 shadow-sm">
+        <span
+          aria-label="Cần Điều phối hỗ trợ"
+          style={{ right: 'calc(var(--dot) * -1.25)', top: 'calc(var(--dot) * -0.45)' }}
+          className="absolute flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-amber-950 shadow-sm"
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3 fill-current">
             <path d="M12 22a2.4 2.4 0 0 0 2.25-1.6h-4.5A2.4 2.4 0 0 0 12 22Zm7-4.1-1.35-1.5V10a5.65 5.65 0 0 0-4.65-5.57V3.7a1 1 0 1 0-2 0v.73A5.65 5.65 0 0 0 6.35 10v6.4L5 17.9v1.1h14v-1.1Z" />
           </svg>

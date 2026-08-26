@@ -18,6 +18,7 @@ import { deskAnchorRect, useAnchoredPlacement } from './popoverPlacement';
 interface DeskPopoverProps {
   desk: DeskData;
   onClose: () => void;
+  onAcknowledgeAlert?: () => void;
 }
 
 const STATUS_TEXT = {
@@ -25,7 +26,7 @@ const STATUS_TEXT = {
   available: { label: 'Trống', cls: 'bg-vacant' },
 } as const;
 
-export default function DeskPopover({ desk, onClose }: DeskPopoverProps) {
+export default function DeskPopover({ desk, onClose, onAcknowledgeAlert }: DeskPopoverProps) {
   const [showNext, setShowNext] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -89,6 +90,18 @@ export default function DeskPopover({ desk, onClose }: DeskPopoverProps) {
         <dl className="space-y-1.5 text-sm">
           <Row label="Tên NV" value={desk.staffName} />
           <Row label="Trạng thái" value={desk.currentStatus} />
+          {onAcknowledgeAlert && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onAcknowledgeAlert();
+              }}
+              className="mt-2 w-full rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-white hover:bg-amber-600"
+            >
+              Đã tiếp nhận hỗ trợ
+            </button>
+          )}
           {status === 'occupied' ? (
             <>
               {(desk.receivedCustomers?.length ?? 0) > 0 ? (
@@ -176,4 +189,3 @@ function Row({
     </div>
   );
 }
-

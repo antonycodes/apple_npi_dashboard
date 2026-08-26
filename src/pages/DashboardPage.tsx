@@ -253,26 +253,6 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
       )}
 
       <main className="px-3 py-3 md:px-6 md:py-5">
-        {deskAlerts.length > 0 && (
-          <section className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 shadow-sm" aria-live="polite">
-            <h2 className="text-xs font-bold uppercase tracking-wide text-amber-800">Cần Điều phối hỗ trợ ({deskAlerts.length})</h2>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {deskAlerts.map((alert) => (
-                <button
-                  key={alert.id}
-                  type="button"
-                  onClick={() => {
-                    handleSelect(alert.deskId);
-                    clearDeskAlert(realtimeApiUrl, alert.id);
-                  }}
-                  className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-left text-xs font-semibold text-neutral-800 hover:bg-amber-100"
-                >
-                  {alert.deskId} · STT {alert.stt ?? '—'} · {alert.customerName ?? 'Khách'}
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
         <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           <StatusLegend />
           <FilterBar
@@ -310,7 +290,15 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
               alertedDeskIds={new Set(deskAlerts.map((alert) => alert.deskId))}
               overlay={
                 selectedDesk ? (
-                  <DeskPopover desk={selectedDesk} onClose={() => setSelectedId(null)} />
+                  <DeskPopover
+                    desk={selectedDesk}
+                    onClose={() => setSelectedId(null)}
+                    onAcknowledgeAlert={deskAlerts.some((alert) => alert.deskId === selectedDesk.id) ? () => {
+                      deskAlerts
+                        .filter((alert) => alert.deskId === selectedDesk.id)
+                        .forEach((alert) => clearDeskAlert(realtimeApiUrl, alert.id));
+                    } : undefined}
+                  />
                 ) : selectedCustomerData ? (
                   <CustomerPopover
                     desk={selectedCustomerData.desk}
