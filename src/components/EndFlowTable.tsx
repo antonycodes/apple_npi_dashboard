@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { workerBaseUrl } from '@/services/adminApi';
+import { guestMediaUrl } from '@/services/guestMedia';
 import type { WaitingCustomer } from '@/types/desk';
 
 interface EndFlowTableProps {
@@ -52,7 +53,7 @@ function DeviceReceiptModal({ customer, onClose }: { customer: WaitingCustomer; 
               const query = image.sourceRecordId
                 ? `?table=master&record_id=${encodeURIComponent(image.sourceRecordId)}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${image.sourceRevision ? `&rev=${image.sourceRevision}` : ''}`
                 : '';
-              return <img key={image.fileToken} src={`${workerBaseUrl()}/media/${encodeURIComponent(image.fileToken)}${query}`} alt={image.name ?? 'Ảnh nghiệm thu'} className="max-h-64 w-full rounded-xl object-contain" />;
+              return <img key={image.fileToken} src={guestMediaUrl(image.fileToken) ?? `${workerBaseUrl()}/media/${encodeURIComponent(image.fileToken)}${query}`} alt={image.name ?? 'Ảnh nghiệm thu'} className="max-h-64 w-full rounded-xl object-contain" />;
             })}
           </div>
         ) : <p className="mt-2 text-sm text-neutral-400">Không có ảnh nghiệm thu.</p>}

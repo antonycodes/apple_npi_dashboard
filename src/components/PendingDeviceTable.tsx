@@ -9,9 +9,12 @@
  */
 import { useEffect, useState } from 'react';
 import { workerBaseUrl } from '@/services/adminApi';
+import { guestMediaUrl } from '@/services/guestMedia';
 import type { StaffCustomer } from '@/services/staffMapper';
 
 function mediaUrl(fileToken: string, recordId?: string, revision?: number): string {
+  const guestUrl = guestMediaUrl(fileToken);
+  if (guestUrl) return guestUrl;
   const query = recordId ? `?table=master&record_id=${encodeURIComponent(recordId)}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${revision ? `&rev=${revision}` : ''}` : '';
   return `${workerBaseUrl()}/media/${encodeURIComponent(fileToken)}${query}`;
 }

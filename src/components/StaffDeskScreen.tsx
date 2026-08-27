@@ -29,6 +29,7 @@ import { LEADTIME_WARNING_MINUTES, staffActionWebhookUrl, toRuntimeConfig, useLa
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import { formatElapsed, staffTimerStore, useStaffTimers, type TimerEntry } from '@/config/staffTimers';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
+import { uploadGuestImage } from '@/services/guestMedia';
 import { sendStaffAction } from '@/services/staffActionWebhook';
 import type { PrevImage, StaffCustomer, StaffDeskView } from '@/services/staffMapper';
 import StaffReceiveFormModal, { type ReceiveFormValues } from './StaffReceiveFormModal';
@@ -512,14 +513,13 @@ export default function StaffDeskScreen({
     try {
       if (simulation) {
         setVuaThu((p) => ({ ...p, [stt]: Date.now() }));
-        const now = Date.now();
-        const simulatedImages: PrevImage[] = [
-          ...values.anhGiuLai,
-          ...values.anhMoi.map((file, index) => ({
-            fileToken: `guest-file-${stt}-${now}-${index}`,
-            name: file.name || `Ảnh nghiệm thu ${index + 1}`,
-          })),
-        ].slice(0, 3);
+        const simulatedImages: PrevImage[] = [...values.anhGiuLai];
+        if (guestSimulation?.roomCode) {
+          for (const file of values.anhMoi.slice(0, Math.max(0, 3 - simulatedImages.length))) {
+            const uploaded = await uploadGuestImage(guestSimulation.roomCode, file);
+            simulatedImages.push({ fileToken: uploaded.fileToken, name: uploaded.name });
+          }
+        }
         guestSimulation?.quickDevice(stt, view.cluster, view.id, {
           scanQr: values.scanQr.trim() || undefined,
           imei: values.imei.trim() || undefined,
@@ -601,13 +601,13 @@ export default function StaffDeskScreen({
         }
         if (formAction === 'hoan_tat') {
           const isDeviceStage = view.cluster === 'tradein' || view.cluster === 'backup';
-          const deviceImages: PrevImage[] = [
-            ...values.anhGiuLai,
-            ...values.hinhNghiemThu.map((file, index) => ({
-              fileToken: `guest-file-${stt}-${Date.now()}-${index}`,
-              name: file.name || `Ảnh nghiệm thu ${index + 1}`,
-            })),
-          ].slice(0, 3);
+          const deviceImages: PrevImage[] = [...values.anhGiuLai];
+          if (isDeviceStage && guestSimulation?.roomCode) {
+            for (const file of values.hinhNghiemThu.slice(0, Math.max(0, 3 - deviceImages.length))) {
+              const uploaded = await uploadGuestImage(guestSimulation.roomCode, file);
+              deviceImages.push({ fileToken: uploaded.fileToken, name: uploaded.name });
+            }
+          }
           guestSimulation?.complete(
             stt,
             view.cluster,

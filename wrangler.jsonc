@@ -22,6 +22,12 @@
       "id": "4c310d2bfd1f4295aa980b05f913cfba"
     }
   ],
+  "r2_buckets": [
+    {
+      "binding": "GUEST_MEDIA",
+      "bucket_name": "vhws-guest-media"
+    }
+  ],
   // Một Durable Object serialize việc làm mới snapshot cho toàn bộ thiết bị
   // trong event; migration SQLite chỉ tạo class mới, không đụng KV CONFIG.
   "durable_objects": {

@@ -1196,6 +1196,7 @@ function guestRoomCode() {
 export class GuestSimulationRoom extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
+    this.env = env;
     this.state = null;
     this.ready = ctx.blockConcurrencyWhile(async () => {
       this.state = await ctx.storage.get('state');
@@ -1219,6 +1220,7 @@ export class GuestSimulationRoom extends DurableObject {
         return json({ code: -1, msg: 'Guest room cần tối đa 10 khách Check-in.' }, 400);
       }
       this.state = {
+        roomCode: body?.roomCode || null,
         baseTables: {
           checkin: tables.checkin,
           orders: Array.isArray(tables.orders) ? tables.orders.slice(0, 10) : tables.checkin,
@@ -1237,6 +1239,40 @@ export class GuestSimulationRoom extends DurableObject {
     }
 
     if (!this.state) return json({ code: -1, msg: 'Phòng không tồn tại hoặc đã hết hạn.' }, 404);
+
+    if (request.method === 'POST' && path === 'media') {
+      const form = await request.formData();
+      const file = form.get('file');
+      if (!file || typeof file.arrayBuffer !== 'function') {
+        return json({ code: -1, msg: 'Thiếu file ảnh.' }, 400);
+      }
+      const contentType = String(file.type || '');
+      if (!contentType.startsWith('image/')) {
+        return json({ code: -1, msg: 'Chỉ chấp nhận file ảnh.' }, 400);
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        return json({ code: -1, msg: 'Ảnh không được vượt quá 10 MB.' }, 413);
+      }
+      const mediaId = crypto.randomUUID();
+      const name = String(file.name || 'guest-image').slice(0, 120);
+      await this.env.GUEST_MEDIA.put(`guest/${this.state.roomCode}/${mediaId}`, file, {
+        httpMetadata: { contentType },
+        customMetadata: { name },
+      });
+      await this.save();
+      return json({ code: 0, msg: 'success', data: { fileToken: `guest-r2:${this.state.roomCode}:${mediaId}`, name } });
+    }
+
+    if (request.method === 'GET' && path.startsWith('media/')) {
+      const mediaId = path.slice('media/'.length);
+      if (!/^[0-9a-f-]{36}$/i.test(mediaId)) return json({ code: -1, msg: 'Ảnh không hợp lệ.' }, 400);
+      const object = await this.env.GUEST_MEDIA.get(`guest/${this.state.roomCode}/${mediaId}`);
+      if (!object) return json({ code: -1, msg: 'Không tìm thấy ảnh.' }, 404);
+      const headers = new Headers(CORS);
+      headers.set('Content-Type', object.httpMetadata?.contentType || 'application/octet-stream');
+      headers.set('Cache-Control', 'private, max-age=3600');
+      return new Response(object.body, { headers });
+    }
 
     if (request.method === 'POST' && path === 'join') {
       const body = await request.json();
@@ -1389,6 +1425,13 @@ export class GuestSimulationRoom extends DurableObject {
   async alarm() {
     await this.ready;
     if (this.state && this.state.expiresAt <= Date.now()) {
+      const prefix = `guest/${this.state.roomCode}/`;
+      let cursor;
+      do {
+        const listed = await this.env.GUEST_MEDIA.list({ prefix, cursor });
+        if (listed.objects.length) await Promise.all(listed.objects.map((item) => this.env.GUEST_MEDIA.delete(item.key)));
+        cursor = listed.truncated ? listed.cursor : undefined;
+      } while (cursor);
       this.state = null;
       await this.ctx.storage.deleteAll();
     } else if (this.state) {
@@ -1416,7 +1459,7 @@ export default {
         const created = await stub.fetch(new Request('https://guest-room/init', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: await request.text(),
+          body: JSON.stringify({ ...(await request.json()), roomCode: code }),
         }));
         const body = await created.json();
         return json({ ...body, data: { ...body.data, roomCode: code } }, created.status);
@@ -1425,7 +1468,8 @@ export default {
       if (!code) return json({ code: -1, msg: 'Thiếu mã phòng.' }, 400);
       const action = segments[2] || 'state';
       const stub = env.GUEST_SIMULATION_ROOM.get(env.GUEST_SIMULATION_ROOM.idFromName(code));
-      return await stub.fetch(new Request(`https://guest-room/${action}`, request));
+      const forwardedPath = action === 'media' && segments[3] ? `media/${segments[3]}` : action;
+      return await stub.fetch(new Request(`https://guest-room/${forwardedPath}`, request));
     }
 
     if (request.method === 'POST' && route === 'lark/events') {

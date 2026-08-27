@@ -18,6 +18,7 @@
  */
 import { useEffect, useState } from 'react';
 import { workerBaseUrl } from '@/services/adminApi';
+import { guestMediaUrl } from '@/services/guestMedia';
 import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 
 /** `file_token` không phải URL — ảnh Bitable phải đi qua `/media/<token>` của worker. */
@@ -25,6 +26,8 @@ import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 const MAX_COMPLETED_INLINE = 3;
 
 function mediaUrl(fileToken: string): string {
+  const guestUrl = guestMediaUrl(fileToken);
+  if (guestUrl) return guestUrl;
   return `${workerBaseUrl()}/media/${encodeURIComponent(fileToken)}`;
 }
 

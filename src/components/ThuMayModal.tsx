@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react';
 import QrScanButton from '@/components/QrScanButton';
 import { workerBaseUrl } from '@/services/adminApi';
+import { guestMediaUrl } from '@/services/guestMedia';
 import type { PrevImage, StaffCustomer } from '@/services/staffMapper';
 
 export interface ThuMayValues {
@@ -27,6 +28,8 @@ export interface ThuMayValues {
 const MAX_ANH = 3;
 
 function mediaUrl(image: PrevImage): string {
+  const guestUrl = guestMediaUrl(image.fileToken);
+  if (guestUrl) return guestUrl;
   const query = image.sourceRecordId
     ? `?table=master&record_id=${encodeURIComponent(image.sourceRecordId)}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${image.sourceRevision ? `&rev=${image.sourceRevision}` : ''}`
     : '';
@@ -174,16 +177,7 @@ export default function ThuMayModal({
                     {/* Token KHÔNG phải URL — phải đi qua `/media/<token>` của
                         worker, vì link Lark trả về đòi Bearer nên thẻ <img>
                         không tự tải được. */}
-                    {img.fileToken.startsWith('guest-file-') ? (
-                      <div
-                        className="flex h-20 w-20 flex-col items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-1 text-center text-[10px] font-semibold text-emerald-700"
-                        title={img.name ?? 'Ảnh mô phỏng'}
-                      >
-                        <span className="text-lg">▣</span>
-                        <span className="line-clamp-2">Ảnh mô phỏng</span>
-                      </div>
-                    ) : (
-                      <button
+                    <button
                         type="button"
                         onClick={() => setPreviewImage(img)}
                         aria-label={`Xem ảnh lớn ${img.name ?? 'ảnh nghiệm thu'}`}
@@ -194,8 +188,7 @@ export default function ThuMayModal({
                           alt={img.name ?? 'Ảnh nghiệm thu'}
                           className="h-full w-full object-cover transition-transform hover:scale-105"
                         />
-                      </button>
-                    )}
+                    </button>
                     <button
                       type="button"
                       aria-label="Bỏ ảnh này"

@@ -17,6 +17,7 @@
 import { useEffect, useState } from 'react';
 import QrScanButton from '@/components/QrScanButton';
 import { workerBaseUrl } from '@/services/adminApi';
+import { guestMediaUrl } from '@/services/guestMedia';
 import type { PrevImage, StaffCustomer } from '@/services/staffMapper';
 import type { ClusterKey } from '@/types/desk';
 
@@ -196,7 +197,7 @@ export default function StaffReceiveFormModal({
                     {values.anhGiuLai.map((img) => (
                       <div key={img.fileToken} className="relative">
                         <img
-                          src={`${workerBaseUrl()}/media/${encodeURIComponent(img.fileToken)}?table=master&record_id=${encodeURIComponent(img.sourceRecordId ?? '')}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${img.sourceRevision ? `&rev=${img.sourceRevision}` : ''}`}
+                          src={guestMediaUrl(img.fileToken) ?? `${workerBaseUrl()}/media/${encodeURIComponent(img.fileToken)}?table=master&record_id=${encodeURIComponent(img.sourceRecordId ?? '')}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${img.sourceRevision ? `&rev=${img.sourceRevision}` : ''}`}
                           alt={img.name ?? 'Ảnh nghiệm thu'}
                           className="h-20 w-20 rounded-xl border border-neutral-300 object-cover"
                         />
