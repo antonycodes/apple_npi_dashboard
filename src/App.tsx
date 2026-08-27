@@ -66,7 +66,7 @@ function useAppRoute(): Route {
   const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
   const legacyPath = hashPath(window.location.hash);
   const path = legacyPath || pathname;
-  if (path === 'admin-dashboard') return { kind: 'dashboard' };
+  if (path === 'dashboard' || path === 'admin-dashboard') return { kind: 'dashboard' };
   if (path.startsWith('admin')) return { kind: 'app' };
   if (path === 'guest' || path.startsWith('guest/')) return { kind: 'guest' };
   if (path === 'check-in' || path.startsWith('check-in/')) return { kind: 'checkin' };

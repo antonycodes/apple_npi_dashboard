@@ -182,7 +182,7 @@ function SessionBar({
 /** Danh mục của admin — chỉ giữ các màn hình quản trị/vận hành chính. */
 function AdminHome({ name }: { name: string }) {
   const links: Array<{ href: string; label: string }> = [
-    { href: '/admin-dashboard', label: 'Dashboard Admin' },
+    { href: '/dashboard', label: 'Dashboard Admin' },
     { href: '/check-in', label: 'Check-in khách' },
     { href: '/settings', label: 'Cài đặt' },
   ];
@@ -320,7 +320,7 @@ export default function AppPage() {
               Xem bảng kho (không cần đăng nhập)
             </a>
             <a
-              href="/"
+              href="/dashboard"
               className="block rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-semibold text-neutral-600"
             >
               Về dashboard điều phối

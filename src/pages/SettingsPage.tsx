@@ -312,7 +312,7 @@ export default function SettingsPage() {
             <h1 className="text-xl font-bold">Cài đặt</h1>
           </div>
           <a
-            href="/"
+            href="/dashboard"
             className="rounded border border-neutral-300 px-3 py-1 text-sm font-medium text-neutral-600 hover:bg-neutral-50"
           >
             ← Về sơ đồ
@@ -522,7 +522,7 @@ function SettingsAccessGate() {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <h1 className="text-xl font-bold">Cài đặt</h1>
           <a
-            href="/"
+            href="/dashboard"
             className="rounded border border-neutral-300 px-3 py-1 text-sm font-medium text-neutral-600 hover:bg-neutral-50"
           >
             ← Về sơ đồ

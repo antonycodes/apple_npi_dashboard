@@ -17,14 +17,14 @@ export default function ViewSwitcher({ active }: { active: AppView }) {
   const views = isAdmin
     ? [
         { key: 'main' as const, label: 'Main', href: '/app' },
-        { key: 'dash' as const, label: 'Dash', href: '/' },
+        { key: 'dash' as const, label: 'Dash', href: '/dashboard' },
         ...(canOpenCheckin ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }] : []),
         ...OPERATION_VIEWS,
       ]
     : [
         isCoordinator
-          ? { key: 'dash' as const, label: 'Dash', href: '/' }
-          : { key: 'main' as const, label: 'Main', href: '/' },
+          ? { key: 'dash' as const, label: 'Dash', href: '/dashboard' }
+          : { key: 'main' as const, label: 'Main', href: '/dashboard' },
         ...(canOpenCheckin ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }] : []),
         ...OPERATION_VIEWS,
       ];
