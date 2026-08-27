@@ -253,10 +253,31 @@ function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, 
             <dt className="mb-1 text-neutral-500">Sản phẩm · Mã đơn hàng</dt>
             <dd className="space-y-1 rounded-lg bg-neutral-50 p-2 font-semibold text-neutral-800">
               {customer.productOrders?.length ? customer.productOrders.map((item) => (
-                <div key={item.label} className="flex items-start justify-between gap-3 border-b border-neutral-200 last:border-0 last:pb-0">
-                  <span className="min-w-0"><span className="mr-1.5 text-brand">{item.label}</span>{item.product}</span>
-                  <span className="shrink-0 text-right text-neutral-500">{item.orderCode || '—'}</span>
-                </div>
+                item.orderCode ? (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => onInspectOrder({
+                      id: `product-${item.orderCode}`,
+                      orderCode: item.orderCode!,
+                      rawText: item.product,
+                      deskId: desk.id,
+                      stt: customer.stt,
+                      customerName: customer.name,
+                      sentBy: 'Lark Base',
+                      createdAt: 0,
+                    })}
+                    className="flex w-full items-start justify-between gap-3 border-b border-neutral-200 pb-1 text-left last:border-0 last:pb-0 hover:bg-white"
+                  >
+                    <span className="min-w-0"><span className="mr-1.5 text-brand">{item.label}</span>{item.product}</span>
+                    <span className="shrink-0 text-right text-neutral-500">{item.orderCode}</span>
+                  </button>
+                ) : (
+                  <div key={item.label} className="flex items-start justify-between gap-3 border-b border-neutral-200 last:border-0 last:pb-0">
+                    <span className="min-w-0"><span className="mr-1.5 text-brand">{item.label}</span>{item.product}</span>
+                    <span className="shrink-0 text-right text-neutral-500">—</span>
+                  </div>
+                )
               )) : (customer.productName ? <ProductList value={customer.productName} /> : '—')}
             </dd>
           </div>
