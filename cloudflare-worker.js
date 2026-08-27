@@ -1545,6 +1545,9 @@ export class GuestSimulationRoom extends DurableObject {
               productLabel: String(item.productLabel || '').slice(0, 40),
               product: String(item.product || '').slice(0, 240),
               claimedBy: String(item.claimedBy || 'Kho').slice(0, 120),
+              claimedDesk: String(item.claimedDesk || '').slice(0, 40),
+              claimedName: String(item.claimedName || '').slice(0, 120),
+              claimedMsnv: String(item.claimedMsnv || '').slice(0, 80),
               claimedAt: Date.now(),
             };
           }
@@ -1560,6 +1563,9 @@ export class GuestSimulationRoom extends DurableObject {
             productLabel,
             product,
             claimedBy,
+            claimedDesk: String(body?.claimedDesk || '').slice(0, 40),
+            claimedName: String(body?.claimedName || '').slice(0, 120),
+            claimedMsnv: String(body?.claimedMsnv || '').slice(0, 80),
             claimedAt: Date.now(),
           };
         }
@@ -1737,6 +1743,9 @@ export class WarehouseOrderClaims extends DurableObject {
             productLabel: String(item.productLabel || '').slice(0, 40),
             product: String(item.product || '').slice(0, 240),
             claimedBy: String(item.claimedBy || 'Kho').slice(0, 120),
+            claimedDesk: String(item.claimedDesk || '').slice(0, 40),
+            claimedName: String(item.claimedName || '').slice(0, 120),
+            claimedMsnv: String(item.claimedMsnv || '').slice(0, 80),
             claimedAt: Date.now(),
           };
         }
@@ -1758,6 +1767,9 @@ export class WarehouseOrderClaims extends DurableObject {
       productLabel: String(body?.productLabel || '').slice(0, 40),
       product: String(body?.product || '').slice(0, 240),
       claimedBy: String(body?.claimedBy || 'Kho').slice(0, 120),
+      claimedDesk: String(body?.claimedDesk || '').slice(0, 40),
+      claimedName: String(body?.claimedName || '').slice(0, 120),
+      claimedMsnv: String(body?.claimedMsnv || '').slice(0, 80),
       claimedAt: Date.now(),
     };
     this.state[key] = claim;

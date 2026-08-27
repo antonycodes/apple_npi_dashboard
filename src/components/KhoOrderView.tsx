@@ -6,6 +6,11 @@ function claimKey(orderCode: string) {
   return orderCode.trim().toUpperCase();
 }
 
+function claimedLocation(claim: WarehouseOrderClaims[string]): string {
+  const parts = [claim.claimedDesk, claim.claimedName, claim.claimedMsnv].filter((value) => value?.trim());
+  return parts.length ? parts.join(' - ') : claim.claimedBy;
+}
+
 type OrderPreview = WarehouseInboxOrder & {
   productLabel: string;
   product: string;
@@ -57,7 +62,7 @@ function CustomerOrders({
               <p className="truncate text-xs font-semibold text-neutral-800">{item.productLabel === 'ORDER' ? 'Nội dung Order' : item.product || '—'}</p>
               <p className="truncate text-[10px] text-neutral-500">Mã đơn: {item.orderCode}</p>
             </div>
-            {current && <span className="shrink-0 rounded-lg bg-red-100 px-2 py-1.5 text-[10px] font-bold text-red-700">Đã khóa</span>}
+            {current && <span className="shrink-0 rounded-lg bg-red-100 px-2 py-1.5 text-[10px] font-bold text-red-700">Đã nhận · {claimedLocation(current)}</span>}
           </button>
         );
       })}
@@ -71,6 +76,9 @@ export default function KhoOrderView({
   onClaim,
   onClaimAll,
   claimedBy,
+  claimedDesk,
+  claimedName,
+  claimedMsnv,
   inboxOrders,
 }: {
   desks: DeskKhoState[];
@@ -78,6 +86,9 @@ export default function KhoOrderView({
   onClaim: (claim: Omit<WarehouseOrderClaim, 'claimedAt'>) => Promise<boolean>;
   onClaimAll: (claims: Array<Omit<WarehouseOrderClaim, 'claimedAt'>>) => Promise<boolean>;
   claimedBy: string;
+  claimedDesk?: string;
+  claimedName?: string;
+  claimedMsnv?: string;
   inboxOrders: WarehouseInboxOrder[];
 }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -148,7 +159,7 @@ export default function KhoOrderView({
             {(() => {
               const productItems = inspectOrders.filter((item) => item.productLabel !== 'ORDER');
               const inboxItems = inspectOrders.filter((item) => item.productLabel === 'ORDER');
-              const productClaims = Array.from(new Map(productItems.map((item) => [claimKey(item.orderCode), item])).values()).map((item) => ({ orderCode: item.orderCode, stt: item.stt, productLabel: item.productLabel, product: item.product, claimedBy }));
+              const productClaims = Array.from(new Map(productItems.map((item) => [claimKey(item.orderCode), item])).values()).map((item) => ({ orderCode: item.orderCode, stt: item.stt, productLabel: item.productLabel, product: item.product, claimedBy, claimedDesk, claimedName, claimedMsnv }));
               const allProductsClaimed = productClaims.length > 1 && productClaims.every((item) => claims[claimKey(item.orderCode)]);
               const productKey = `popup-products-${productClaims.map((item) => item.orderCode).join('|')}`;
               const productBusy = claiming === productKey;
@@ -158,7 +169,7 @@ export default function KhoOrderView({
                 const inboxKey = `popup-inbox-${item.orderCode}`;
                 setClaiming(inboxKey);
                 try {
-                  const won = await onClaim({ orderCode: item.orderCode, stt: item.stt, productLabel: 'ORDER', product: 'Order từ Tư vấn', claimedBy });
+                  const won = await onClaim({ orderCode: item.orderCode, stt: item.stt, productLabel: 'ORDER', product: 'Order từ Tư vấn', claimedBy, claimedDesk, claimedName, claimedMsnv });
                   if (won && inboxUnclaimed.length === 1 && !productClaims.some((product) => !claims[claimKey(product.orderCode)])) setInspectOrders(null);
                 } finally {
                   setClaiming(null);

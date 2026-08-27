@@ -44,6 +44,11 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
+function claimedLocation(claim: WarehouseOrderClaims[string]): string {
+  const parts = [claim.claimedDesk, claim.claimedName, claim.claimedMsnv].filter((value) => value?.trim());
+  return parts.length ? parts.join(' - ') : claim.claimedBy;
+}
+
 function OrderStatusBlock({ orders, claims, compact = false, onInspect }: { orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; compact?: boolean; onInspect?: (order: WarehouseInboxOrder) => void }) {
   if (!orders.length) return null;
   if (compact) {
@@ -58,7 +63,7 @@ function OrderStatusBlock({ orders, claims, compact = false, onInspect }: { orde
             <span className="shrink-0" aria-hidden="true">📦</span>
             <span className="min-w-0 flex-1 truncate font-semibold text-neutral-700" title={order.rawText}>Nội dung Order · {order.orderCode}</span>
             <span className={claim ? 'shrink-0 font-bold text-red-600' : 'shrink-0 font-semibold text-amber-700'}>
-              {claim ? `Đã nhận · ${claim.claimedBy}` : 'Chờ tiếp nhận'}
+              {claim ? `Đã nhận · ${claimedLocation(claim)}` : 'Chờ tiếp nhận'}
             </span>
           </>
         );
@@ -198,8 +203,7 @@ function CustomerCard({
   orders: WarehouseInboxOrder[];
   claims: WarehouseOrderClaims;
 }) {
-  const hasPendingOrder = orders.some((order) => !claims[order.orderCode.trim().toUpperCase()]);
-  const allOrdersClaimed = orders.length > 0 && !hasPendingOrder;
+  const hasOrder = orders.length > 0;
   return (
     <li
       role="button"
@@ -212,7 +216,7 @@ function CustomerCard({
         }
       }}
       title="Bấm để xem chi tiết khách"
-      className={['cursor-pointer rounded-lg border bg-white px-2 py-1.5 shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand', hasPendingOrder ? 'border-emerald-400' : allOrdersClaimed ? 'border-red-400' : 'border-occupied/40'].join(' ')}
+      className={['cursor-pointer rounded-lg border bg-white px-2 py-1.5 shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand', hasOrder ? 'border-red-400' : 'border-emerald-400'].join(' ')}
     >
       <CustomerCardBody customer={customer} showTradeIn={showTradeIn} onZoom={onZoom} orders={orders} claims={claims} />
     </li>
@@ -317,7 +321,7 @@ function OrderDetailsModal({ order, claim, orderCodes, claims, onClose, onUnlock
         </header>
         <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-sm text-neutral-800">{order.rawText}</pre>
         <p className={['mt-3 rounded-xl px-3 py-2 text-sm font-bold', claim ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'].join(' ')}>
-          {claim ? `Đã nhận · ${claim.claimedBy}` : 'Chờ tiếp nhận'}
+          {claim ? `Đã nhận · ${claimedLocation(claim)}` : 'Chờ tiếp nhận'}
         </p>
         {orderCodes.some((code) => claims[code.trim().toUpperCase()]) && onUnlock && (
           <>
@@ -470,8 +474,7 @@ function DeskColumn({
   const active = desk.customers.filter((c) => c.status === 'received');
   const completed = desk.customers.filter((c) => c.status === 'completed');
   const deskOrders = inboxOrders.filter((order) => desk.customers.some((customer) => customer.stt === order.stt));
-  const hasPendingOrder = deskOrders.some((order) => !claims[order.orderCode.trim().toUpperCase()]);
-  const allOrdersClaimed = deskOrders.length > 0 && !hasPendingOrder;
+  const hasOrder = deskOrders.length > 0;
   // Bàn Thu cũ / Backup MỞ SẴN danh sách đã hoàn tất: máy cũ đã thu nằm hết ở
   // đó, kho phải đối chiếu IMEI/QR/ảnh nên không bắt bấm mở từng cột. Tư vấn
   // thì gấp lại như cũ. Công tắc chung ở header vẫn mở được tất cả, và mỗi cột
@@ -485,7 +488,7 @@ function DeskColumn({
     <section
       className={[
         'relative flex min-h-0 min-w-0 flex-col overflow-y-auto rounded-xl border-2 bg-neutral-50/80 p-2',
-        hasPendingOrder ? 'border-emerald-400' : allOrdersClaimed ? 'border-red-400' : active.length > 0 ? 'border-occupied/40' : 'border-neutral-200',
+        active.length === 0 ? 'border-neutral-200' : hasOrder ? 'border-red-400' : 'border-emerald-400',
       ].join(' ')}
     >
       <button

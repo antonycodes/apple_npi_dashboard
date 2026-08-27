@@ -6,6 +6,9 @@ export interface WarehouseOrderClaim {
   product: string;
   claimedBy: string;
   claimedAt: number;
+  claimedDesk?: string;
+  claimedName?: string;
+  claimedMsnv?: string;
 }
 
 export type WarehouseOrderClaims = Record<string, WarehouseOrderClaim>;

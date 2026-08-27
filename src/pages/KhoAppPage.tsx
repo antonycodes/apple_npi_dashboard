@@ -62,6 +62,9 @@ export default function KhoAppPage({
   const larkConnected = !isMock && !dataError && Boolean(lastUpdated);
   const guestDeskLabel = guestRole?.replace(/^Guest_/, '') || 'Kho';
   const claimedBy = guestMode ? guestRole || 'Guest_Kho' : session?.msnv || session?.username || 'Kho';
+  const claimedDesk = guestMode ? guestRole || 'Guest_Kho' : session?.desk || 'Kho';
+  const claimedName = guestMode ? guestRole || 'Guest_Kho' : session?.name || session?.username || 'Kho';
+  const claimedMsnv = guestMode ? guestRole || 'Guest_Kho' : session?.msnv || session?.username || 'Kho';
   const claims = guestMode ? guestSimulation?.orderClaims ?? {} : liveClaims.claims;
   const orders = guestMode ? guestSimulation?.orders ?? [] : liveOrders.orders;
   const claimOrder = guestMode
@@ -226,6 +229,9 @@ export default function KhoAppPage({
               desks={board.desks.filter((desk) => desk.cluster === 'consult')}
               claims={claims}
               claimedBy={claimedBy}
+              claimedDesk={claimedDesk}
+              claimedName={claimedName}
+              claimedMsnv={claimedMsnv}
               onClaim={claimOrder}
               onClaimAll={claimAllOrders}
               inboxOrders={orders}
