@@ -25,7 +25,7 @@ import type { CheckinFieldMap, DsMasterFieldMap, FieldConfig, MasterFieldMap } f
 import { toFieldConfig } from '@/config/larkSettings';
 import { ALL_POSITIONS } from '@/config/layoutConfig';
 import type { ClusterKey, DeskCustomer } from '@/types/desk';
-import { cellToBool, cellToNumber, cellToString, cellToUrl, cellToUsername, mapDeskStates, normalizeDeskCode } from './larkMapper';
+import { cellToBool, cellToNumber, cellToProducts, cellToString, cellToUrl, cellToUsername, mapDeskStates, normalizeDeskCode } from './larkMapper';
 import type { LarkRecord, LarkTables } from './larkTypes';
 
 /** 1 ảnh nghiệm thu đã ghi vào Base từ lần trước. */
@@ -112,7 +112,7 @@ function indexCheckinByStt(rows: LarkRecord[], fm: CheckinFieldMap): Map<string,
     m.set(stt, {
       stt,
       name: cellToString(r.fields[fm.name]),
-      productName: cellToString(r.fields[fm.product]),
+      productName: cellToProducts(r.fields, fm.product),
       paymentNote: cellToString(r.fields[fm.note]),
       deviceAccepted: cellToBool(r.fields[fm.deviceAccepted]),
       deviceAcceptedText: cellToString(r.fields[fm.deviceAccepted]),

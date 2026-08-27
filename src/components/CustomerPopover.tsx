@@ -15,6 +15,7 @@ import { useEffect, useRef } from 'react';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import type { DeskCustomer, DeskData } from '@/types/desk';
 import { deskAnchorRect, useAnchoredPlacement } from './popoverPlacement';
+import ProductList from './ProductList';
 
 interface CustomerPopoverProps {
   desk: DeskData;
@@ -95,7 +96,7 @@ export default function CustomerPopover({ desk, customer, onClose }: CustomerPop
         <dl className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-4 gap-y-2 border-t border-neutral-100 pt-3 text-left text-sm">
           <Row label="Vị trí" value={`${CLUSTER_LABELS[cluster]} · ${label}`} />
           <Row label="Nhân viên" value={staffName ?? null} />
-          <Row label="Tên sản phẩm" value={customer.productName ?? null} />
+          <ProductRow value={customer.productName ?? null} />
           <Row label="Ghi chú thanh toán" value={customer.paymentNote ?? null} />
           <LinkRow label="Hyperlink Master" value={customer.hyperlink} />
           <Row
@@ -137,6 +138,10 @@ function Row({
       <dd className={`min-w-0 break-words text-left leading-5 ${cls}`}>{value && value.trim() ? value : '—'}</dd>
     </>
   );
+}
+
+function ProductRow({ value }: { value: string | null | undefined }) {
+  return <><dt className="text-right leading-5 text-neutral-500">Tên sản phẩm</dt><dd className="min-w-0 break-words text-left font-medium leading-5 text-neutral-800"><ProductList value={value} /></dd></>;
 }
 
 function LinkRow({ label, value }: { label: string; value?: string | null }) {

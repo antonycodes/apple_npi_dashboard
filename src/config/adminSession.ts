@@ -18,7 +18,7 @@ import { useSyncExternalStore } from 'react';
 
 const LS_KEY = 'npievent-admin-token-v1';
 
-export type SessionRole = 'admin' | 'staff' | 'kho' | 'dieuphoi';
+export type SessionRole = 'admin' | 'staff' | 'kho' | 'dieuphoi' | 'checkin';
 
 /**
  * Một CHỖ LÀM VIỆC của tài khoản — mỗi dòng roster trong `Master_DS` là một
@@ -89,7 +89,7 @@ function load(): StoredSession | null {
           : desks.map((d) => ({
               desk: d,
               loai: '',
-              role: role === 'admin' ? 'staff' : role,
+              role: role === 'admin' || role === 'checkin' ? 'staff' : role,
               name: t.name ?? '',
               msnv: t.msnv ?? '',
             })),
@@ -151,7 +151,7 @@ export const adminSessionStore = {
             ({
               desk: d,
               loai: '',
-              role: role === 'admin' ? 'staff' : role,
+              role: role === 'admin' || role === 'checkin' ? 'staff' : role,
               name: extra.name ?? '',
               msnv: extra.msnv ?? '',
             }) as Workspace,

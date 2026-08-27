@@ -156,10 +156,10 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <ViewSwitcher active="main" />
+            <ViewSwitcher active="dash" />
             {session?.role === 'admin' && (
               <a
-                href="#/settings"
+                href="/settings"
                 className="flex min-h-8 items-center rounded border border-brand px-3 font-semibold text-brand hover:bg-brand hover:text-white"
               >
                 Cài đặt

@@ -1,17 +1,37 @@
-export type AppView = 'main' | 'tuvan' | 'tradein' | 'backup' | 'kho';
+import { useAdminInfo } from '@/config/adminSession';
 
-const VIEWS: Array<{ key: AppView; label: string; href: string }> = [
-  { key: 'main', label: 'Main', href: '#/' },
-  { key: 'tuvan', label: 'Tư vấn', href: '#/tuvanview' },
-  { key: 'tradein', label: 'Thu cũ', href: '#/kythuatview' },
-  { key: 'backup', label: 'Backup', href: '#/backupview' },
-  { key: 'kho', label: 'Kho', href: '#/khoview' },
+export type AppView = 'main' | 'dash' | 'checkin' | 'tuvan' | 'tradein' | 'backup' | 'kho';
+
+const OPERATION_VIEWS: Array<{ key: AppView; label: string; href: string }> = [
+  { key: 'tuvan', label: 'Tư vấn', href: '/tuvanview' },
+  { key: 'tradein', label: 'Thu cũ', href: '/kythuatview' },
+  { key: 'backup', label: 'Backup', href: '/backupview' },
+  { key: 'kho', label: 'Kho', href: '/khoview' },
 ];
 
 export default function ViewSwitcher({ active }: { active: AppView }) {
+  const session = useAdminInfo();
+  const isAdmin = session?.role === 'admin';
+  const isCoordinator = session?.role === 'dieuphoi';
+  const canOpenCheckin = isAdmin || session?.role === 'checkin';
+  const views = isAdmin
+    ? [
+        { key: 'main' as const, label: 'Main', href: '/app' },
+        { key: 'dash' as const, label: 'Dash', href: '/' },
+        ...(canOpenCheckin ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }] : []),
+        ...OPERATION_VIEWS,
+      ]
+    : [
+        isCoordinator
+          ? { key: 'dash' as const, label: 'Dash', href: '/' }
+          : { key: 'main' as const, label: 'Main', href: '/' },
+        ...(canOpenCheckin ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }] : []),
+        ...OPERATION_VIEWS,
+      ];
+
   return (
     <nav aria-label="Chuyển view" className="flex items-center gap-1 rounded-lg bg-neutral-100 p-1">
-      {VIEWS.map((view) => (
+      {views.map((view) => (
         <a
           key={view.key}
           href={view.href}

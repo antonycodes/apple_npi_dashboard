@@ -1,5 +1,5 @@
 /**
- * staffLink — link RIÊNG cho từng bàn (`#/tv4`, `#/tc1`, `#/bk2`…) mà điều
+ * staffLink — link RIÊNG cho từng bàn (`/tv4`, `/tc1`, `/bk2`…) mà điều
  * phối/admin gửi cho từng nhân viên.
  *
  * Cấu hình không nằm trong link: mọi máy bootstrap từ Worker trung tâm rồi đọc
@@ -12,13 +12,20 @@
  */
 import { larkSettingsStore } from './larkSettings';
 
-/** Phần query nằm SAU dấu `?` trong hash (`#/tv4?api=…`). */
+/** Query của link mới (`/tv4?api=…`) và link hash cũ. */
 function hashQuery(hash: string = window.location.hash): URLSearchParams {
   const q = hash.indexOf('?');
   return new URLSearchParams(q >= 0 ? hash.slice(q + 1) : '');
 }
 
-/** Phần path của hash, đã bỏ `#/` và query. */
+function routeQuery(): URLSearchParams {
+  const params = new URLSearchParams(window.location.search);
+  const legacy = hashQuery();
+  legacy.forEach((value, key) => params.set(key, value));
+  return params;
+}
+
+/** Phần path legacy trong hash, đã bỏ `#/` và query. */
 export function hashPath(hash: string = window.location.hash): string {
   const noHash = hash.replace(/^#\/?/, '');
   const q = noHash.indexOf('?');
@@ -31,7 +38,7 @@ export function hashPath(hash: string = window.location.hash): string {
  * `larkSettingsStore` tự báo cho mọi hook đang nghe).
  */
 export function applyLinkConfigFromHash(): boolean {
-  const params = hashQuery();
+  const params = routeQuery();
   const api = params.get('api')?.trim();
   const mock = params.get('mock');
   if (!api && !mock) return false;
@@ -48,12 +55,18 @@ export function applyLinkConfigFromHash(): boolean {
 
   // Dọn URL: giữ nguyên path, bỏ hết query — dùng replaceState để không thêm
   // 1 bước vào lịch sử (nút back của NV không quay lại link có tham số).
-  const clean = `${window.location.pathname}${window.location.search}#/${hashPath()}`;
+  const cleanParams = new URLSearchParams(window.location.search);
+  cleanParams.delete('api');
+  cleanParams.delete('mock');
+  const query = cleanParams.toString();
+  const legacyPath = hashPath();
+  const cleanPath = legacyPath ? `/${legacyPath}` : window.location.pathname || '/';
+  const clean = `${cleanPath}${query ? `?${query}` : ''}`;
   window.history.replaceState(null, '', clean);
   return changed;
 }
 
 /** Link đầy đủ để copy/gửi cho nhân viên của bàn `deskId`. */
 export function deskLinkFor(deskId: string): string {
-  return `${window.location.origin}${window.location.pathname}#/${deskId.toLowerCase()}`;
+  return `${window.location.origin}/${deskId.toLowerCase()}`;
 }

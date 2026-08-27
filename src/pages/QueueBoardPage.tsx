@@ -1,7 +1,7 @@
 /**
  * QueueBoardPage — standalone "STT hiện tại / STT tiếp theo" display for one
- * cluster (Tư vấn, Thu cũ hoặc Backup), routed at #/tuvanview,
- * #/kythuatview và #/backupview.
+ * cluster (Tư vấn, Thu cũ hoặc Backup), routed at /tuvanview,
+ * /kythuatview và /backupview.
  *
  * Its own page/hook/component chain (QueueBoard + useQueueBoardData +
  * queueMapper) — DashboardPage/LayoutDashboard/useDashboardData (the main

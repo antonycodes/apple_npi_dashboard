@@ -132,7 +132,6 @@ export default function WaitingPopover({ zoneLabel, zone, customer, index, onDis
         <dl className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-4 gap-y-2 border-t border-neutral-100 pt-3 text-left text-sm">
           <Row label="Khu vực" value={zoneLabel} />
           <Row label="Trạng thái" value={statusTextFor(zone, customer)} />
-          <Row label="Tên sản phẩm" value={customer.productName ?? null} />
           <Row label="Ghi chú thanh toán" value={customer.paymentNote ?? null} />
           <LinkRow label="Hyperlink Master" value={customer.hyperlink} />
           <Row

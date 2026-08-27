@@ -320,7 +320,6 @@ export default function StaffReceiveFormModal({
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-400">
               Thông tin check-in (chỉ để đối chiếu)
             </p>
-            <ReadRow label="Sản phẩm" value={customer?.productName} />
             <ReadRow label="Ghi chú thanh toán" value={customer?.paymentNote} />
             <ReadRow label="Thu cũ check" value={customer?.oldDeviceCheck} />
             <ReadRow label="Backup check" value={values.checkBackup || customer?.backupCheck} />

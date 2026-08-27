@@ -129,6 +129,25 @@ function fieldValue(fields: Record<string, LarkCellValue>, fieldName: string): L
   return found ? fields[found] : undefined;
 }
 
+/** Đọc toàn bộ SP 1–SP 4 của cùng khách, giữ đúng thứ tự và bỏ ô trống. */
+export function cellToProducts(fields: Record<string, LarkCellValue>, primaryField: string): string | null {
+  const productKeys = Object.keys(fields)
+    .filter((key) => /^SP\s*[1-4]$/i.test(key.trim()))
+    .sort((a, b) => Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, '')));
+  const labelled = productKeys.map((key) => ({
+    label: `SP${key.replace(/\D/g, '')}`,
+    value: cellToString(fieldValue(fields, key)),
+  }));
+  if (!labelled.length) {
+    const value = cellToString(fieldValue(fields, primaryField));
+    return value ? `• SP1: ${value}` : null;
+  }
+  return labelled
+    .filter((item): item is { label: string; value: string } => Boolean(item.value))
+    .map((item) => `• ${item.label}: ${item.value}`)
+    .join('\n') || null;
+}
+
 /** Lấy URL từ hyperlink field Lark (plain URL hoặc object/link segment). */
 export function cellToUrl(v: LarkCellValue): string | null {
   if (typeof v === 'string') return /^https?:\/\//i.test(v.trim()) ? v.trim() : null;
@@ -234,7 +253,7 @@ function indexCheckinByName(rows: LarkRecord[], fm: CheckinFieldMap): Map<string
     if (name) {
       m.set(name, {
         stt: cellToString(r.fields[fm.stt]),
-        product: cellToString(r.fields[fm.product]),
+        product: cellToProducts(r.fields, fm.product),
         note: cellToString(r.fields[fm.note]),
         deviceAccepted: cellToBool(r.fields[fm.deviceAccepted]),
         deviceAcceptedText: cellToString(r.fields[fm.deviceAccepted]),
@@ -928,7 +947,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
     waitingCheckin.push({
       stt: cellToString(r.fields[checkin.stt]),
       name,
-      productName: cellToString(r.fields[checkin.product]),
+      productName: cellToProducts(r.fields, checkin.product),
       paymentNote: cellToString(r.fields[checkin.note]),
       deviceAccepted: cellToBool(r.fields[checkin.deviceAccepted]),
       deviceAcceptedText: cellToString(r.fields[checkin.deviceAccepted]),

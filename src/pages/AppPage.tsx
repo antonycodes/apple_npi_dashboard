@@ -1,5 +1,5 @@
 /**
- * AppPage — "NPI-CPS All in One" (`#/app`): MỘT link phát cho toàn bộ nhân
+ * AppPage — "NPI-CPS All in One" (`/app`): MỘT link phát cho toàn bộ nhân
  * sự, đăng nhập một lần, app tự mở đúng màn hình của người đang cầm máy.
  *
  * Luồng: đăng nhập (`AppLogin`) → worker trả vai trò + danh sách bàn từ
@@ -10,7 +10,7 @@
  *   - `admin`        → danh mục các màn hình quản trị và vận hành chính.
  *
  * **Các route cũ không đụng tới**: dashboard điều phối (`#/`), 3 màn hình STT
- * chiếu ngoài hội trường và `#/khoview` vẫn mở-là-chạy, KHÔNG qua cổng đăng
+ * chiếu ngoài hội trường và `/khoview` vẫn mở-là-chạy, KHÔNG qua cổng đăng
  * nhập (chốt với user 2026-08-19) — chúng chạy trên máy chiếu/máy điều phối
  * dựng sẵn từ sáng, bắt đăng nhập ở đó chỉ tạo thêm một thứ có thể hỏng.
  */
@@ -20,6 +20,7 @@ import { ArrowLeftIcon, ChevronRightIcon, LogOutIcon } from '@/components/AppShe
 import DashboardPage from '@/pages/DashboardPage';
 import KhoAppPage from '@/pages/KhoAppPage';
 import StaffPage from '@/pages/StaffPage';
+import CheckinPage from '@/pages/CheckinPage';
 import { adminSessionStore, useAdminInfo, type Workspace } from '@/config/adminSession';
 import { useLarkSettings } from '@/config/larkSettings';
 
@@ -181,8 +182,9 @@ function SessionBar({
 /** Danh mục của admin — chỉ giữ các màn hình quản trị/vận hành chính. */
 function AdminHome({ name }: { name: string }) {
   const links: Array<{ href: string; label: string }> = [
-    { href: '#/admin-dashboard', label: 'Dashboard Admin' },
-    { href: '#/settings', label: 'Cài đặt' },
+    { href: '/admin-dashboard', label: 'Dashboard Admin' },
+    { href: '/check-in', label: 'Check-in khách' },
+    { href: '/settings', label: 'Cài đặt' },
   ];
 
   return (
@@ -229,6 +231,10 @@ export default function AppPage() {
   if (session) {
     if (session.role === 'admin') {
       return <AdminHome name={session.name} />;
+    }
+
+    if (session.role === 'checkin') {
+      return <CheckinPage />;
     }
 
     // Chưa chọn chỗ (tài khoản nhiều chỗ), hoặc đang bấm đổi chỗ.
@@ -292,7 +298,7 @@ export default function AppPage() {
               Máy này chưa có API URL của worker nên chưa đăng nhập được.
             </p>
             <a
-              href="#/settings"
+              href="/settings"
               className="mt-4 block min-h-14 rounded-2xl bg-brand pt-4 text-center text-base font-bold text-white"
             >
               Mở Cài đặt
@@ -308,13 +314,13 @@ export default function AppPage() {
 
           <div className="mt-4 space-y-2">
             <a
-              href="#/khoview"
+              href="/khoview"
               className="block rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-semibold text-neutral-600"
             >
               Xem bảng kho (không cần đăng nhập)
             </a>
             <a
-              href="#/"
+              href="/"
               className="block rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-semibold text-neutral-600"
             >
               Về dashboard điều phối

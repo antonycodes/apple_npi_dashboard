@@ -1,5 +1,5 @@
 /**
- * AppLogin — cổng đăng nhập của app gộp (`#/app`).
+ * AppLogin — cổng đăng nhập của app gộp (`/app`).
  *
  * Khác `AdminLoginForm` (ô nhỏ nhét trong popup/trang cài đặt) ở chỗ đây là
  * MỘT MÀN HÌNH của điện thoại: chữ to, nút cao, nhớ sẵn MSNV nên sáng hôm sau
@@ -23,8 +23,18 @@ function loadLastUser(): string {
   }
 }
 
-export default function AppLogin({ onGuest }: { onGuest?: () => void }) {
-  const [username, setUsername] = useState(loadLastUser);
+export default function AppLogin({
+  onGuest,
+  fixedUsername,
+  title = 'NPI-CPS',
+  subtitle,
+}: {
+  onGuest?: () => void;
+  fixedUsername?: string;
+  title?: string;
+  subtitle?: string;
+}) {
+  const [username, setUsername] = useState(() => fixedUsername ?? loadLastUser());
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -36,7 +46,7 @@ export default function AppLogin({ onGuest }: { onGuest?: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const account = username.trim().toUpperCase();
+      const account = (fixedUsername ?? username).trim().toUpperCase();
       await login(account, password);
       try {
         localStorage.setItem(LS_LAST_USER, account);
@@ -58,20 +68,28 @@ export default function AppLogin({ onGuest }: { onGuest?: () => void }) {
           alt="CellphoneS"
           className="h-12 w-auto max-w-[190px]"
         />
-        <h1 className="mt-7 text-[34px] font-black leading-none tracking-[-0.03em] text-neutral-950">NPI-CPS</h1>
+        <h1 className="mt-7 text-[34px] font-black leading-none tracking-[-0.03em] text-neutral-950">{title}</h1>
+        {subtitle && <p className="mt-2 text-sm font-semibold text-neutral-500">{subtitle}</p>}
         <form onSubmit={submit} className="mt-8 space-y-4 rounded-2xl bg-white p-5 shadow-[0_12px_36px_rgba(17,24,39,0.08)]">
-          <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-500">Tài khoản MSNV</span>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              autoCapitalize="characters"
-              autoFocus={!username}
-              placeholder="VD: S08380"
-              className="min-h-14 rounded-xl bg-neutral-100 px-4 text-lg font-bold uppercase text-neutral-900 outline-none ring-brand transition-shadow placeholder:text-neutral-400 focus:ring-2"
-            />
-          </label>
+          {fixedUsername ? (
+            <div className="flex items-center justify-between rounded-xl bg-neutral-100 px-4 py-4">
+              <span className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-500">Tài khoản</span>
+              <span className="text-lg font-black uppercase text-neutral-900">{fixedUsername}</span>
+            </div>
+          ) : (
+            <label className="flex flex-col gap-2">
+              <span className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-500">Tài khoản MSNV</span>
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                autoCapitalize="characters"
+                autoFocus={!username}
+                placeholder="VD: S08380"
+                className="min-h-14 rounded-xl bg-neutral-100 px-4 text-lg font-bold uppercase text-neutral-900 outline-none ring-brand transition-shadow placeholder:text-neutral-400 focus:ring-2"
+              />
+            </label>
+          )}
 
           <label className="flex flex-col gap-2">
             <span className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-500">Mật khẩu</span>

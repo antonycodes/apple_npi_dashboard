@@ -137,6 +137,19 @@ Worker:
 5. invalidation snapshot cache;
 6. trả `recordId`, `written`, `skipped`.
 
+### POST `/checkin-record`
+
+Mục đích: ghi một khách mới vào `Master_Check in` từ màn hình `/check-in`.
+
+- Bắt buộc Bearer token do `/admin/login` cấp cho role `checkin` hoặc `admin`.
+- `stt` nằm trong khoảng `1–160`; Worker đọc lại bảng trước khi tạo record.
+- Chỉ nhận một trong hai định danh: `phone` hoặc `orderCode`.
+- `orderCode` là giá trị từ `Danh sách đơn hàng.MĐH_Selection`.
+- Worker từ chối nếu SĐT hoặc mã đơn hàng đã xuất hiện trong `Master_Check in`.
+- `oldDeviceQuantity` là số nguyên không âm.
+- Durable Object tuần tự hóa các lượt ghi, chống hai máy chiếm cùng STT.
+- Secret đăng nhập: `CHECKIN_PASSWORD`.
+
 ### POST `/record`
 
 Mục đích: ghi Tiếp nhận, Hoàn tất, Thu máy nhanh hoặc Bàn giao kho.
@@ -184,6 +197,7 @@ Worker:
 | `/admin/login` | POST public | N/A | N/A | Credential check |
 | GET config | Có | Không cần | Không cần | Public bootstrap |
 | PUT config | Không | Bắt buộc | Không đủ quyền | Đã enforce |
+| `/checkin-record` | N/A | Được phép | Không | **Bắt buộc role checkin/admin** |
 | `/record` | N/A | Client có thể gửi | Client có thể gửi | **Chưa enforce token trong route** |
 | `/dispatch-record` | N/A | Client có thể gửi | Client có thể gửi | **Chưa enforce token trong route** |
 | `/upload` | N/A | Client có thể gửi | Client có thể gửi | **Chưa enforce token trong route** |

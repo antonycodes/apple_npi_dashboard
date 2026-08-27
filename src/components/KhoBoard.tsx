@@ -1,5 +1,5 @@
 /**
- * KhoBoard — bảng kanban cho màn hình Kho (`#/khoview`).
+ * KhoBoard — bảng kanban cho màn hình Kho (`/khoview`).
  *
  * Mỗi CỘT = 1 bàn; mỗi THẺ = 1 khách với STT · trạng thái · sản phẩm.
  *
@@ -16,10 +16,11 @@
  * Không có "STT tiếp theo" — kho không cần. Tách riêng khỏi `QueueBoard`
  * (màn hình STT của Tư vấn/Thu cũ/Backup) để 2 màn hình không ràng buộc nhau.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
 import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
+import ProductList from './ProductList';
 
 /** `file_token` không phải URL — ảnh Bitable phải đi qua `/media/<token>` của worker. */
 /** Số khách đã hoàn tất hiện thẳng trong cột; dư ra xem trong popup. */
@@ -134,12 +135,12 @@ function CustomerCardBody({
 
       <div
         className={[
-          'mt-0.5 break-words text-[13px] font-semibold leading-tight',
+          'mt-0.5 whitespace-pre-line break-words text-[13px] font-semibold leading-tight',
           received ? 'text-neutral-800' : 'text-neutral-600',
         ].join(' ')}
         title={customer.productName ?? undefined}
       >
-        {customer.productName || <span className="font-normal text-neutral-400">Chưa có sản phẩm</span>}
+        {customer.productName ? <ProductList value={customer.productName} /> : <span className="font-normal text-neutral-400">Chưa có sản phẩm</span>}
       </div>
 
       {showTradeIn && <TradeInBlock customer={customer} onZoom={onZoom} />}
@@ -275,10 +276,16 @@ function DeskColumn({
   desk,
   showCompleted,
   onZoom,
+  onResizeStart,
+  columnIndex,
+  resizing,
 }: {
   desk: DeskKhoState;
   showCompleted: boolean;
   onZoom: (url: string) => void;
+  onResizeStart: (event: React.PointerEvent<HTMLButtonElement>, columnIndex: number) => void;
+  columnIndex: number;
+  resizing: boolean;
 }) {
   // Tư vấn không thu máy nên không có gì để hiện — xem `staffMapper`.
   const showTradeIn = desk.cluster !== 'consult';
@@ -296,10 +303,28 @@ function DeskColumn({
   return (
     <section
       className={[
-        'flex min-h-0 min-w-0 flex-col overflow-y-auto rounded-xl border-2 bg-neutral-50/80 p-2',
+        'relative flex min-h-0 min-w-0 flex-col overflow-y-auto rounded-xl border-2 bg-neutral-50/80 p-2',
         active.length > 0 ? 'border-occupied/40' : 'border-neutral-200',
       ].join(' ')}
     >
+      <button
+        type="button"
+        aria-label={`Kéo để chỉnh độ rộng ${desk.label}`}
+        title="Kéo để chỉnh độ rộng cột"
+        onPointerDown={(event) => onResizeStart(event, columnIndex)}
+        className={[
+          'group absolute right-0 top-0 bottom-0 z-20 flex w-6 cursor-col-resize touch-none items-center justify-center rounded-none opacity-0 transition-[opacity,box-shadow,background-color] hover:opacity-100 hover:bg-brand/10 hover:shadow-[0_0_10px_rgba(37,99,235,0.28)]',
+          resizing ? 'bg-brand/20 opacity-100' : 'bg-transparent',
+        ].join(' ')}
+      >
+        <svg
+          viewBox="0 0 8 32"
+          className="absolute right-0 h-8 w-2 translate-x-1/2 text-neutral-300 transition-colors group-hover:text-brand"
+          aria-hidden="true"
+        >
+          <path d="M1 1v30M7 1v30" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </button>
       <header className="flex items-baseline justify-between gap-1">
         <span className="text-base font-extrabold leading-none text-neutral-700">{desk.label}</span>
         <span className="shrink-0 text-[11px] font-semibold text-neutral-400">{active.length}</span>
@@ -386,22 +411,82 @@ export default function KhoBoard({
   desks,
   showCompleted = false,
   columns = 8,
+  columnWidths = {},
+  onColumnResize,
 }: {
   desks: DeskKhoState[];
   showCompleted?: boolean;
   /** Số cột của lưới — chọn theo cụm để mọi bàn nằm gọn trong 1 màn. */
   columns?: number;
+  columnWidths?: Record<string, number>;
+  onColumnResize?: (columnIndex: number, width: number) => void;
 }) {
   const [zoom, setZoom] = useState<string | null>(null);
+  const [resizingIndex, setResizingIndex] = useState<number | null>(null);
+  const resizeRef = useRef<{
+    columnIndex: number;
+    pointerId: number;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!onColumnResize) return;
+    const handlePointerMove = (event: PointerEvent) => {
+      const resize = resizeRef.current;
+      if (!resize || event.pointerId !== resize.pointerId) return;
+      onColumnResize(resize.columnIndex, resize.startWidth + event.clientX - resize.startX);
+    };
+    const handlePointerEnd = (event: PointerEvent) => {
+      if (resizeRef.current && event.pointerId !== resizeRef.current.pointerId) return;
+      resizeRef.current = null;
+      setResizingIndex(null);
+    };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+    };
+  }, [onColumnResize]);
+
+  const handleResizeStart = (event: React.PointerEvent<HTMLButtonElement>, columnIndex: number) => {
+    if (!onColumnResize) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const column = event.currentTarget.parentElement;
+    resizeRef.current = {
+      columnIndex,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: column?.getBoundingClientRect().width ?? columnWidths[String(columnIndex)] ?? 240,
+    };
+    setResizingIndex(columnIndex);
+  };
+
+  const gridTemplateColumns = Array.from({ length: columns }, (_, index) => (
+    columnWidths[String(index)] === undefined ? 'minmax(0, 1fr)' : `${columnWidths[String(index)]}px`
+  )).join(' ');
 
   return (
     <>
       <div
         className="grid h-full auto-rows-fr gap-2"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns }}
       >
         {desks.map((d) => (
-          <DeskColumn key={d.id} desk={d} showCompleted={showCompleted} onZoom={setZoom} />
+          <DeskColumn
+            key={d.id}
+            desk={d}
+            showCompleted={showCompleted}
+            onZoom={setZoom}
+            onResizeStart={handleResizeStart}
+            columnIndex={desks.indexOf(d) % columns}
+            resizing={resizingIndex === desks.indexOf(d) % columns}
+          />
         ))}
       </div>
 

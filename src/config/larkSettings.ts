@@ -182,8 +182,11 @@ export function toRuntimeConfig(s: LarkSettings = settings): LarkRuntimeConfig {
     dsMaster: str(s.tableIds.dsMaster),
   };
   return {
-    // Mock là một route riêng (`/#/mock`), không còn là cờ cấu hình dùng chung.
-    useMock: typeof window !== 'undefined' && window.location.hash.replace(/^#\/?/, '').split('?')[0].toLowerCase() === 'mock',
+    // Mock là một route riêng (`/mock`), không còn là cờ cấu hình dùng chung.
+    useMock: typeof window !== 'undefined' && (
+      window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase() === 'mock'
+      || window.location.hash.replace(/^#\/?/, '').split('?')[0].toLowerCase() === 'mock'
+    ),
     apiUrl: str(s.apiUrl),
     host: str(s.host) ?? ENV_DEFAULTS.host,
     appToken: undefined,

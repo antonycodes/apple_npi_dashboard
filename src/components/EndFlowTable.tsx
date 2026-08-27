@@ -106,7 +106,6 @@ export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) 
                 <tr className="border-b border-neutral-200 text-xs font-semibold uppercase tracking-wide text-neutral-500">
                   <th className="py-2 pr-3">STT</th>
                   <th className="py-2 pr-3">Họ và tên</th>
-                  <th className="py-2 pr-3">Tên sản phẩm</th>
                   <th className="py-2 pr-3">Ghi chú thanh toán</th>
                   <th className="py-2 pr-3">Check thu máy cũ</th>
                   <th className="py-2 pr-3">Khâu cuối</th>
@@ -119,7 +118,6 @@ export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) 
                   <tr key={i} className="border-b border-neutral-100 last:border-0">
                     <td className="py-2 pr-3 font-semibold text-neutral-800">{c.stt ?? '—'}</td>
                     <td className="py-2 pr-3 font-medium text-neutral-800">{c.name ?? '—'}</td>
-                    <td className="py-2 pr-3 text-neutral-600">{c.productName ?? '—'}</td>
                     <td className="py-2 pr-3 text-neutral-600">{c.paymentNote ?? '—'}</td>
                     <td className={`py-2 pr-3 ${c.deviceAccepted ? 'font-bold text-red-600' : 'text-neutral-600'}`}>
                       {c.deviceAccepted ? (

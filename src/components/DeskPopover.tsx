@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import { DESK_CAPACITY, deskUiStatus, type DeskData } from '@/types/desk';
 import { deskAnchorRect, useAnchoredPlacement } from './popoverPlacement';
+import ProductList from './ProductList';
 
 interface DeskPopoverProps {
   desk: DeskData;
@@ -134,7 +135,7 @@ export default function DeskPopover({ desk, onClose, onAcknowledgeAlert }: DeskP
                   />
                 </>
               )}
-              {desk.id !== 'BK.X' && <Row label="Tên sản phẩm" value={desk.productName} />}
+              {desk.id !== 'BK.X' && <ProductRow value={desk.productName} />}
               <Row label="Ghi chú thanh toán" value={desk.paymentNote} />
             </>
           ) : (
@@ -188,4 +189,8 @@ function Row({
       <dd className={`min-w-0 max-w-[72%] break-words text-right ${cls}`}>{value && value.trim() ? value : '—'}</dd>
     </div>
   );
+}
+
+function ProductRow({ value }: { value: string | null | undefined }) {
+  return <div className="flex justify-between gap-3"><dt className="shrink-0 text-neutral-500">Tên sản phẩm</dt><dd className="min-w-0 max-w-[72%] break-words text-right font-medium text-neutral-800"><ProductList value={value} /></dd></div>;
 }

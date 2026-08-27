@@ -201,7 +201,6 @@ function CompletedHistorySection({ customers }: { customers: StaffCustomer[] }) 
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-neutral-800">{c.name ?? 'Khách'}</p>
-                <p className="truncate text-xs text-neutral-500">{c.productName ?? '—'}</p>
               </div>
             </div>
           ))}
@@ -264,7 +263,6 @@ function CustomerCard({
       </div>
 
       <div className="mt-3">
-        <InfoRow label="Sản phẩm" value={customer.productName} />
         <InfoRow label="Ghi chú thanh toán" value={customer.paymentNote} />
         <InfoRow label="Check nghiệm thu" value={customer.deviceAcceptedText} />
       </div>
@@ -859,7 +857,6 @@ export default function StaffDeskScreen({
                       Hoàn tất
                     </button>
                   </div>
-                  <p className="mt-1 truncate text-xs text-neutral-500">{c.productName ?? '—'}</p>
                 </div>
               ))}
             </div>
@@ -876,7 +873,6 @@ export default function StaffDeskScreen({
               <p className="mt-1 truncate text-base font-bold text-neutral-800">
                 {view.next?.name ?? (nextStt ? 'Khách' : 'Chưa có khách chờ')}
               </p>
-              <p className="truncate text-sm text-neutral-500">{view.next?.productName ?? '—'}</p>
             </div>
             <span className={`text-6xl font-black leading-none ${nextStt ? 'text-amber-500' : 'text-neutral-200'}`}>
               {nextStt ?? '—'}

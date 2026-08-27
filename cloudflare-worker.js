@@ -6,7 +6,8 @@ import { DurableObject } from 'cloudflare:workers';
  * Deploy: `npx wrangler deploy cloudflare-worker.js` (hoặc dán vào Workers editor).
  * Biến bí mật đặt bằng `wrangler secret put <NAME>` hoặc trong dashboard Workers:
  *   LARK_APP_ID, LARK_APP_SECRET, LARK_HOST, LARK_APP_TOKEN,
- *   TB_CHECKIN, TB_ORDERS, TB_MASTER, TB_DISPATCH, TB_DS_MASTER
+ *   TB_CHECKIN, TB_ORDERS, TB_MASTER, TB_DISPATCH, TB_DS_MASTER,
+ *   CHECKIN_PASSWORD
  *
  * Tuỳ chọn (2 nút Tiếp nhận/Hoàn tất ở màn hình nhân viên, 2026-08-12):
  * `LARK_WEBHOOK_URL2` = URL webhook của workflow Lark tạo record SS_Master.
@@ -17,6 +18,8 @@ import { DurableObject } from 'cloudflare:workers';
  * THẬT nằm ở `Master_DS` (`NPI_AIO_User`/`NPI_AIO_Pass`, xem `readRoster`), user
  * tự đổi mật khẩu trong Base không cần deploy. Xoá secret này là tắt hẳn đường cũ.
  * App trỏ ô "Webhook Tiếp nhận / Hoàn tất" vào `https://<worker>/webhook2`.
+ * `CHECKIN_PASSWORD` = mật khẩu cho tài khoản cố định `checkin` tại `/check-in`.
+ * Secret này không được đưa vào bundle frontend.
  *
  * `POST /upload` (2026-08-12, tiếp) — ảnh nghiệm thu ở form Hoàn tất khâu Thu
  * cũ/Backup: nhận multipart `file`, upload lên Lark bằng tenant token của
@@ -748,6 +751,17 @@ const DISPATCH_DESK_COLUMN = {
   Backup: 'DS Backup',
 };
 
+/** Các cột lưu trữ mà form Check-in được phép ghi vào Master_Check in. */
+const CHECKIN_FIELD_MAP = {
+  // STT_Selection là reference/single-select từ bảng khác, không ghi trực tiếp.
+  // STT_APP là cột Text dành cho dữ liệu nhập từ ứng dụng Check-in.
+  sttApp: 'STT_APP',
+  phone: 'Số điện thoại',
+  orderCode: 'Mã đơn hàng',
+  paymentConfirmation: 'Check UD Thanh toán',
+  oldDeviceQuantity: 'Số lượng thu cũ',
+};
+
 // Mã kiểu field Bitable (theo tài liệu Lark): 1 Text · 2 Number · 3 Single
 // select · 5 Date · 7 Checkbox · 11 User · 17 Attachment · 19 Lookup ·
 // 20 Formula · 1001–1005 hệ thống. Barcode là type 1 + `ui_type: "Barcode"`.
@@ -776,7 +790,7 @@ async function getRecordFieldMeta(env, host, appToken, token, tableId) {
   if (data.code !== 0) throw new Error(`Đọc danh sách cột lỗi: ${data.msg} (code ${data.code})`);
 
   const byName = new Map();
-  for (const f of data?.data?.items ?? []) byName.set(f.field_name, { id: f.field_id, type: f.type, uiType: f.ui_type });
+  for (const f of data?.data?.items ?? []) byName.set(f.field_name, { id: f.field_id, type: f.type, uiType: f.ui_type, property: f.property });
   recordFieldMetaCache.set(tableId, { byName, expiresAt: now + FIELD_CACHE_MS });
   return byName;
 }
@@ -898,6 +912,178 @@ function buildRecordFields(payload, fieldMap, meta) {
   return { fields, written, skipped };
 }
 
+function normalizedStt(raw) {
+  const text = cellText(raw).trim();
+  if (!text) return '';
+  const n = Number(text);
+  return Number.isInteger(n) && n >= 1 && n <= 160 ? String(n) : text;
+}
+
+function checkinRowStts(row) {
+  const fields = row?.fields ?? {};
+  return [
+    pickField(fields, 'STT'),
+    pickField(fields, 'STT_APP'),
+    pickField(fields, 'STT Input'),
+    pickField(fields, 'STT_Selection'),
+  ].map(normalizedStt).filter(Boolean);
+}
+
+function normalizedCheckinPhone(raw) {
+  return cellText(raw).replace(/\D/g, '');
+}
+
+function checkinRowPhones(row) {
+  const fields = row?.fields ?? {};
+  return [
+    pickField(fields, 'Số điện thoại'),
+    pickField(fields, 'SDT'),
+    pickField(fields, 'Số điện thoại_ĐH'),
+  ].map(normalizedCheckinPhone).filter(Boolean);
+}
+
+function checkinRowOrderCodes(row) {
+  const fields = row?.fields ?? {};
+  return [
+    pickField(fields, 'Mã đơn hàng'),
+    pickField(fields, 'MĐH_Selection'),
+  ].map((value) => cellText(value).trim()).filter(Boolean);
+}
+
+function findSelectOption(meta, raw) {
+  const wanted = String(raw ?? '').trim();
+  const options = meta?.property?.options;
+  if (!wanted || !Array.isArray(options)) return null;
+  return options.find((option) => String(option?.name ?? '').trim() === wanted) ?? null;
+}
+
+/** Ghi một lượt Check-in sau khi xác thực, kiểm tra trùng và dò schema. */
+async function handleCheckinRecord(request, env, ctx) {
+  const session = await verifyToken(env, bearer(request));
+  if (!session || (session.role !== 'checkin' && session.role !== 'admin')) {
+    return json({ code: -1, msg: 'Phiên Check-in không hợp lệ hoặc đã hết hạn' }, 401);
+  }
+  if (!env.LARK_APP_TOKEN) return json({ code: -1, msg: 'Chưa cấu hình LARK_APP_TOKEN' }, 500);
+  if (!env.TB_CHECKIN) return json({ code: -1, msg: 'Chưa cấu hình TB_CHECKIN' }, 500);
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return json({ code: -1, msg: 'Body không phải JSON' }, 400);
+  }
+
+  const stt = normalizedStt(payload.stt);
+  const phone = String(payload.phone ?? '').trim();
+  const orderCode = String(payload.orderCode ?? '').trim();
+  const paymentConfirmation = String(payload.paymentConfirmation ?? '').trim();
+  const quantityText = String(payload.oldDeviceQuantity ?? '').trim();
+  const quantity = Number(quantityText);
+
+  if (!/^\d+$/.test(stt) || Number(stt) < 1 || Number(stt) > 160) {
+    return json({ code: -1, msg: 'STT phải là số từ 1 đến 160' }, 400);
+  }
+  if (!phone && !orderCode) return json({ code: -1, msg: 'Cần nhập SĐT hoặc chọn mã đơn hàng' }, 400);
+  if (phone && orderCode) return json({ code: -1, msg: 'Chỉ nhập SĐT hoặc mã đơn hàng' }, 400);
+  if (!/^\d+$/.test(quantityText) || !Number.isInteger(quantity) || quantity < 0) {
+    return json({ code: -1, msg: 'Số lượng thu cũ phải là số nguyên từ 0 trở lên' }, 400);
+  }
+
+  const host = (env.LARK_HOST || 'https://open.larksuite.com').replace(/\/+$/, '');
+  try {
+    const bearerToken = await getToken(env, host);
+    const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
+    const existing = await readTableRecords(env, host, 'checkin', bearerToken, appToken);
+    if (existing.some((row) => checkinRowStts(row).includes(stt))) {
+      return json({ code: -1, msg: `STT ${stt} đã được check-in`, data: { stt, duplicate: true } }, 409);
+    }
+    if (phone) {
+      const normalizedPhone = normalizedCheckinPhone(phone);
+      if (normalizedPhone && existing.some((row) => checkinRowPhones(row).includes(normalizedPhone))) {
+        return json({ code: -1, msg: 'Số điện thoại này đã check-in', data: { duplicate: true, field: 'phone' } }, 409);
+      }
+    }
+    if (orderCode && existing.some((row) => checkinRowOrderCodes(row).includes(orderCode))) {
+      return json({ code: -1, msg: 'Mã đơn hàng này đã check-in', data: { duplicate: true, field: 'orderCode' } }, 409);
+    }
+
+    const meta = await getRecordFieldMeta(env, host, appToken, bearerToken, env.TB_CHECKIN);
+    const mapped = buildRecordFields(
+      {
+        sttApp: stt,
+        ...(phone ? { phone } : {}),
+        ...(orderCode ? { orderCode } : {}),
+        ...(paymentConfirmation ? { paymentConfirmation } : {}),
+        oldDeviceQuantity: quantity,
+      },
+      CHECKIN_FIELD_MAP,
+      meta,
+    );
+
+    const requiredColumns = [CHECKIN_FIELD_MAP.sttApp, CHECKIN_FIELD_MAP.oldDeviceQuantity];
+    if (phone) requiredColumns.push(CHECKIN_FIELD_MAP.phone);
+    if (orderCode) requiredColumns.push(CHECKIN_FIELD_MAP.orderCode);
+    const missingRequired = requiredColumns.filter((column) => !mapped.written.includes(column));
+    if (missingRequired.length) {
+      return json(
+        { code: -1, msg: `Không map được cột Check-in: ${missingRequired.join(', ')}`, data: { skipped: mapped.skipped } },
+        400,
+      );
+    }
+
+    const endpoint = `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${env.TB_CHECKIN}/records`;
+    const createRecord = async (fields) => {
+      const response = await fetchCoHanGio(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${bearerToken}`,
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify({ fields }),
+      });
+      return response.json();
+    };
+
+    let result = await createRecord(mapped.fields);
+    // Mã đơn hàng có thể là Single Select. Nếu tenant yêu cầu object option,
+    // thử lại riêng cột đó. STT_APP là Text nên không đưa vào fallback này.
+    if (result.code === 1254062) {
+      const selectFields = [CHECKIN_FIELD_MAP.orderCode];
+      const fallbackFields = { ...mapped.fields };
+      let changed = false;
+      for (const column of selectFields) {
+        if (!(column in fallbackFields)) continue;
+        const option = findSelectOption(meta.get(column), fallbackFields[column]);
+        if (option?.id) {
+          fallbackFields[column] = { id: option.id, text: String(option.name ?? '') };
+          changed = true;
+        }
+      }
+      if (changed) result = await createRecord(fallbackFields);
+    }
+    if (result.code !== 0) {
+      return json(
+        { code: -1, msg: `Lark ghi Check-in lỗi: ${result.msg} (code ${result.code})`, data: { skipped: mapped.skipped } },
+        502,
+      );
+    }
+
+    refreshDashboardSnapshotNow(env, ctx);
+    return json({
+      code: 0,
+      msg: 'success',
+      data: {
+        recordId: result.data?.record?.record_id ?? null,
+        stt,
+        written: mapped.written,
+        skipped: mapped.skipped,
+      },
+    });
+  } catch (error) {
+    return json({ code: -1, msg: String(error?.message || error) }, 500);
+  }
+}
+
 /** Đổi giá trị payload sang đúng dạng Bitable đòi. `null` = không hợp lệ, bỏ qua cột. */
 function toCellValue(meta, raw) {
   const s = String(raw);
@@ -941,6 +1127,8 @@ function toCellValue(meta, raw) {
 export class DashboardSnapshotCoordinator extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
+    // Serialize check-in writes across every device in this event.
+    this.checkinWriteQueue = Promise.resolve();
     this.refreshPromise = null;
     this.tableState = new Map();
     this.dirty = true;
@@ -1019,6 +1207,12 @@ export class DashboardSnapshotCoordinator extends DurableObject {
 
   async fetch(request) {
     await this.ready;
+    const path = new URL(request.url).pathname.replace(/^\//, '');
+    if (request.method === 'POST' && path === 'checkin-record') {
+      const run = this.checkinWriteQueue.then(() => handleCheckinRecord(request, this.env, this.ctx));
+      this.checkinWriteQueue = run.then(() => undefined, () => undefined);
+      return run;
+    }
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
       return json({ code: -1, msg: 'WebSocket Upgrade required' }, 426);
     }
@@ -1488,6 +1682,17 @@ export default {
       }
     }
 
+    // Ghi Check-in đi qua Durable Object để mọi máy dùng chung một hàng đợi.
+    if (request.method === 'POST' && table === 'checkin-record') {
+      try {
+        return await dashboardSnapshotCoordinator(env).fetch(
+          new Request('https://dashboard-snapshot/checkin-record', request),
+        );
+      } catch (e) {
+        return json({ code: -1, msg: String(e?.message || e) }, 500);
+      }
+    }
+
     // ── `GET /roster-check` — soi danh sách tài khoản mà worker ĐỌC ĐƯỢC ───
     //
     // Có route này vì lỗi "Sai tài khoản hoặc mật khẩu" không phân biệt được 3
@@ -1592,6 +1797,31 @@ export default {
       }
       const username = String(body.username ?? '').trim();
       const password = String(body.password ?? '');
+
+      // Check-in là tài khoản cố định, không phụ thuộc roster Master_DS.
+      if (username.toLowerCase() === 'checkin') {
+        if (!env.CHECKIN_PASSWORD) {
+          return json({ code: -1, msg: 'Chưa cấu hình CHECKIN_PASSWORD trên worker' }, 500);
+        }
+        if (!safeEqual(password, env.CHECKIN_PASSWORD)) {
+          return json({ code: -1, msg: 'Sai tài khoản hoặc mật khẩu' }, 401);
+        }
+        return json({
+          code: 0,
+          msg: 'success',
+          data: {
+            token: await issueToken(env, 'checkin'),
+            ttlMs: SESSION_TTL_MS,
+            role: 'checkin',
+            desk: '',
+            desks: [],
+            workspaces: [],
+            username: 'checkin',
+            msnv: '',
+            name: '',
+          },
+        });
+      }
 
       // ── Đường CHÍNH: tài khoản trong `Master_DS` ────────────────────────
       //
@@ -1805,10 +2035,28 @@ export default {
     // khi bấm thử ca thật — khỏi tốn 1 record rác mới biết lệch tên.
     //
     // `?table=dispatch` soi bảng Điều phối (đối chiếu `DISPATCH_FIELD_MAP`);
-    // mặc định là bảng Master (`RECORD_FIELD_MAP`).
+    // `?table=checkin` soi schema ghi Check-in; mặc định là bảng Master
+    // (`RECORD_FIELD_MAP`).
     if (request.method === 'GET' && table === 'fields') {
       if (!env.LARK_APP_TOKEN) return json({ code: -1, msg: 'Chưa cấu hình LARK_APP_TOKEN' }, 500);
-      const which = new URL(request.url).searchParams.get('table') === 'dispatch' ? 'dispatch' : 'master';
+      const requestedTable = new URL(request.url).searchParams.get('table');
+      if (requestedTable === 'checkin') {
+        if (!env.TB_CHECKIN) return json({ code: -1, msg: 'Chưa cấu hình TB_CHECKIN' }, 500);
+        try {
+          const bearerToken = await getToken(env, host);
+          const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
+          const meta = await getRecordFieldMeta(env, host, appToken, bearerToken, env.TB_CHECKIN);
+          const columns = [...meta.entries()].map(([name, m]) => ({
+            name,
+            type: m.type,
+            uiType: m.uiType ?? null,
+          }));
+          return json({ code: 0, msg: 'success', data: { table: 'checkin', tableId: env.TB_CHECKIN, columns } });
+        } catch (error) {
+          return json({ code: -1, msg: String(error?.message || error) }, 502);
+        }
+      }
+      const which = requestedTable === 'dispatch' ? 'dispatch' : 'master';
       const fieldsTableId = which === 'dispatch' ? env.TB_DISPATCH : env.TB_MASTER;
       if (!fieldsTableId) {
         return json({ code: -1, msg: `Chưa cấu hình ${which === 'dispatch' ? 'TB_DISPATCH' : 'TB_MASTER'}` }, 500);

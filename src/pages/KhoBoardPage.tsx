@@ -1,5 +1,5 @@
 /**
- * KhoBoardPage — màn hình Kho, route `#/khoview`.
+ * KhoBoardPage — màn hình Kho, route `/khoview`.
  *
  * Giống bố cục màn hình Tư vấn (`QueueBoardPage`) nhưng thay "STT hiện tại /
  * STT tiếp theo" bằng: Bàn nào · STT bao nhiêu · đang Tiếp nhận hay đã Hoàn
@@ -8,7 +8,7 @@
  * Chuỗi page/hook/component/mapper riêng (KhoBoard + useKhoBoardData +
  * khoMapper) — không đụng tới màn hình STT hay dashboard chính.
  */
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import KhoBoard from '@/components/KhoBoard';
 import ViewSwitcher from '@/components/ViewSwitcher';
@@ -37,18 +37,59 @@ const COLUMNS: Record<ClusterFilter, number> = {
   all: 9,
 };
 
+const COLUMN_WIDTHS_KEY = 'vhws-kho-column-widths-v1';
+const MIN_COLUMN_WIDTH = 180;
+
+type ColumnWidths = Partial<Record<ClusterFilter, Record<string, number>>>;
+
+function readColumnWidths(): ColumnWidths {
+  try {
+    const raw = window.localStorage.getItem(COLUMN_WIDTHS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as ColumnWidths;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function KhoBoardPage() {
   const [filter, setFilter] = useState<ClusterFilter>('consult');
   const [hideEmpty, setHideEmpty] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [columnWidths, setColumnWidths] = useState<ColumnWidths>(readColumnWidths);
   const { desks, loading, error, lastUpdated, isMock, refresh } = useKhoBoardData(
     filter === 'all' ? undefined : filter,
   );
 
   const shown = useMemo(
-    () => (hideEmpty ? desks.filter((d) => d.customers.length > 0) : desks),
+    () => (hideEmpty ? desks.filter((d) => d.customers.some((c) => c.status === 'received')) : desks),
     [desks, hideEmpty],
   );
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(columnWidths));
+    } catch {
+      // Không làm gián đoạn thao tác Kho nếu trình duyệt chặn localStorage.
+    }
+  }, [columnWidths]);
+  const handleColumnResize = useCallback((columnIndex: number, width: number) => {
+    setColumnWidths((current) => ({
+      ...current,
+      [filter]: {
+        ...current[filter],
+        [columnIndex]: Math.max(MIN_COLUMN_WIDTH, Math.round(width)),
+      },
+    }));
+  }, [filter]);
+  const resetColumnWidths = useCallback(() => {
+    setColumnWidths((current) => {
+      const next = { ...current };
+      delete next[filter];
+      return next;
+    });
+  }, [filter]);
+  const activeColumnWidths = columnWidths[filter] ?? {};
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
   return (
@@ -119,6 +160,15 @@ export default function KhoBoardPage() {
             />
             Mở sẵn khách đã hoàn tất
           </label>
+          {Object.keys(activeColumnWidths).length > 0 && (
+            <button
+              type="button"
+              onClick={resetColumnWidths}
+              className="rounded border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-white"
+            >
+              Khôi phục cột
+            </button>
+          )}
         </div>
 
         {error && (
@@ -128,13 +178,19 @@ export default function KhoBoardPage() {
         )}
       </header>
 
-      <main className="min-h-0 flex-1 px-2 py-2 md:px-4 md:py-3">
+      <main className="min-h-0 flex-1 overflow-auto px-2 py-2 md:px-4 md:py-3">
         {shown.length === 0 ? (
           <p className="py-10 text-center text-sm text-neutral-400">
             {loading ? 'Đang tải…' : 'Chưa có bàn nào có khách.'}
           </p>
         ) : (
-          <KhoBoard desks={shown} showCompleted={showCompleted} columns={COLUMNS[filter]} />
+          <KhoBoard
+            desks={shown}
+            showCompleted={showCompleted}
+            columns={COLUMNS[filter]}
+            columnWidths={activeColumnWidths}
+            onColumnResize={handleColumnResize}
+          />
         )}
       </main>
       <SleepOverlay />

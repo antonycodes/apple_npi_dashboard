@@ -7,6 +7,16 @@
   "compatibility_date": "2026-07-27",
   "main": "cloudflare-worker.js",
   "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "api-hcm.vhws.online",
+      "custom_domain": true
+    },
+    {
+      "pattern": "api.vhws.online",
+      "custom_domain": true
+    }
+  ],
   // Biến plaintext PHẢI khai ở đây: `wrangler deploy` đẩy lên đúng danh sách
   // vars trong file này, biến thêm tay trên dashboard sẽ bị xoá khi deploy.
   // (Secret thì ngược lại — luôn được giữ, xem "secrets" bên dưới.)
@@ -63,7 +73,8 @@
       "TB_DISPATCH",
       "TB_DS_MASTER",
       "ADMIN_PASSWORD",
-      "STAFF_PASSWORD"
+      "STAFF_PASSWORD",
+      "CHECKIN_PASSWORD"
     ]
   }
 }
