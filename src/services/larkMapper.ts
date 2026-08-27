@@ -878,8 +878,9 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
   // Check-in's "Status in <cụm>", vốn là formula riêng có thể không đồng bộ
   // kịp với Master).
   const completedCandidates: WaitingCustomer[] = [];
-  for (const row of latestMasterRows) {
-    if (row.status !== STATUS_COMPLETED) continue;
+  for (const row of latestMasterRows
+    .filter((candidate) => candidate.status === STATUS_COMPLETED)
+    .sort((a, b) => b.time - a.time)) {
     const ci = checkinByName.get(row.name);
     const dd = personnelDetailByName.get(row.name);
     completedCandidates.push({
@@ -915,9 +916,12 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
 
   // "Chờ check-in": đã check-in nhưng chưa từng xuất hiện ở Master (tức chưa
   // từng được NV nào nhận — đã điều phối rồi cũng vẫn tính, cho tới lúc có
-  // dòng "Tiếp nhận" thật).
+  // dòng "Tiếp nhận" thật). Sắp theo thời gian check-in tăng dần để người
+  // check-in sớm nhất đứng trước.
   const waitingCheckin: WaitingCustomer[] = [];
-  for (const r of tables.checkin) {
+  for (const r of [...tables.checkin].sort(
+    (a, b) => cellToNumber(fieldValue(a.fields, checkin.time)) - cellToNumber(fieldValue(b.fields, checkin.time)),
+  )) {
     const name = cellToString(r.fields[checkin.name]);
     if (!name || everSeenNames.has(name) || activeNames.has(name)) continue;
     const dd = personnelDetailByName.get(name);
