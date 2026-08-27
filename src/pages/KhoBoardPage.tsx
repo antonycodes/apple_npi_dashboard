@@ -14,6 +14,7 @@ import KhoBoard from '@/components/KhoBoard';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useKhoBoardData } from '@/hooks/useKhoBoardData';
+import { useKhoHandoverData } from '@/hooks/useKhoHandoverData';
 import { useWarehouseOrderClaims } from '@/hooks/useWarehouseOrderClaims';
 import { useWarehouseOrders } from '@/hooks/useWarehouseOrders';
 import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
@@ -69,6 +70,15 @@ export default function KhoBoardPage() {
   const warehouseOrders = useWarehouseOrders(warehouseApiUrl, true);
   const { desks, loading, error, lastUpdated, isMock, refresh } = useKhoBoardData(
     filter === 'all' ? undefined : filter,
+  );
+  const { staffByDesk } = useKhoHandoverData();
+  const warehouseStaffByMsnv = useMemo(
+    () => new Map(
+      [...staffByDesk.values()]
+        .filter((staff) => staff.loai?.trim().toLowerCase() === 'kho' && staff.msnv)
+        .map((staff) => [staff.msnv!.trim().toUpperCase(), staff] as const),
+    ),
+    [staffByDesk],
   );
 
   const shown = useMemo(
@@ -202,6 +212,7 @@ export default function KhoBoardPage() {
             inboxOrders={warehouseOrders.orders}
             claims={orderClaims.claims}
             onUnlockOrder={session?.role === 'admin' ? orderClaims.unlock : undefined}
+            warehouseStaffByMsnv={warehouseStaffByMsnv}
           />
         )}
       </main>

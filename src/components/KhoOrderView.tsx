@@ -6,11 +6,6 @@ function claimKey(orderCode: string) {
   return orderCode.trim().toUpperCase();
 }
 
-function claimedLocation(claim: WarehouseOrderClaims[string]): string {
-  const parts = [claim.claimedDesk, claim.claimedName, claim.claimedMsnv].filter((value) => value?.trim());
-  return parts.length ? parts.join(' - ') : claim.claimedBy;
-}
-
 type OrderPreview = WarehouseInboxOrder & {
   productLabel: string;
   product: string;
@@ -62,7 +57,7 @@ function CustomerOrders({
               <p className="truncate text-xs font-semibold text-neutral-800">{item.productLabel === 'ORDER' ? 'Nội dung Order' : item.product || '—'}</p>
               <p className="truncate text-[10px] text-neutral-500">Mã đơn: {item.orderCode}</p>
             </div>
-            {current && <span className="shrink-0 rounded-lg bg-red-100 px-2 py-1.5 text-[10px] font-bold text-red-700">Đã nhận · {claimedLocation(current)}</span>}
+            {current && <span className="shrink-0 rounded-lg bg-red-100 px-2 py-1.5 text-[10px] font-bold text-red-700">Đã nhận</span>}
           </button>
         );
       })}
@@ -92,6 +87,7 @@ export default function KhoOrderView({
   inboxOrders: WarehouseInboxOrder[];
 }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [completedCollapsed, setCompletedCollapsed] = useState<Record<string, boolean>>({});
   const [claiming, setClaiming] = useState<string | null>(null);
   const [inspectOrders, setInspectOrders] = useState<OrderPreview[] | null>(null);
   const occupied = useMemo(() => desks.filter((desk) => desk.customers.length > 0), [desks]);
@@ -103,13 +99,22 @@ export default function KhoOrderView({
     ])));
   }, [occupied]);
 
+  useEffect(() => {
+    setCompletedCollapsed((current) => Object.fromEntries(occupied.map((desk) => [
+      desk.id,
+      current[desk.id] ?? true,
+    ])));
+  }, [occupied]);
+
   if (!occupied.length) return <div className="p-6 text-center text-sm text-neutral-500">Chưa có bàn nào đang có khách.</div>;
 
   return (
     <div className="space-y-2 p-2">
       {occupied.map((desk) => {
         const active = desk.customers.filter((customer) => customer.status === 'received');
+        const completed = desk.customers.filter((customer) => customer.status === 'completed');
         const isCollapsed = collapsed[desk.id] ?? false;
+        const isCompletedCollapsed = completedCollapsed[desk.id] ?? true;
         return (
           <section key={desk.id} className="overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 shadow-sm">
             <button type="button" onClick={() => setCollapsed((current) => ({ ...current, [desk.id]: !isCollapsed }))} className="flex min-h-14 w-full items-center gap-2 px-3 text-left">
@@ -118,16 +123,37 @@ export default function KhoOrderView({
               <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-neutral-600">{active.length} đang phục vụ</span>
               <span className="text-lg text-neutral-400" aria-hidden="true">{isCollapsed ? '+' : '−'}</span>
             </button>
-            {!isCollapsed && desk.customers.map((customer) => (
-              <div key={`${desk.id}-${customer.stt}-${customer.status}`} className="border-t border-neutral-200 px-2 pt-2">
+            {!isCollapsed && active.map((customer) => (
+              <div key={`${desk.id}-${customer.stt}-active`} className="border-t border-neutral-200 px-2 pt-2">
                 <div className="flex items-center gap-2 px-1 pb-1">
                   <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-black text-orange-700">STT {customer.stt || '—'}</span>
                   <span className="truncate text-xs font-semibold text-neutral-700">{customer.name || 'Khách'}</span>
-                  {customer.status === 'completed' && <span className="ml-auto text-[10px] font-semibold text-neutral-400">Đã hoàn tất</span>}
                 </div>
                 <CustomerOrders customer={customer} claims={claims} inboxOrders={inboxOrders.filter((order) => order.deskId === desk.id)} onInspect={setInspectOrders} />
               </div>
             ))}
+            {!isCollapsed && completed.length > 0 && (
+              <div className="border-t border-neutral-200">
+                <button
+                  type="button"
+                  onClick={() => setCompletedCollapsed((current) => ({ ...current, [desk.id]: !isCompletedCollapsed }))}
+                  aria-expanded={!isCompletedCollapsed}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold text-neutral-500"
+                >
+                  <span>Đã hoàn tất · {completed.length}</span>
+                  <span aria-hidden="true">{isCompletedCollapsed ? '+' : '−'}</span>
+                </button>
+                {!isCompletedCollapsed && completed.map((customer) => (
+                  <div key={`${desk.id}-${customer.stt}-completed`} className="border-t border-neutral-100 px-2 pt-2 opacity-75">
+                    <div className="flex items-center gap-2 px-1 pb-1">
+                      <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-black text-neutral-500">STT {customer.stt || '—'}</span>
+                      <span className="truncate text-xs font-semibold text-neutral-500">{customer.name || 'Khách'}</span>
+                    </div>
+                    <CustomerOrders customer={customer} claims={claims} inboxOrders={inboxOrders.filter((order) => order.deskId === desk.id)} onInspect={setInspectOrders} />
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         );
       })}

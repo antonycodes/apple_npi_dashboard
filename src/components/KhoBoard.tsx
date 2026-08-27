@@ -44,12 +44,14 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function claimedLocation(claim: WarehouseOrderClaims[string]): string {
+function claimedLocation(claim: WarehouseOrderClaims[string], warehouseStaffByMsnv?: Map<string, { desk: string; name: string | null; msnv: string | null }>): string {
   const parts = [claim.claimedDesk, claim.claimedName, claim.claimedMsnv].filter((value) => value?.trim());
-  return parts.length ? parts.join(' - ') : claim.claimedBy;
+  if (parts.length) return parts.join(' - ');
+  const staff = warehouseStaffByMsnv?.get(claim.claimedBy.trim().toUpperCase());
+  return staff ? [staff.desk, staff.name, staff.msnv].filter(Boolean).join(' - ') : claim.claimedBy;
 }
 
-function OrderStatusBlock({ orders, claims, compact = false, onInspect }: { orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; compact?: boolean; onInspect?: (order: WarehouseInboxOrder) => void }) {
+function OrderStatusBlock({ orders, claims, compact = false, onInspect, warehouseStaffByMsnv }: { orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; compact?: boolean; onInspect?: (order: WarehouseInboxOrder) => void; warehouseStaffByMsnv?: Map<string, { desk: string; name: string | null; msnv: string | null }> }) {
   if (!orders.length) return null;
   if (compact) {
     return <div className="mt-1.5 border-t border-neutral-200 pt-1.5 text-[10px] font-bold text-amber-700">📦 Có order</div>;
@@ -63,7 +65,7 @@ function OrderStatusBlock({ orders, claims, compact = false, onInspect }: { orde
             <span className="shrink-0" aria-hidden="true">📦</span>
             <span className="min-w-0 flex-1 truncate font-semibold text-neutral-700" title={order.rawText}>Nội dung Order · {order.orderCode}</span>
             <span className={claim ? 'shrink-0 font-bold text-red-600' : 'shrink-0 font-semibold text-amber-700'}>
-              {claim ? `Đã nhận · ${claimedLocation(claim)}` : 'Chờ tiếp nhận'}
+              {claim ? `Đã nhận · ${claimedLocation(claim, warehouseStaffByMsnv)}` : 'Chờ tiếp nhận'}
             </span>
           </>
         );
@@ -223,7 +225,7 @@ function CustomerCard({
   );
 }
 
-function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, onClose }: { customer: KhoCustomer; desk: DeskKhoState; orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; onInspectOrder: (order: WarehouseInboxOrder) => void; onClose: () => void }) {
+function CustomerDetailsModal({ customer, desk, orders, claims, warehouseStaffByMsnv, onInspectOrder, onClose }: { customer: KhoCustomer; desk: DeskKhoState; orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; warehouseStaffByMsnv?: Map<string, { desk: string; name: string | null; msnv: string | null }>; onInspectOrder: (order: WarehouseInboxOrder) => void; onClose: () => void }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -285,14 +287,14 @@ function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, 
               )) : (customer.productName ? <ProductList value={customer.productName} /> : '—')}
             </dd>
           </div>
-          <OrderStatusBlock orders={orders} claims={claims} onInspect={onInspectOrder} />
+          <OrderStatusBlock orders={orders} claims={claims} onInspect={onInspectOrder} warehouseStaffByMsnv={warehouseStaffByMsnv} />
         </dl>
       </div>
     </div>
   );
 }
 
-function OrderDetailsModal({ order, claim, orderCodes, claims, onClose, onUnlock }: { order: WarehouseInboxOrder; claim?: WarehouseOrderClaims[string]; orderCodes: string[]; claims: WarehouseOrderClaims; onClose: () => void; onUnlock?: (orderCodes: string[]) => Promise<boolean> }) {
+function OrderDetailsModal({ order, claim, orderCodes, claims, warehouseStaffByMsnv, onClose, onUnlock }: { order: WarehouseInboxOrder; claim?: WarehouseOrderClaims[string]; orderCodes: string[]; claims: WarehouseOrderClaims; warehouseStaffByMsnv?: Map<string, { desk: string; name: string | null; msnv: string | null }>; onClose: () => void; onUnlock?: (orderCodes: string[]) => Promise<boolean> }) {
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
@@ -321,7 +323,7 @@ function OrderDetailsModal({ order, claim, orderCodes, claims, onClose, onUnlock
         </header>
         <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-sm text-neutral-800">{order.rawText}</pre>
         <p className={['mt-3 rounded-xl px-3 py-2 text-sm font-bold', claim ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'].join(' ')}>
-          {claim ? `Đã nhận · ${claimedLocation(claim)}` : 'Chờ tiếp nhận'}
+          {claim ? `Đã nhận · ${claimedLocation(claim, warehouseStaffByMsnv)}` : 'Chờ tiếp nhận'}
         </p>
         {orderCodes.some((code) => claims[code.trim().toUpperCase()]) && onUnlock && (
           <>
@@ -603,6 +605,7 @@ export default function KhoBoard({
   inboxOrders = [],
   claims = {},
   onUnlockOrder,
+  warehouseStaffByMsnv,
 }: {
   desks: DeskKhoState[];
   showCompleted?: boolean;
@@ -613,6 +616,7 @@ export default function KhoBoard({
   inboxOrders?: WarehouseInboxOrder[];
   claims?: WarehouseOrderClaims;
   onUnlockOrder?: (orderCode: string) => Promise<boolean>;
+  warehouseStaffByMsnv?: Map<string, { desk: string; name: string | null; msnv: string | null }>;
 }) {
   const [zoom, setZoom] = useState<string | null>(null);
   const [details, setDetails] = useState<{ desk: DeskKhoState; customer: KhoCustomer } | null>(null);
@@ -704,6 +708,7 @@ export default function KhoBoard({
           customer={details.customer}
           orders={inboxOrders.filter((order) => order.deskId === details.desk.id && order.stt === details.customer.stt)}
           claims={claims}
+          warehouseStaffByMsnv={warehouseStaffByMsnv}
           onInspectOrder={(order) => setOrderDetails({
             order,
             orderCodes: Array.from(new Set([
@@ -721,6 +726,7 @@ export default function KhoBoard({
         claim={claims[orderDetails.order.orderCode.trim().toUpperCase()]}
         orderCodes={orderDetails.orderCodes}
         claims={claims}
+        warehouseStaffByMsnv={warehouseStaffByMsnv}
         onUnlock={onUnlockOrder ? async (codes) => {
           for (const code of codes) {
             if (claims[code.trim().toUpperCase()]) await onUnlockOrder(code);
