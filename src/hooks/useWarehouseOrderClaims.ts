@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
-import { claimWarehouseOrder, claimWarehouseOrders, fetchWarehouseOrderClaims } from '@/services/warehouseOrderClaims';
+import { claimWarehouseOrder, claimWarehouseOrders, fetchWarehouseOrderClaims, unlockWarehouseOrder } from '@/services/warehouseOrderClaims';
 
 export function useWarehouseOrderClaims(apiUrl: string | undefined, enabled: boolean) {
   const [claims, setClaims] = useState<WarehouseOrderClaims>({});
@@ -41,5 +41,11 @@ export function useWarehouseOrderClaims(apiUrl: string | undefined, enabled: boo
     return result.wonAll;
   }, [apiUrl]);
 
-  return { claims, error, refresh, claim, claimAll };
+  const unlock = useCallback(async (orderCode: string) => {
+    if (!apiUrl) return false;
+    setClaims(await unlockWarehouseOrder(apiUrl, orderCode));
+    return true;
+  }, [apiUrl]);
+
+  return { claims, error, refresh, claim, claimAll, unlock };
 }

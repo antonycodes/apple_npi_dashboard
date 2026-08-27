@@ -387,6 +387,7 @@ export default function StaffDeskScreen({
   const [orderText, setOrderText] = useState('');
   const [orderSending, setOrderSending] = useState(false);
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
+  const [orderOpen, setOrderOpen] = useState(false);
 
   /**
    * STT vừa thu máy xong trên MÁY NÀY → mốc thời gian. Ẩn khách khỏi danh sách
@@ -929,46 +930,56 @@ export default function StaffDeskScreen({
 
         {view.cluster === 'consult' && (
           <section className="rounded-3xl border-2 border-sky-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
+            <button
+              type="button"
+              onClick={() => setOrderOpen((open) => !open)}
+              className="flex w-full items-center justify-between gap-3 text-left"
+              aria-expanded={orderOpen}
+            >
+              <div className="min-w-0">
                 <h2 className="text-xs font-bold uppercase tracking-wide text-sky-600">Gửi order tới kho</h2>
                 <p className="mt-1 text-xs text-neutral-500">
                   {orderCustomer?.stt ? `STT ${orderCustomer.stt} · ${orderCustomer.name ?? 'Khách'}` : 'Cần có khách đang phục vụ'}
                 </p>
               </div>
-              <span className="text-2xl" aria-hidden="true">📦</span>
-            </div>
-            <textarea
-              value={orderText}
-              onChange={(event) => setOrderText(event.target.value)}
-              onPaste={(event) => {
-                const pasted = event.clipboardData.getData('text');
-                if (pasted) setOrderMessage('Đã dán nội dung từ clipboard.');
-              }}
-              rows={4}
-              placeholder="Paste nội dung order vào đây…"
-              className="mt-3 w-full resize-y rounded-2xl border-2 border-neutral-200 px-3 py-3 text-sm text-neutral-800 outline-none focus:border-sky-400"
-              disabled={!orderCustomer?.stt || orderSending}
-            />
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => void pasteOrder()}
-                disabled={!orderCustomer?.stt || orderSending}
-                className="min-h-12 rounded-2xl border-2 border-sky-200 bg-sky-50 px-4 text-sm font-bold text-sky-700 active:bg-sky-100 disabled:opacity-40"
-              >
-                Dán
-              </button>
-              <button
-                type="button"
-                onClick={() => void sendOrderToWarehouse()}
-                disabled={!orderCustomer?.stt || !orderText.trim() || orderSending}
-                className="min-h-12 flex-1 rounded-2xl bg-sky-600 px-4 text-sm font-bold text-white active:bg-sky-700 disabled:bg-neutral-200 disabled:text-neutral-500"
-              >
-                {orderSending ? 'Đang gửi…' : 'Gửi order tới kho'}
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-neutral-400">Nút Dán đọc text đang có trong clipboard.</p>
+              <span className="flex shrink-0 items-center gap-2 text-2xl" aria-hidden="true">
+                📦 <span className="text-lg text-sky-500">{orderOpen ? '⌃' : '⌄'}</span>
+              </span>
+            </button>
+            {orderOpen && (
+              <>
+                <textarea
+                  value={orderText}
+                  onChange={(event) => setOrderText(event.target.value)}
+                  onPaste={(event) => {
+                    const pasted = event.clipboardData.getData('text');
+                    if (pasted) setOrderMessage('Đã dán nội dung từ clipboard.');
+                  }}
+                  rows={4}
+                  placeholder="Paste nội dung order vào đây…"
+                  className="mt-3 w-full resize-y rounded-2xl border-2 border-neutral-200 px-3 py-3 text-sm text-neutral-800 outline-none focus:border-sky-400"
+                  disabled={!orderCustomer?.stt || orderSending}
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void pasteOrder()}
+                    disabled={!orderCustomer?.stt || orderSending}
+                    className="min-h-12 rounded-2xl border-2 border-sky-200 bg-sky-50 px-4 text-sm font-bold text-sky-700 active:bg-sky-100 disabled:opacity-40"
+                  >
+                    Dán
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void sendOrderToWarehouse()}
+                    disabled={!orderCustomer?.stt || !orderText.trim() || orderSending}
+                    className="min-h-12 flex-1 rounded-2xl bg-sky-600 px-4 text-sm font-bold text-white active:bg-sky-700 disabled:bg-neutral-200 disabled:text-neutral-500"
+                  >
+                    {orderSending ? 'Đang gửi…' : 'Gửi'}
+                  </button>
+                </div>
+              </>
+            )}
             {orderMessage && <p className="mt-2 rounded-xl bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700">{orderMessage}</p>}
           </section>
         )}

@@ -1713,6 +1713,14 @@ export class WarehouseOrderClaims extends DurableObject {
     if (request.method === 'GET') {
       return json({ code: 0, msg: 'success', data: { claims: this.state } });
     }
+    if (request.method === 'DELETE') {
+      const body = await request.json();
+      const orderCode = String(body?.orderCode || '').trim().slice(0, 120);
+      if (!orderCode) return json({ code: -1, msg: 'Thiếu mã đơn hàng.' }, 400);
+      delete this.state[orderCode.toUpperCase()];
+      await this.ctx.storage.put('claims', this.state);
+      return json({ code: 0, msg: 'success', data: { claims: this.state } });
+    }
     if (request.method !== 'POST') return json({ code: -1, msg: 'Method không được hỗ trợ.' }, 405);
     const body = await request.json();
     if (Array.isArray(body?.orders)) {
@@ -1827,6 +1835,9 @@ export default {
     if (route === 'warehouse-order-claims') {
       try {
         if (!env.WAREHOUSE_ORDER_CLAIMS) throw new Error('Thiếu Durable Object binding "WAREHOUSE_ORDER_CLAIMS"');
+        if (request.method === 'DELETE' && (await verifyToken(env, bearer(request)))?.role !== 'admin') {
+          return json({ code: -1, msg: 'Chỉ admin được mở khóa order.' }, 403);
+        }
         // Tách khóa theo hostname để HCM/HN không khóa nhầm cùng mã order.
         const scope = new URL(request.url).hostname.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
         const stub = env.WAREHOUSE_ORDER_CLAIMS.getByName(`npi-cps-warehouse-orders-${scope}`);

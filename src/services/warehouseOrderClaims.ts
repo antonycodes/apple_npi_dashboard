@@ -1,4 +1,5 @@
 import type { WarehouseInboxOrder, WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
+import { adminSessionStore } from '@/config/adminSession';
 
 export async function fetchWarehouseOrderClaims(apiUrl: string, signal?: AbortSignal): Promise<WarehouseOrderClaims> {
   const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/warehouse-order-claims`, { signal });
@@ -35,6 +36,19 @@ export async function claimWarehouseOrders(
   const body = await response.json() as { code: number; msg?: string; data?: { claims?: WarehouseOrderClaims; wonAll?: boolean } };
   if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Không thể tiếp nhận các order.');
   return { wonAll: Boolean(body.data?.wonAll), claims: body.data?.claims ?? {} };
+}
+
+export async function unlockWarehouseOrder(apiUrl: string, orderCode: string): Promise<WarehouseOrderClaims> {
+  const token = adminSessionStore.getSnapshot();
+  if (!token) throw new Error('Phiên admin đã hết hạn — đăng nhập lại.');
+  const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/warehouse-order-claims`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ orderCode }),
+  });
+  const body = await response.json() as { code: number; msg?: string; data?: { claims?: WarehouseOrderClaims } };
+  if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Không thể mở khóa order.');
+  return body.data?.claims ?? {};
 }
 
 export async function fetchWarehouseOrders(apiUrl: string, signal?: AbortSignal): Promise<WarehouseInboxOrder[]> {

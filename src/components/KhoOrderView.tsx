@@ -6,99 +6,59 @@ function claimKey(orderCode: string) {
   return orderCode.trim().toUpperCase();
 }
 
+type OrderPreview = WarehouseInboxOrder & {
+  productLabel: string;
+  product: string;
+};
+
 function CustomerOrders({
   customer,
   claims,
-  onClaim,
-  onClaimAll,
-  claiming,
-  claimedBy,
   inboxOrders,
   onInspect,
 }: {
   customer: KhoCustomer;
   claims: WarehouseOrderClaims;
-  onClaim: (claim: Omit<WarehouseOrderClaim, 'claimedAt'>) => Promise<boolean>;
-  onClaimAll: (claims: Array<Omit<WarehouseOrderClaim, 'claimedAt'>>) => Promise<boolean>;
-  claiming: string | null;
-  claimedBy: string;
   inboxOrders: WarehouseInboxOrder[];
-  onInspect: (order: WarehouseInboxOrder) => void;
+  onInspect: (orders: OrderPreview[]) => void;
 }) {
   const products = customer.productOrders?.length
     ? customer.productOrders
     : customer.productName
       ? [{ label: 'SP1', product: customer.productName, orderCode: null }]
       : [];
-  if (!products.length) return <p className="px-3 py-2 text-xs text-neutral-400">Chưa có sản phẩm.</p>;
   const sentOrders = inboxOrders.filter((order) => order.stt === customer.stt);
-  const orders = [
-    ...products.filter((item) => item.orderCode).map((item) => ({
-      orderCode: item.orderCode!, stt: customer.stt, productLabel: item.label, product: item.product, claimedBy,
-    })),
-    ...sentOrders.map((order) => ({
-      orderCode: order.orderCode, stt: customer.stt, productLabel: 'ORDER', product: 'Order từ Tư vấn', claimedBy,
-    })),
+  const productOrders = products.filter((item) => item.orderCode).map((item) => ({
+    id: `product-${item.orderCode}`,
+    orderCode: item.orderCode!,
+    rawText: item.product,
+    deskId: '',
+    stt: customer.stt,
+    customerName: customer.name,
+    sentBy: '',
+    createdAt: 0,
+    productLabel: item.label,
+    product: item.product,
+  } satisfies OrderPreview));
+  const previews: OrderPreview[] = [
+    ...productOrders,
+    ...sentOrders.map((order) => ({ ...order, productLabel: 'ORDER', product: order.rawText })),
   ];
-  const allKey = `all-${customer.stt || 'customer'}`;
-  const allClaimed = orders.length > 2 && orders.every((item) => claims[claimKey(item.orderCode!)]);
+  if (!products.length && !sentOrders.length) return <p className="px-3 py-2 text-xs text-neutral-400">Chưa có sản phẩm.</p>;
 
   return (
     <div className="space-y-1 px-2 pb-2">
-      {orders.length > 2 && (
-        <button
-          type="button"
-          disabled={claiming === allKey || allClaimed}
-          onClick={() => void onClaimAll(orders)}
-          className="mb-1 w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-xs font-black text-red-700 disabled:opacity-60"
-        >{allClaimed ? '✓ Đã tiếp nhận tất cả' : claiming === allKey ? 'Đang tiếp nhận tất cả…' : `Tiếp nhận tất cả (${orders.length} đơn)`}</button>
-      )}
-      {products.map((item) => {
-        const key = item.orderCode ? claimKey(item.orderCode) : '';
-        const current = key ? claims[key] : undefined;
-        const busy = claiming === key;
+      {previews.map((item) => {
+        const current = claims[claimKey(item.orderCode)];
         return (
-          <div key={`${item.label}-${item.orderCode || item.product}`} className={['flex items-center gap-2 rounded-lg border px-2 py-2', current ? 'border-red-300 bg-red-50' : 'border-neutral-200 bg-white'].join(' ')}>
-            <span className={['shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black', current ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'].join(' ')}>{item.label}</span>
+          <button key={item.id} type="button" onClick={() => onInspect(previews)} className={['flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left', current ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'].join(' ')}>
+            {item.productLabel === 'ORDER' ? <span className="shrink-0 text-base" aria-label="Có order">📦</span> : <span className={['shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black', current ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'].join(' ')}>{item.productLabel}</span>}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-neutral-800">{item.product || '—'}</p>
-              <p className="truncate text-[10px] text-neutral-500">Mã đơn: {item.orderCode || 'Chưa có mã'}</p>
+              <p className="truncate text-xs font-semibold text-neutral-800">{item.productLabel === 'ORDER' ? 'Nội dung Order' : item.product || '—'}</p>
+              <p className="truncate text-[10px] text-neutral-500">Mã đơn: {item.orderCode}</p>
             </div>
-            {key && (
-              current ? (
-                <span className="shrink-0 rounded-full bg-red-100 px-2 py-1 text-[10px] font-bold text-red-700" title={`Đã khóa bởi ${current.claimedBy}`}>
-                  Đã nhận · {current.claimedBy}
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void onClaim({ orderCode: item.orderCode!, stt: customer.stt, productLabel: item.label, product: item.product, claimedBy })}
-                  className="shrink-0 rounded-lg bg-brand px-2 py-1.5 text-[10px] font-bold text-white disabled:opacity-50"
-                >{busy ? 'Đang nhận…' : 'Tiếp nhận'}</button>
-              )
-            )}
-          </div>
-        );
-      })}
-      {sentOrders.map((order) => {
-        const key = claimKey(order.orderCode);
-        const current = claims[key];
-        const busy = claiming === key;
-        return (
-          <div key={order.id} className={['flex items-center gap-2 rounded-lg border px-2 py-2', current ? 'border-red-300 bg-red-50' : 'border-amber-200 bg-amber-50'].join(' ')}>
-            <span className="shrink-0 text-base" aria-label="Có order">📦</span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-neutral-800">Order từ Tư vấn · {order.orderCode}</p>
-              <p className="text-[10px] text-neutral-500">Gửi bởi {order.sentBy}</p>
-            </div>
-            <button type="button" onClick={() => onInspect(order)} className="shrink-0 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-[10px] font-bold text-neutral-700">Xem</button>
-            {current ? (
-              <span className="shrink-0 rounded-full bg-red-100 px-2 py-1 text-[10px] font-bold text-red-700">Đã khóa</span>
-            ) : (
-              <button type="button" disabled={busy} onClick={() => void onClaim({ orderCode: order.orderCode, stt: customer.stt, productLabel: 'ORDER', product: 'Order từ Tư vấn', claimedBy })} className="shrink-0 rounded-lg bg-brand px-2 py-1.5 text-[10px] font-bold text-white disabled:opacity-50">{busy ? 'Đang nhận…' : 'Tiếp nhận'}</button>
-            )}
-          </div>
+            {current && <span className="shrink-0 rounded-lg bg-red-100 px-2 py-1.5 text-[10px] font-bold text-red-700">Đã khóa</span>}
+          </button>
         );
       })}
     </div>
@@ -122,7 +82,7 @@ export default function KhoOrderView({
 }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [claiming, setClaiming] = useState<string | null>(null);
-  const [inspectOrder, setInspectOrder] = useState<WarehouseInboxOrder | null>(null);
+  const [inspectOrders, setInspectOrders] = useState<OrderPreview[] | null>(null);
   const occupied = useMemo(() => desks.filter((desk) => desk.customers.length > 0), [desks]);
 
   useEffect(() => {
@@ -131,17 +91,6 @@ export default function KhoOrderView({
       current[desk.id] ?? !desk.customers.some((customer) => customer.status === 'received'),
     ])));
   }, [occupied]);
-
-  const handleClaim = async (claim: Omit<WarehouseOrderClaim, 'claimedAt'>) => {
-    const key = claimKey(claim.orderCode);
-    setClaiming(key);
-    try { return await onClaim(claim); } finally { setClaiming(null); }
-  };
-  const handleClaimAll = async (claimsToClaim: Array<Omit<WarehouseOrderClaim, 'claimedAt'>>) => {
-    const key = `all-${claimsToClaim[0]?.stt || 'customer'}`;
-    setClaiming(key);
-    try { return await onClaimAll(claimsToClaim); } finally { setClaiming(null); }
-  };
 
   if (!occupied.length) return <div className="p-6 text-center text-sm text-neutral-500">Chưa có bàn nào đang có khách.</div>;
 
@@ -165,21 +114,87 @@ export default function KhoOrderView({
                   <span className="truncate text-xs font-semibold text-neutral-700">{customer.name || 'Khách'}</span>
                   {customer.status === 'completed' && <span className="ml-auto text-[10px] font-semibold text-neutral-400">Đã hoàn tất</span>}
                 </div>
-                <CustomerOrders customer={customer} claims={claims} onClaim={handleClaim} onClaimAll={handleClaimAll} claiming={claiming} claimedBy={claimedBy} inboxOrders={inboxOrders.filter((order) => order.deskId === desk.id)} onInspect={setInspectOrder} />
+                <CustomerOrders customer={customer} claims={claims} inboxOrders={inboxOrders.filter((order) => order.deskId === desk.id)} onInspect={setInspectOrders} />
               </div>
             ))}
           </section>
         );
       })}
-      {inspectOrder && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setInspectOrder(null)}>
+      {inspectOrders && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setInspectOrders(null)}>
           <div className="w-full max-w-[430px] rounded-2xl bg-white p-4 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-base font-black text-neutral-900">📦 {inspectOrder.orderCode}</h2>
-              <button type="button" onClick={() => setInspectOrder(null)} className="text-2xl text-neutral-400" aria-label="Đóng">×</button>
+              <h2 className="text-base font-black text-neutral-900">📦 {new Set(inspectOrders.filter((item) => item.productLabel !== 'ORDER').map((item) => item.orderCode)).size ? `${new Set(inspectOrders.filter((item) => item.productLabel !== 'ORDER').map((item) => item.orderCode)).size} Đơn hàng` : 'Nội dung Order'}</h2>
+              <button type="button" onClick={() => setInspectOrders(null)} className="text-2xl text-neutral-400" aria-label="Đóng">×</button>
             </div>
-            <p className="mt-1 text-xs text-neutral-500">STT {inspectOrder.stt || '—'} · {inspectOrder.customerName || 'Khách'} · Gửi bởi {inspectOrder.sentBy}</p>
-            <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-sm text-neutral-800">{inspectOrder.rawText}</pre>
+            <div className="mt-3 max-h-72 space-y-2 overflow-auto">
+              {inspectOrders.map((order) => (
+                <div key={order.id} className="rounded-xl bg-neutral-50 p-3">
+                  {order.productLabel === 'ORDER' ? (
+                    <>
+                      <p className="text-sm font-bold text-neutral-900">Nội dung Order</p>
+                      <p className="mt-1 text-xs font-semibold text-neutral-500">Mã đơn: {order.orderCode}</p>
+                      <pre className="mt-2 whitespace-pre-wrap text-xs text-neutral-800">{order.rawText}</pre>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-bold text-neutral-900">{order.orderCode}</p>
+                      <p className="mt-2 whitespace-pre-wrap text-xs text-neutral-800">{order.product}</p>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            {(() => {
+              const productItems = inspectOrders.filter((item) => item.productLabel !== 'ORDER');
+              const inboxItems = inspectOrders.filter((item) => item.productLabel === 'ORDER');
+              const productClaims = Array.from(new Map(productItems.map((item) => [claimKey(item.orderCode), item])).values()).map((item) => ({ orderCode: item.orderCode, stt: item.stt, productLabel: item.productLabel, product: item.product, claimedBy }));
+              const allProductsClaimed = productClaims.length > 1 && productClaims.every((item) => claims[claimKey(item.orderCode)]);
+              const productKey = `popup-products-${productClaims.map((item) => item.orderCode).join('|')}`;
+              const productBusy = claiming === productKey;
+              const inboxUnclaimed = inboxItems.filter((item) => !claims[claimKey(item.orderCode)]);
+              const productClaimed = productClaims.length === 1 && Boolean(claims[claimKey(productClaims[0].orderCode)]);
+              const claimInbox = async (item: OrderPreview) => {
+                const inboxKey = `popup-inbox-${item.orderCode}`;
+                setClaiming(inboxKey);
+                try {
+                  const won = await onClaim({ orderCode: item.orderCode, stt: item.stt, productLabel: 'ORDER', product: 'Order từ Tư vấn', claimedBy });
+                  if (won && inboxUnclaimed.length === 1 && !productClaims.some((product) => !claims[claimKey(product.orderCode)])) setInspectOrders(null);
+                } finally {
+                  setClaiming(null);
+                }
+              };
+              if (!productClaims.length && !inboxUnclaimed.length) return <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Đã khóa toàn bộ mã đơn.</p>;
+              const claimProducts = async () => {
+                setClaiming(productKey);
+                try {
+                  const won = productClaims.length > 1
+                    ? await onClaimAll(productClaims)
+                    : productClaims[0]
+                      ? await onClaim(productClaims[0])
+                      : false;
+                  if (won && !inboxUnclaimed.length) setInspectOrders(null);
+                } finally {
+                  setClaiming(null);
+                }
+              };
+              const productButton = productClaims.length ? (
+                <button
+                  type="button"
+                  disabled={productBusy || allProductsClaimed || productClaimed}
+                  onClick={() => void claimProducts()}
+                  className="mt-3 min-h-12 w-full rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white disabled:bg-neutral-200 disabled:text-neutral-500"
+                >
+                  {allProductsClaimed || productClaimed ? '✓ Đã khóa mã đơn' : productBusy ? 'Đang tiếp nhận…' : productClaims.length > 1 ? `Tiếp nhận tất cả (${productClaims.length} đơn)` : 'Tiếp nhận'}
+                </button>
+              ) : null;
+              const inboxButtons = inboxUnclaimed.map((item) => {
+                const inboxKey = `popup-inbox-${item.orderCode}`;
+                const inboxBusy = claiming === inboxKey;
+                return <button key={item.id} type="button" disabled={inboxBusy} onClick={() => void claimInbox(item)} className="mt-3 min-h-12 w-full rounded-xl border-2 border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800 disabled:opacity-50">{inboxBusy ? 'Đang tiếp nhận…' : 'Tiếp nhận Order'}</button>;
+              });
+              return <>{productButton}{inboxButtons}</>;
+            })()}
           </div>
         </div>
       )}
