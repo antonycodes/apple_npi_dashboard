@@ -77,7 +77,10 @@ function TradeInBlock({ customer, onZoom }: { customer: KhoCustomer; onZoom: (ur
             <button
               key={img.fileToken}
               type="button"
-              onClick={() => onZoom(mediaUrl(img.fileToken))}
+              onClick={(event) => {
+                event.stopPropagation();
+                onZoom(mediaUrl(img.fileToken));
+              }}
               className="rounded border border-neutral-300"
               title="Xem ảnh cỡ lớn"
             >
@@ -153,15 +156,76 @@ function CustomerCard({
   customer,
   showTradeIn,
   onZoom,
+  onDetails,
 }: {
   customer: KhoCustomer;
   showTradeIn: boolean;
   onZoom: (url: string) => void;
+  onDetails: (customer: KhoCustomer) => void;
 }) {
   return (
-    <li className="rounded-lg border border-occupied/40 bg-white px-2 py-1.5 shadow-sm">
+    <li
+      role="button"
+      tabIndex={0}
+      onClick={() => onDetails(customer)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onDetails(customer);
+        }
+      }}
+      title="Bấm để xem chi tiết khách"
+      className="cursor-pointer rounded-lg border border-occupied/40 bg-white px-2 py-1.5 shadow-sm hover:border-brand/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+    >
       <CustomerCardBody customer={customer} showTradeIn={showTradeIn} onZoom={onZoom} />
     </li>
+  );
+}
+
+function CustomerDetailsModal({ customer, desk, onClose }: { customer: KhoCustomer; desk: DeskKhoState; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Chi tiết STT ${customer.stt ?? 'khách'}`}
+      onClick={onClose}
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
+    >
+      <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
+        <header className="flex items-start justify-between gap-3 border-b border-neutral-200 pb-3">
+          <div>
+            <h2 className="text-base font-black text-neutral-900">Chi tiết khách · STT {customer.stt ?? '—'}</h2>
+            <p className="mt-0.5 text-xs text-neutral-500">{desk.label} · Đang tiếp nhận</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Đóng" className="rounded-lg px-2 text-2xl leading-none text-neutral-400 hover:bg-neutral-100">×</button>
+        </header>
+        <dl className="mt-3 space-y-2 text-sm">
+          <div className="flex items-start justify-between gap-4 border-b border-neutral-100 pb-2">
+            <dt className="text-neutral-500">Họ và tên</dt>
+            <dd className="text-right font-semibold text-neutral-800">{customer.name || '—'}</dd>
+          </div>
+          <div>
+            <dt className="mb-1 text-neutral-500">Sản phẩm · Mã đơn hàng</dt>
+            <dd className="space-y-1 rounded-lg bg-neutral-50 p-2 font-semibold text-neutral-800">
+              {customer.productOrders?.length ? customer.productOrders.map((item) => (
+                <div key={item.label} className="flex items-start justify-between gap-3 border-b border-neutral-200 last:border-0 last:pb-0">
+                  <span className="min-w-0"><span className="mr-1.5 text-brand">{item.label}</span>{item.product}</span>
+                  <span className="shrink-0 text-right text-neutral-500">{item.orderCode || '—'}</span>
+                </div>
+              )) : (customer.productName ? <ProductList value={customer.productName} /> : '—')}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </div>
   );
 }
 
@@ -279,6 +343,7 @@ function DeskColumn({
   onResizeStart,
   columnIndex,
   resizing,
+  onDetails,
 }: {
   desk: DeskKhoState;
   showCompleted: boolean;
@@ -286,6 +351,7 @@ function DeskColumn({
   onResizeStart: (event: React.PointerEvent<HTMLButtonElement>, columnIndex: number) => void;
   columnIndex: number;
   resizing: boolean;
+  onDetails: (desk: DeskKhoState, customer: KhoCustomer) => void;
 }) {
   // Tư vấn không thu máy nên không có gì để hiện — xem `staffMapper`.
   const showTradeIn = desk.cluster !== 'consult';
@@ -345,6 +411,7 @@ function DeskColumn({
               customer={c}
               showTradeIn={showTradeIn}
               onZoom={onZoom}
+              onDetails={(customer) => onDetails(desk, customer)}
             />
           ))}
         </ul>
@@ -422,6 +489,7 @@ export default function KhoBoard({
   onColumnResize?: (columnIndex: number, width: number) => void;
 }) {
   const [zoom, setZoom] = useState<string | null>(null);
+  const [details, setDetails] = useState<{ desk: DeskKhoState; customer: KhoCustomer } | null>(null);
   const [resizingIndex, setResizingIndex] = useState<number | null>(null);
   const resizeRef = useRef<{
     columnIndex: number;
@@ -484,6 +552,7 @@ export default function KhoBoard({
             showCompleted={showCompleted}
             onZoom={setZoom}
             onResizeStart={handleResizeStart}
+            onDetails={(desk, customer) => setDetails({ desk, customer })}
             columnIndex={desks.indexOf(d) % columns}
             resizing={resizingIndex === desks.indexOf(d) % columns}
           />
@@ -499,6 +568,13 @@ export default function KhoBoard({
         >
           <img src={zoom} alt="Ảnh nghiệm thu máy cũ" className="max-h-full max-w-full rounded-lg" />
         </div>
+      )}
+      {details && (
+        <CustomerDetailsModal
+          desk={details.desk}
+          customer={details.customer}
+          onClose={() => setDetails(null)}
+        />
       )}
     </>
   );

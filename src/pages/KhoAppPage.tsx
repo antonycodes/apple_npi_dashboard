@@ -13,15 +13,18 @@
  */
 import { useState } from 'react';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
-import KhoBoard from '@/components/KhoBoard';
+import KhoOrderView from '@/components/KhoOrderView';
 import KhoHandoverForm, { type KhoHandoverValues } from '@/components/KhoHandoverForm';
 import { useAdminInfo } from '@/config/adminSession';
 import { useKhoBoardData } from '@/hooks/useKhoBoardData';
+import { useWarehouseOrderClaims } from '@/hooks/useWarehouseOrderClaims';
+import { useWarehouseOrders } from '@/hooks/useWarehouseOrders';
 import { useKhoHandoverData } from '@/hooks/useKhoHandoverData';
-import { staffActionWebhookUrl, useLarkSettings } from '@/config/larkSettings';
+import { staffActionWebhookUrl, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
 import { sendStaffAction } from '@/services/staffActionWebhook';
 import SleepOverlay from '@/components/SleepOverlay';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 
 type Tab = 'handover' | 'board';
 
@@ -41,6 +44,7 @@ export default function KhoAppPage({
 }) {
   const session = useAdminInfo();
   const settings = useLarkSettings();
+  const guestSimulation = useGuestSimulation();
   const [tab, setTab] = useState<Tab>('handover');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,10 +55,21 @@ export default function KhoAppPage({
   // Bảng kanban chỉ tải khi thật sự mở tab đó — kho thường để máy ở tab Bàn
   // giao suốt buổi, không việc gì phải map lại 36 bàn mỗi 5 giây.
   const board = useKhoBoardData(undefined, tab === 'board', guestMode);
+  const liveClaims = useWarehouseOrderClaims(toRuntimeConfig(settings).apiUrl, tab === 'board' && !guestMode);
+  const liveOrders = useWarehouseOrders(toRuntimeConfig(settings).apiUrl, tab === 'board' && !guestMode);
 
   const webhookUrl = staffActionWebhookUrl(settings);
   const larkConnected = !isMock && !dataError && Boolean(lastUpdated);
   const guestDeskLabel = guestRole?.replace(/^Guest_/, '') || 'Kho';
+  const claimedBy = guestMode ? guestRole || 'Guest_Kho' : session?.msnv || session?.username || 'Kho';
+  const claims = guestMode ? guestSimulation?.orderClaims ?? {} : liveClaims.claims;
+  const orders = guestMode ? guestSimulation?.orders ?? [] : liveOrders.orders;
+  const claimOrder = guestMode
+    ? async (claim: Parameters<NonNullable<typeof guestSimulation>['claimOrder']>[0]) => guestSimulation?.claimOrder(claim) ?? false
+    : liveClaims.claim;
+  const claimAllOrders = guestMode
+    ? async (claimsToClaim: Parameters<NonNullable<typeof guestSimulation>['claimAllOrders']>[0]) => guestSimulation?.claimAllOrders(claimsToClaim) ?? false
+    : liveClaims.claimAll;
 
   const submit = async (values: KhoHandoverValues) => {
     if (sending) return;
@@ -207,10 +222,13 @@ export default function KhoAppPage({
           />
         ) : (
           <div className="px-2 py-2">
-            <KhoBoard
-              desks={board.desks.filter((d) => d.customers.length > 0)}
-              showCompleted={false}
-              columns={1}
+            <KhoOrderView
+              desks={board.desks.filter((desk) => desk.cluster === 'consult')}
+              claims={claims}
+              claimedBy={claimedBy}
+              onClaim={claimOrder}
+              onClaimAll={claimAllOrders}
+              inboxOrders={orders}
             />
           </div>
         )}

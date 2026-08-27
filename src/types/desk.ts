@@ -44,6 +44,7 @@ export type DeskUiStatus = 'available' | 'occupied';
 export interface DeskCustomer {
   stt: string | null; // STT khách (hiển thị trên chấm)
   name: string | null; // tên (hiển thị khi hover / trong popover)
+  productOrders?: Array<{ label: string; product: string; orderCode: string | null }>;
   /** Mốc `Thời gian` của dòng `Tiếp nhận` trong Master (epoch ms). */
   serviceStartedAt?: number | null;
   productName?: string | null; // SP 1 (join Check in theo tên)

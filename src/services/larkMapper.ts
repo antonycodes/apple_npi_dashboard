@@ -224,6 +224,7 @@ function isEndFlowValue(v: LarkCellValue): boolean {
 interface CheckinIndexEntry {
   stt: string | null;
   product: string | null;
+  productOrders: Array<{ label: string; product: string; orderCode: string | null }>;
   note: string | null;
   deviceAccepted: boolean;
   deviceAcceptedText: string | null;
@@ -251,9 +252,21 @@ function indexCheckinByName(rows: LarkRecord[], fm: CheckinFieldMap): Map<string
   for (const r of rows) {
     const name = cellToString(fieldValue(r.fields, fm.name));
     if (name) {
+      const productFields = Object.keys(r.fields)
+        .filter((key) => /^SP\s*[1-4]$/i.test(key.trim()))
+        .sort((a, b) => Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, '')));
+      const productOrders = (productFields.length ? productFields : [fm.product]).flatMap((key) => {
+        const product = cellToString(fieldValue(r.fields, key));
+        if (!product) return [];
+        const number = key.match(/[1-4]/)?.[0] ?? '1';
+        const orderCode = cellToString(fieldValue(r.fields, `MDH_SP${number}`))
+          ?? cellToString(fieldValue(r.fields, `MĐH_SP${number}`));
+        return [{ label: `SP${number}`, product, orderCode }];
+      });
       m.set(name, {
         stt: cellToString(r.fields[fm.stt]),
         product: cellToProducts(r.fields, fm.product),
+        productOrders,
         note: cellToString(r.fields[fm.note]),
         deviceAccepted: cellToBool(r.fields[fm.deviceAccepted]),
         deviceAcceptedText: cellToString(r.fields[fm.deviceAccepted]),
@@ -531,6 +544,7 @@ function indexMasterByDeskCode(
       customer: {
         stt: ci?.stt ?? null,
         name: row.name,
+        productOrders: ci?.productOrders ?? [],
         serviceStartedAt: row.time > 0 ? row.time : null,
         productName: ci?.product ?? null,
         paymentNote: ci?.note ?? null,
@@ -849,6 +863,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
     list.push({
       stt: ci?.stt ?? null,
       name: row.name,
+      productOrders: ci?.productOrders ?? [],
       productName: ci?.product ?? null,
       paymentNote: ci?.note ?? null,
       deviceAccepted: ci?.deviceAccepted ?? null,
@@ -905,6 +920,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
     completedCandidates.push({
       stt: ci?.stt ?? null,
       name: row.name,
+      productOrders: ci?.productOrders ?? [],
       productName: ci?.product ?? null,
       paymentNote: ci?.note ?? null,
       deviceAccepted: ci?.deviceAccepted ?? null,

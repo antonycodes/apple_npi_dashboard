@@ -1424,6 +1424,8 @@ export class GuestSimulationRoom extends DurableObject {
         },
         assignments: [],
         alerts: [],
+        orderClaims: {},
+        orders: [],
         participants: [],
         createdAt: Date.now(),
         expiresAt: Date.now() + GUEST_ROOM_TTL_MS,
@@ -1501,10 +1503,67 @@ export class GuestSimulationRoom extends DurableObject {
             return fileToken ? { file_token: fileToken, ...(name ? { name } : {}) } : null;
           }).filter(Boolean)
         : null;
-      if (!stage || !deskId || !['dispatch', 'receive', 'complete', 'device', 'help', 'help-clear'].includes(action)) {
+      const orderCode = typeof body?.orderCode === 'string' ? body.orderCode.trim().slice(0, 120) : '';
+      const productLabel = typeof body?.productLabel === 'string' ? body.productLabel.trim().slice(0, 40) : '';
+      const product = typeof body?.product === 'string' ? body.product.trim().slice(0, 240) : '';
+      const claimedBy = typeof body?.claimedBy === 'string' ? body.claimedBy.trim().slice(0, 120) : 'Kho';
+      let orders = [];
+      if (typeof body?.orders === 'string') {
+        try { orders = JSON.parse(body.orders); } catch { orders = []; }
+      }
+      let sentOrder = null;
+      if (typeof body?.order === 'string') {
+        try { sentOrder = JSON.parse(body.order); } catch { sentOrder = null; }
+      }
+      if (!stage || !deskId || !['dispatch', 'receive', 'complete', 'device', 'help', 'help-clear', 'claim-order', 'claim-orders', 'send-order'].includes(action)) {
         return json({ code: -1, msg: 'Guest room action không hợp lệ.' }, 400);
       }
-      if (action === 'help') {
+      if (action === 'send-order') {
+        const rawText = typeof sentOrder?.rawText === 'string' ? sentOrder.rawText.trim().slice(0, 4000) : '';
+        if (!rawText) return json({ code: -1, msg: 'Thiếu nội dung order.' }, 400);
+        this.state.orders = [...(this.state.orders || []), {
+          id: crypto.randomUUID(),
+          orderCode: String(sentOrder?.orderCode || `INBOX-${crypto.randomUUID().slice(0, 8)}`).trim().slice(0, 120),
+          rawText,
+          deskId: String(sentOrder?.deskId || deskId).trim().slice(0, 40),
+          stt: sentOrder?.stt ? String(sentOrder.stt).trim().slice(0, 40) : null,
+          customerName: sentOrder?.customerName ? String(sentOrder.customerName).trim().slice(0, 160) : null,
+          sentBy: String(sentOrder?.sentBy || 'Tư vấn').trim().slice(0, 120),
+          createdAt: Date.now(),
+        }].slice(-200);
+      } else if (action === 'claim-orders') {
+        const validOrders = Array.isArray(orders) ? orders.filter((item) => item && typeof item.orderCode === 'string') : [];
+        if (!validOrders.length) return json({ code: -1, msg: 'Thiếu danh sách mã đơn hàng.' }, 400);
+        this.state.orderClaims = this.state.orderClaims || {};
+        for (const item of validOrders) {
+          const code = item.orderCode.trim().slice(0, 120);
+          const key = code.toUpperCase();
+          if (!this.state.orderClaims[key]) {
+            this.state.orderClaims[key] = {
+              orderCode: code,
+              stt: stt || null,
+              productLabel: String(item.productLabel || '').slice(0, 40),
+              product: String(item.product || '').slice(0, 240),
+              claimedBy: String(item.claimedBy || 'Kho').slice(0, 120),
+              claimedAt: Date.now(),
+            };
+          }
+        }
+      } else if (action === 'claim-order') {
+        if (!orderCode) return json({ code: -1, msg: 'Thiếu mã đơn hàng.' }, 400);
+        const key = orderCode.toUpperCase();
+        this.state.orderClaims = this.state.orderClaims || {};
+        if (!this.state.orderClaims[key]) {
+          this.state.orderClaims[key] = {
+            orderCode,
+            stt: stt || null,
+            productLabel,
+            product,
+            claimedBy,
+            claimedAt: Date.now(),
+          };
+        }
+      } else if (action === 'help') {
         const alertId = `guest-alert-${deskId}`;
         this.state.alerts = (this.state.alerts || []).filter((item) => item.deskId !== deskId);
         this.state.alerts.push({
@@ -1634,6 +1693,105 @@ export class GuestSimulationRoom extends DurableObject {
   }
 }
 
+/**
+ * Khóa nhận order của Kho dùng chung cho mọi thiết bị.
+ * Durable Object serialize toàn bộ request theo một namespace duy nhất, nên
+ * hai máy bấm cùng lúc chỉ một máy thắng; order đã nhận vẫn được trả về.
+ */
+export class WarehouseOrderClaims extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx = ctx;
+    this.state = null;
+    this.ready = ctx.blockConcurrencyWhile(async () => {
+      this.state = await ctx.storage.get('claims') || {};
+    });
+  }
+
+  async fetch(request) {
+    await this.ready;
+    if (request.method === 'GET') {
+      return json({ code: 0, msg: 'success', data: { claims: this.state } });
+    }
+    if (request.method !== 'POST') return json({ code: -1, msg: 'Method không được hỗ trợ.' }, 405);
+    const body = await request.json();
+    if (Array.isArray(body?.orders)) {
+      const validOrders = body.orders.filter((item) => item && typeof item.orderCode === 'string');
+      if (!validOrders.length) return json({ code: -1, msg: 'Thiếu danh sách mã đơn hàng.' }, 400);
+      let wonAll = true;
+      for (const item of validOrders) {
+        const code = item.orderCode.trim().slice(0, 120);
+        const key = code.toUpperCase();
+        if (!this.state[key]) {
+          this.state[key] = {
+            orderCode: code,
+            stt: item.stt ? String(item.stt).slice(0, 40) : null,
+            productLabel: String(item.productLabel || '').slice(0, 40),
+            product: String(item.product || '').slice(0, 240),
+            claimedBy: String(item.claimedBy || 'Kho').slice(0, 120),
+            claimedAt: Date.now(),
+          };
+        }
+        if (this.state[key].claimedBy !== item.claimedBy) wonAll = false;
+      }
+      await this.ctx.storage.put('claims', this.state);
+      return json({ code: 0, msg: wonAll ? 'success' : 'order_already_claimed', data: { claims: this.state, wonAll } });
+    }
+    const orderCode = String(body?.orderCode || '').trim();
+    if (!orderCode) return json({ code: -1, msg: 'Thiếu mã đơn hàng.' }, 400);
+    const key = orderCode.toUpperCase();
+    const existing = this.state[key];
+    if (existing) {
+      return json({ code: 0, msg: 'order_already_claimed', data: { claim: existing, claims: this.state } });
+    }
+    const claim = {
+      orderCode,
+      stt: body?.stt ? String(body.stt).slice(0, 40) : null,
+      productLabel: String(body?.productLabel || '').slice(0, 40),
+      product: String(body?.product || '').slice(0, 240),
+      claimedBy: String(body?.claimedBy || 'Kho').slice(0, 120),
+      claimedAt: Date.now(),
+    };
+    this.state[key] = claim;
+    await this.ctx.storage.put('claims', this.state);
+    return json({ code: 0, msg: 'success', data: { claim, claims: this.state } });
+  }
+}
+
+/** Inbox order gửi từ bàn Tư vấn tới các thiết bị Kho trong cùng khu vực. */
+export class WarehouseOrderInbox extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx = ctx;
+    this.orders = [];
+    this.ready = ctx.blockConcurrencyWhile(async () => {
+      this.orders = await ctx.storage.get('orders') || [];
+    });
+  }
+
+  async fetch(request) {
+    await this.ready;
+    if (request.method === 'GET') return json({ code: 0, msg: 'success', data: { orders: this.orders } });
+    if (request.method !== 'POST') return json({ code: -1, msg: 'Method không được hỗ trợ.' }, 405);
+    const body = await request.json();
+    const rawText = String(body?.rawText || '').trim().slice(0, 4000);
+    if (!rawText) return json({ code: -1, msg: 'Thiếu nội dung order.' }, 400);
+    const order = {
+      id: crypto.randomUUID(),
+      orderCode: String(body?.orderCode || `INBOX-${crypto.randomUUID().slice(0, 8)}`).trim().slice(0, 120),
+      rawText,
+      deskId: String(body?.deskId || '').trim().slice(0, 40),
+      stt: body?.stt ? String(body.stt).trim().slice(0, 40) : null,
+      customerName: body?.customerName ? String(body.customerName).trim().slice(0, 160) : null,
+      sentBy: String(body?.sentBy || 'Tư vấn').trim().slice(0, 120),
+      createdAt: Date.now(),
+    };
+    this.orders = [...this.orders, order].slice(-200);
+    await this.ctx.storage.put('orders', this.orders);
+    return json({ code: 0, msg: 'success', data: { order, orders: this.orders } });
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -1664,6 +1822,29 @@ export default {
       const stub = env.GUEST_SIMULATION_ROOM.get(env.GUEST_SIMULATION_ROOM.idFromName(code));
       const forwardedPath = action === 'media' && segments[3] ? `media/${segments[3]}` : action;
       return await stub.fetch(new Request(`https://guest-room/${forwardedPath}`, request));
+    }
+
+    if (route === 'warehouse-order-claims') {
+      try {
+        if (!env.WAREHOUSE_ORDER_CLAIMS) throw new Error('Thiếu Durable Object binding "WAREHOUSE_ORDER_CLAIMS"');
+        // Tách khóa theo hostname để HCM/HN không khóa nhầm cùng mã order.
+        const scope = new URL(request.url).hostname.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
+        const stub = env.WAREHOUSE_ORDER_CLAIMS.getByName(`npi-cps-warehouse-orders-${scope}`);
+        return await stub.fetch(new Request('https://warehouse-order-claims', request));
+      } catch (e) {
+        return json({ code: -1, msg: String(e?.message || e) }, 500);
+      }
+    }
+
+    if (route === 'warehouse-orders') {
+      try {
+        if (!env.WAREHOUSE_ORDER_INBOX) throw new Error('Thiếu Durable Object binding "WAREHOUSE_ORDER_INBOX"');
+        const scope = new URL(request.url).hostname.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
+        const stub = env.WAREHOUSE_ORDER_INBOX.getByName(`npi-cps-warehouse-orders-${scope}`);
+        return await stub.fetch(new Request('https://warehouse-orders', request));
+      } catch (e) {
+        return json({ code: -1, msg: String(e?.message || e) }, 500);
+      }
     }
 
     if (request.method === 'POST' && route === 'lark/events') {

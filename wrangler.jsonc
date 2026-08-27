@@ -49,6 +49,14 @@
       {
         "name": "GUEST_SIMULATION_ROOM",
         "class_name": "GuestSimulationRoom"
+      },
+      {
+        "name": "WAREHOUSE_ORDER_CLAIMS",
+        "class_name": "WarehouseOrderClaims"
+      },
+      {
+        "name": "WAREHOUSE_ORDER_INBOX",
+        "class_name": "WarehouseOrderInbox"
       }
     ]
   },
@@ -60,6 +68,14 @@
     {
       "tag": "v2-guest-simulation-room",
       "new_sqlite_classes": ["GuestSimulationRoom"]
+    },
+    {
+      "tag": "v3-warehouse-order-claims",
+      "new_sqlite_classes": ["WarehouseOrderClaims"]
+    },
+    {
+      "tag": "v4-warehouse-order-inbox",
+      "new_sqlite_classes": ["WarehouseOrderInbox"]
     }
   ],
   "secrets": {

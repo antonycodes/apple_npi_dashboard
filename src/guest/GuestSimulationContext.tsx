@@ -6,6 +6,7 @@ import { cellToString } from '@/services/larkMapper';
 import type { LarkCellValue, LarkRecord, LarkTables } from '@/services/larkTypes';
 import type { ClusterKey } from '@/types/desk';
 import type { DeskAlert } from '@/services/deskAlerts';
+import type { WarehouseInboxOrder, WarehouseOrderClaims, WarehouseOrderInput } from '@/types/warehouse';
 
 type SimulationStatus = 'waiting' | 'active' | 'completed';
 
@@ -41,6 +42,11 @@ interface GuestSimulationValue {
   quickDevice: (stt: string, stage: ClusterKey, deskId?: string, device?: GuestDeviceData) => void;
   callCoordinator: (deskId: string, role: string, stt: string | null, customerName: string | null) => void;
   clearCoordinatorAlert: (deskId: string) => void;
+  orderClaims: WarehouseOrderClaims;
+  claimOrder: (claim: WarehouseOrderInput) => Promise<boolean>;
+  claimAllOrders: (claims: WarehouseOrderInput[]) => Promise<boolean>;
+  orders: WarehouseInboxOrder[];
+  sendWarehouseOrder: (order: Omit<WarehouseInboxOrder, 'id' | 'orderCode' | 'createdAt'> & { orderCode?: string }) => Promise<WarehouseInboxOrder | null>;
   alerts: DeskAlert[];
   staffTables: (deskId: string) => LarkTables;
 }
@@ -156,6 +162,8 @@ interface RoomState {
   baseTables: LarkTables;
   assignments: Assignment[];
   alerts?: DeskAlert[];
+  orderClaims?: WarehouseOrderClaims;
+  orders?: WarehouseInboxOrder[];
   roomCode?: string;
 }
 
@@ -170,6 +178,8 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
   const [base, setBase] = useState<LarkTables>(EMPTY_TABLES);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [alerts, setAlerts] = useState<DeskAlert[]>([]);
+  const [orderClaims, setOrderClaims] = useState<WarehouseOrderClaims>({});
+  const [orders, setOrders] = useState<WarehouseInboxOrder[]>([]);
   const [roomCode, setRoomCode] = useState(initialRoomCode);
   const [roomStatus, setRoomStatus] = useState<GuestSimulationValue['roomStatus']>(initialRoomCode ? 'creating' : 'local');
   const [roomError, setRoomError] = useState<string | null>(null);
@@ -214,6 +224,8 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
     setBase(syncedBase);
     setAssignments(nextAssignments);
     setAlerts(next.alerts ?? []);
+    setOrderClaims(next.orderClaims ?? {});
+    setOrders(next.orders ?? []);
     setRoomStatus('connected');
     setRoomError(null);
   };
@@ -282,10 +294,10 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
     return () => window.clearInterval(timer);
   }, [roomCode]);
 
-  const postAction = (action: string, stt: string, stage: ClusterKey, deskId: string, extra: Record<string, string> = {}) => {
+  const postAction = async (action: string, stt: string, stage: ClusterKey, deskId: string, extra: Record<string, string> = {}) => {
     const code = roomCodeRef.current;
-    if (!code) return;
-    void (async () => {
+    if (!code) return null;
+    return (async () => {
       // Nếu đúng lúc bấm nút đang có một GET state, chờ GET đó xong thay vì
       // bỏ action — bỏ action sẽ khiến TC thấy đã nhận nhưng DP không bao giờ
       // nhận được thay đổi.
@@ -300,9 +312,11 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
           body: JSON.stringify({ action, stt, stage, deskId, ...extra }),
         });
         applyRoomState(next);
+        return next;
       } catch {
         // Guest vẫn giữ state lạc quan; nhịp poll kế tiếp sẽ đồng bộ lại nếu
         // action thực sự chưa được ghi vào phòng.
+        return null;
       } finally {
         roomRequestInFlight.current = false;
       }
@@ -349,7 +363,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
           ...current.filter((item) => !(item.stt === stt && item.stage === stage && item.status === 'waiting')),
           { stt, stage, deskId, status: 'waiting', at: Date.now() },
         ]);
-        postAction('dispatch', stt, stage, deskId);
+        void postAction('dispatch', stt, stage, deskId);
       },
       receive(stt, stage, guestDeskId) {
         const target = assignments.find((item) => item.stt === stt && item.stage === stage && item.status === 'waiting');
@@ -364,7 +378,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
             )
           : [...assignments, { stt, stage, deskId, status: 'active' as const, at }];
         setAssignments(nextAssignments);
-        postAction('receive', stt, stage, deskId);
+        void postAction('receive', stt, stage, deskId);
       },
       complete(stt, stage, checkBackup, thuLaiMay, device) {
         const target = assignments.find((item) => item.stt === stt && item.stage === stage && item.status === 'active');
@@ -408,7 +422,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
           }));
         }
         markEndFlowIfReady(nextAssignments, stt, checkBackup);
-        if (target) postAction('complete', stt, stage, target.deskId, {
+        if (target) void postAction('complete', stt, stage, target.deskId, {
           ...(checkBackup ? { checkBackup } : {}),
           ...(thuLaiMay ? { thuLaiMay } : {}),
           ...(device?.scanQr ? { scanQr: device.scanQr } : {}),
@@ -440,7 +454,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
               : row,
           ),
         }));
-        postAction('device', stt, stage, resolvedDesk, {
+        void postAction('device', stt, stage, resolvedDesk, {
             ...(device?.scanQr ? { scanQr: device.scanQr } : {}),
             ...(device?.imei ? { imei: device.imei } : {}),
             ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: JSON.stringify(device.hinhNghiemThu) } : {}),
@@ -448,17 +462,43 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
       },
       callCoordinator(deskId, role, stt, customerName) {
         const resolvedDesk = deskForGuestRole(deskId) ?? deskId;
-        postAction('help', stt ?? '', 'consult', resolvedDesk, { role, customerName: customerName ?? '' });
+        void postAction('help', stt ?? '', 'consult', resolvedDesk, { role, customerName: customerName ?? '' });
       },
       clearCoordinatorAlert(deskId) {
-        postAction('help-clear', '', 'consult', deskForGuestRole(deskId) ?? deskId);
+        void postAction('help-clear', '', 'consult', deskForGuestRole(deskId) ?? deskId);
+      },
+      orderClaims,
+      async claimOrder(claim) {
+        const next = await postAction('claim-order', claim.stt || '', 'consult', 'KHO', {
+          orderCode: claim.orderCode,
+          productLabel: claim.productLabel,
+          product: claim.product,
+          claimedBy: claim.claimedBy,
+        });
+        const key = claim.orderCode.trim().toUpperCase();
+        return Boolean(next?.orderClaims?.[key]?.claimedBy === claim.claimedBy);
+      },
+      async claimAllOrders(claims) {
+        const first = claims[0];
+        if (!first) return false;
+        const next = await postAction('claim-orders', first.stt || '', 'consult', 'KHO', {
+          orders: JSON.stringify(claims),
+        });
+        return claims.every((claim) => next?.orderClaims?.[claim.orderCode.trim().toUpperCase()]?.claimedBy === claim.claimedBy);
+      },
+      orders,
+      async sendWarehouseOrder(order) {
+        const next = await postAction('send-order', order.stt || '', 'consult', order.deskId || 'TV', {
+          order: JSON.stringify(order),
+        });
+        return next?.orders?.at(-1) ?? null;
       },
       alerts,
       staffTables(deskId) {
         return remapForStaffRole(tables, deskId, fields);
       },
     };
-  }, [alerts, assignments, base, fields, roomCode, roomStatus, roomError]);
+  }, [alerts, assignments, base, fields, orderClaims, orders, roomCode, roomStatus, roomError]);
 
   return <GuestSimulationContext.Provider value={value}>{children}</GuestSimulationContext.Provider>;
 }

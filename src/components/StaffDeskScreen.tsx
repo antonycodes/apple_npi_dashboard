@@ -36,6 +36,7 @@ import StaffReceiveFormModal, { type ReceiveFormValues } from './StaffReceiveFor
 import ThuMayModal, { type ThuMayValues } from './ThuMayModal';
 import type { ClusterKey } from '@/types/desk';
 import { sendDeskAlert } from '@/services/dashboardRealtime';
+import { useWarehouseOrders } from '@/hooks/useWarehouseOrders';
 
 /** Trạng thái lạc quan tự huỷ sau 2 phút (NV mở link rồi bỏ ngang). */
 const PENDING_TTL_MS = 120_000;
@@ -383,6 +384,9 @@ export default function StaffDeskScreen({
   const primary = current[0] ?? null;
   const extras = current.slice(1);
   const busy = Boolean(primary || ghost);
+  const [orderText, setOrderText] = useState('');
+  const [orderSending, setOrderSending] = useState(false);
+  const [orderMessage, setOrderMessage] = useState<string | null>(null);
 
   /**
    * STT vừa thu máy xong trên MÁY NÀY → mốc thời gian. Ẩn khách khỏi danh sách
@@ -455,6 +459,7 @@ export default function StaffDeskScreen({
   // ── Nút Tiếp nhận qua webhook: form recheck → POST tạo record SS_Master ──
   const settings = useLarkSettings();
   const realtimeApiUrl = toRuntimeConfig(settings).apiUrl;
+  const warehouseOrders = useWarehouseOrders(realtimeApiUrl, view.cluster === 'consult' && !simulation);
   const leadtimeMinutes = settings.leadtimeMinutes[view.cluster];
   const webhookUrl = staffActionWebhookUrl(settings);
   const [sending, setSending] = useState(false);
@@ -763,6 +768,45 @@ export default function StaffDeskScreen({
 
   const nextStt = view.next?.stt ?? null;
   const webhookMode = simulation || Boolean(webhookUrl);
+  const orderCustomer = primary ?? ghost;
+  const pasteOrder = async () => {
+    if (!window.isSecureContext || !navigator.clipboard?.readText) {
+      setOrderMessage('Trình duyệt chặn đọc clipboard trên kết nối này. Hãy mở HTTPS hoặc dán trực tiếp vào ô.');
+      return;
+    }
+    try {
+      const text = await navigator.clipboard.readText();
+      setOrderText(text);
+      setOrderMessage(text ? 'Đã dán nội dung từ clipboard.' : 'Clipboard đang trống.');
+    } catch {
+      setOrderMessage('Không có quyền đọc clipboard. Hãy cho phép quyền dán rồi thử lại.');
+    }
+  };
+  const sendOrderToWarehouse = async () => {
+    const rawText = orderText.trim();
+    if (!rawText || !orderCustomer?.stt || orderSending) return;
+    setOrderSending(true);
+    setOrderMessage(null);
+    try {
+      const payload = {
+        rawText,
+        deskId: view.id,
+        stt: orderCustomer.stt,
+        customerName: orderCustomer.name,
+        sentBy: submitByMsnv || 'Tư vấn',
+      };
+      const created = simulation
+        ? await guestSimulation?.sendWarehouseOrder(payload)
+        : await warehouseOrders.send(payload);
+      if (!created) throw new Error('Phòng mô phỏng chưa kết nối.');
+      setOrderText('');
+      setOrderMessage('Đã gửi order tới Kho.');
+    } catch (err) {
+      setOrderMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setOrderSending(false);
+    }
+  };
   const receiveLocked = Boolean(lockedReceiveStt && lockedReceiveStt === nextStt);
   useEffect(() => {
     // Khi Lark đã chuyển sang STT kế tiếp, mở khoá nút Tiếp nhận cho khách mới.
@@ -882,6 +926,52 @@ export default function StaffDeskScreen({
             Đang chờ tại bàn: <span className="font-bold text-neutral-800">{view.waiting}</span> khách
           </p>
         </section>
+
+        {view.cluster === 'consult' && (
+          <section className="rounded-3xl border-2 border-sky-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xs font-bold uppercase tracking-wide text-sky-600">Gửi order tới kho</h2>
+                <p className="mt-1 text-xs text-neutral-500">
+                  {orderCustomer?.stt ? `STT ${orderCustomer.stt} · ${orderCustomer.name ?? 'Khách'}` : 'Cần có khách đang phục vụ'}
+                </p>
+              </div>
+              <span className="text-2xl" aria-hidden="true">📦</span>
+            </div>
+            <textarea
+              value={orderText}
+              onChange={(event) => setOrderText(event.target.value)}
+              onPaste={(event) => {
+                const pasted = event.clipboardData.getData('text');
+                if (pasted) setOrderMessage('Đã dán nội dung từ clipboard.');
+              }}
+              rows={4}
+              placeholder="Paste nội dung order vào đây…"
+              className="mt-3 w-full resize-y rounded-2xl border-2 border-neutral-200 px-3 py-3 text-sm text-neutral-800 outline-none focus:border-sky-400"
+              disabled={!orderCustomer?.stt || orderSending}
+            />
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => void pasteOrder()}
+                disabled={!orderCustomer?.stt || orderSending}
+                className="min-h-12 rounded-2xl border-2 border-sky-200 bg-sky-50 px-4 text-sm font-bold text-sky-700 active:bg-sky-100 disabled:opacity-40"
+              >
+                Dán
+              </button>
+              <button
+                type="button"
+                onClick={() => void sendOrderToWarehouse()}
+                disabled={!orderCustomer?.stt || !orderText.trim() || orderSending}
+                className="min-h-12 flex-1 rounded-2xl bg-sky-600 px-4 text-sm font-bold text-white active:bg-sky-700 disabled:bg-neutral-200 disabled:text-neutral-500"
+              >
+                {orderSending ? 'Đang gửi…' : 'Gửi order tới kho'}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-neutral-400">Nút Dán đọc text đang có trong clipboard.</p>
+            {orderMessage && <p className="mt-2 rounded-xl bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700">{orderMessage}</p>}
+          </section>
+        )}
 
         {/* ── Thu máy cũ (chỉ Thu cũ / Backup) ──────────────────────────
             Nút chứ không phải danh sách (yêu cầu user 2026-08-18): NV bàn chỉ
