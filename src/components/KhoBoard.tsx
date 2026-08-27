@@ -288,16 +288,16 @@ function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, 
   );
 }
 
-function OrderDetailsModal({ order, claim, onClose, onUnlock }: { order: WarehouseInboxOrder; claim?: WarehouseOrderClaims[string]; onClose: () => void; onUnlock?: (orderCode: string) => Promise<boolean> }) {
+function OrderDetailsModal({ order, claim, orderCodes, claims, onClose, onUnlock }: { order: WarehouseInboxOrder; claim?: WarehouseOrderClaims[string]; orderCodes: string[]; claims: WarehouseOrderClaims; onClose: () => void; onUnlock?: (orderCodes: string[]) => Promise<boolean> }) {
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
   const handleUnlock = async () => {
-    if (!onUnlock || !claim || unlocking) return;
+    if (!onUnlock || !orderCodes.some((code) => claims[code.trim().toUpperCase()]) || unlocking) return;
     setUnlocking(true);
     setUnlockError(null);
     try {
-      if (await onUnlock(order.orderCode)) onClose();
+      if (await onUnlock(orderCodes)) onClose();
     } catch (error) {
       setUnlockError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -319,7 +319,7 @@ function OrderDetailsModal({ order, claim, onClose, onUnlock }: { order: Warehou
         <p className={['mt-3 rounded-xl px-3 py-2 text-sm font-bold', claim ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'].join(' ')}>
           {claim ? `Đã nhận · ${claim.claimedBy}` : 'Chờ tiếp nhận'}
         </p>
-        {claim && onUnlock && (
+        {orderCodes.some((code) => claims[code.trim().toUpperCase()]) && onUnlock && (
           <>
             <button
               type="button"
@@ -327,7 +327,7 @@ function OrderDetailsModal({ order, claim, onClose, onUnlock }: { order: Warehou
               disabled={unlocking}
               className="mt-3 w-full rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60"
             >
-              {unlocking ? 'Đang mở khóa…' : 'Mở khóa order'}
+              {unlocking ? 'Đang mở khóa…' : `Mở khóa tất cả order (${orderCodes.length})`}
             </button>
             {unlockError && <p className="mt-2 text-xs font-semibold text-red-600">{unlockError}</p>}
           </>
@@ -613,7 +613,7 @@ export default function KhoBoard({
 }) {
   const [zoom, setZoom] = useState<string | null>(null);
   const [details, setDetails] = useState<{ desk: DeskKhoState; customer: KhoCustomer } | null>(null);
-  const [orderDetails, setOrderDetails] = useState<WarehouseInboxOrder | null>(null);
+  const [orderDetails, setOrderDetails] = useState<{ order: WarehouseInboxOrder; orderCodes: string[] } | null>(null);
   const [resizingIndex, setResizingIndex] = useState<number | null>(null);
   const resizeRef = useRef<{
     columnIndex: number;
@@ -701,11 +701,31 @@ export default function KhoBoard({
           customer={details.customer}
           orders={inboxOrders.filter((order) => order.deskId === details.desk.id && order.stt === details.customer.stt)}
           claims={claims}
-          onInspectOrder={setOrderDetails}
+          onInspectOrder={(order) => setOrderDetails({
+            order,
+            orderCodes: Array.from(new Set([
+              ...details.customer.productOrders?.map((item) => item.orderCode).filter((code): code is string => Boolean(code)) ?? [],
+              ...inboxOrders
+                .filter((item) => item.deskId === details.desk.id && item.stt === details.customer.stt)
+                .map((item) => item.orderCode),
+            ])),
+          })}
           onClose={() => setDetails(null)}
         />
       )}
-      {orderDetails && <OrderDetailsModal order={orderDetails} claim={claims[orderDetails.orderCode.trim().toUpperCase()]} onUnlock={onUnlockOrder} onClose={() => setOrderDetails(null)} />}
+      {orderDetails && <OrderDetailsModal
+        order={orderDetails.order}
+        claim={claims[orderDetails.order.orderCode.trim().toUpperCase()]}
+        orderCodes={orderDetails.orderCodes}
+        claims={claims}
+        onUnlock={onUnlockOrder ? async (codes) => {
+          for (const code of codes) {
+            if (claims[code.trim().toUpperCase()]) await onUnlockOrder(code);
+          }
+          return true;
+        } : undefined}
+        onClose={() => setOrderDetails(null)}
+      />}
     </>
   );
 }
