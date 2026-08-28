@@ -26,9 +26,9 @@ export function useWarehouseOrders(apiUrl: string | undefined, enabled: boolean)
   }, [enabled, refresh]);
   const send = useCallback(async (order: Omit<WarehouseInboxOrder, 'id' | 'orderCode' | 'createdAt'> & { orderCode?: string }) => {
     if (!apiUrl) throw new Error('Thiếu API URL của Worker.');
-    const created = await sendWarehouseOrder(apiUrl, order);
-    setOrders((current) => [...current.filter((item) => item.id !== created.id), created].slice(-200));
-    return created;
+    const result = await sendWarehouseOrder(apiUrl, order);
+    setOrders((current) => [...current.filter((item) => item.id !== result.order.id), result.order].slice(-200));
+    return result;
   }, [apiUrl]);
   return { orders, error, refresh, send };
 }

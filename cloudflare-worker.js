@@ -1737,6 +1737,41 @@ async function notifyWarehouseOrderClaims(env, claims) {
   return errors;
 }
 
+/** Gửi nội dung Order do Tư vấn nhập sau khi inbox Kho đã lưu thành công. */
+async function notifyWarehouseInboxOrder(env, order) {
+  const url = String(env.LARK_WAREHOUSE_ORDER_WEBHOOK_URL || '').trim();
+  if (!url) return ['Webhook Kho chưa được cấu hình.'];
+  try {
+    const createdAt = new Date(order.createdAt).toISOString();
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'tu_van_gui_order',
+        // `INBOX-...` chỉ là định danh nội bộ. Không đặt key `orderCode` để
+        // Workflow không nhầm nó với Mã đơn hàng thật dạng `DH...`.
+        inboxId: order.orderCode,
+        stt: order.stt,
+        deskId: order.deskId,
+        customerName: order.customerName,
+        noiDungOrder: order.rawText,
+        sentBy: order.sentBy,
+        createdAt,
+        'STT': order.stt,
+        'Mã bàn': order.deskId,
+        'Họ và tên': order.customerName,
+        'Nội dung Order': order.rawText,
+        'Submit by': order.sentBy,
+        'Thời gian': createdAt,
+      }),
+    });
+    if (!response.ok) return [`${order.orderCode}: HTTP ${response.status}`];
+    return [];
+  } catch (error) {
+    return [`${order.orderCode}: ${String(error?.message || error)}`];
+  }
+}
+
 /**
  * Khóa nhận order của Kho dùng chung cho mọi thiết bị.
  * Durable Object serialize toàn bộ request theo một namespace duy nhất, nên
@@ -1851,7 +1886,8 @@ export class WarehouseOrderInbox extends DurableObject {
     };
     this.orders = [...this.orders, order].slice(-200);
     await this.ctx.storage.put('orders', this.orders);
-    return json({ code: 0, msg: 'success', data: { order, orders: this.orders } });
+    const webhookErrors = await notifyWarehouseInboxOrder(this.env, order);
+    return json({ code: 0, msg: 'success', data: { order, orders: this.orders, webhookErrors } });
   }
 }
 

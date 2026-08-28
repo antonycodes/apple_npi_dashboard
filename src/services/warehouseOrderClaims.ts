@@ -70,13 +70,20 @@ export async function fetchWarehouseOrders(apiUrl: string, signal?: AbortSignal)
 export async function sendWarehouseOrder(
   apiUrl: string,
   order: Omit<WarehouseInboxOrder, 'id' | 'orderCode' | 'createdAt'> & { orderCode?: string },
-): Promise<WarehouseInboxOrder> {
+): Promise<{ order: WarehouseInboxOrder; webhookErrors: string[] }> {
   const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/warehouse-orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(order),
   });
-  const body = await response.json() as { code: number; msg?: string; data?: { order?: WarehouseInboxOrder } };
+  const body = await response.json() as {
+    code: number;
+    msg?: string;
+    data?: { order?: WarehouseInboxOrder; webhookErrors?: string[] };
+  };
   if (!response.ok || body.code !== 0 || !body.data?.order) throw new Error(body.msg || 'Không thể gửi order tới Kho.');
-  return body.data.order;
+  return {
+    order: body.data.order,
+    webhookErrors: Array.isArray(body.data.webhookErrors) ? body.data.webhookErrors : [],
+  };
 }
