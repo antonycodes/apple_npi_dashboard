@@ -20,7 +20,7 @@ function CustomerOrders({
   customer: KhoCustomer;
   claims: WarehouseOrderClaims;
   inboxOrders: WarehouseInboxOrder[];
-  onInspect: (orders: OrderPreview[]) => void;
+  onInspect: (orders: OrderPreview[], selectedId: string) => void;
 }) {
   const products = customer.productOrders?.length
     ? customer.productOrders
@@ -51,7 +51,7 @@ function CustomerOrders({
       {previews.map((item) => {
         const current = claims[claimKey(item.orderCode)];
         return (
-          <button key={item.id} type="button" onClick={() => onInspect(previews)} className={['flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left', current ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'].join(' ')}>
+          <button key={item.id} type="button" onClick={() => onInspect(previews, item.id)} className={['flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left', current ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'].join(' ')}>
             {item.productLabel === 'ORDER' ? <span className="shrink-0 text-base" aria-label="Có order">📦</span> : <span className={['shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black', current ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'].join(' ')}>{item.productLabel}</span>}
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-neutral-800">{item.productLabel === 'ORDER' ? 'Nội dung Order' : item.product || '—'}</p>
@@ -89,7 +89,7 @@ export default function KhoOrderView({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [completedCollapsed, setCompletedCollapsed] = useState<Record<string, boolean>>({});
   const [claiming, setClaiming] = useState<string | null>(null);
-  const [inspectOrders, setInspectOrders] = useState<OrderPreview[] | null>(null);
+  const [inspectOrders, setInspectOrders] = useState<{ orders: OrderPreview[]; selectedId: string } | null>(null);
   const occupied = useMemo(() => desks.filter((desk) => desk.customers.length > 0), [desks]);
 
   useEffect(() => {
@@ -129,7 +129,12 @@ export default function KhoOrderView({
                   <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-black text-orange-700">STT {customer.stt || '—'}</span>
                   <span className="truncate text-xs font-semibold text-neutral-700">{customer.name || 'Khách'}</span>
                 </div>
-                <CustomerOrders customer={customer} claims={claims} inboxOrders={inboxOrders.filter((order) => order.deskId === desk.id)} onInspect={setInspectOrders} />
+                <CustomerOrders
+                  customer={customer}
+                  claims={claims}
+                  inboxOrders={inboxOrders.filter((order) => order.deskId === desk.id)}
+                  onInspect={(orders, selectedId) => setInspectOrders({ orders, selectedId })}
+                />
               </div>
             ))}
             {!isCollapsed && completed.length > 0 && (
@@ -149,7 +154,12 @@ export default function KhoOrderView({
                       <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-black text-neutral-500">STT {customer.stt || '—'}</span>
                       <span className="truncate text-xs font-semibold text-neutral-500">{customer.name || 'Khách'}</span>
                     </div>
-                    <CustomerOrders customer={customer} claims={claims} inboxOrders={inboxOrders.filter((order) => order.deskId === desk.id)} onInspect={setInspectOrders} />
+                    <CustomerOrders
+                      customer={customer}
+                      claims={claims}
+                      inboxOrders={inboxOrders.filter((order) => order.deskId === desk.id)}
+                      onInspect={(orders, selectedId) => setInspectOrders({ orders, selectedId })}
+                    />
                   </div>
                 ))}
               </div>
@@ -161,11 +171,11 @@ export default function KhoOrderView({
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setInspectOrders(null)}>
           <div className="w-full max-w-[430px] rounded-2xl bg-white p-4 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-base font-black text-neutral-900">📦 {new Set(inspectOrders.filter((item) => item.productLabel !== 'ORDER').map((item) => item.orderCode)).size ? `${new Set(inspectOrders.filter((item) => item.productLabel !== 'ORDER').map((item) => item.orderCode)).size} Đơn hàng` : 'Nội dung Order'}</h2>
+              <h2 className="text-base font-black text-neutral-900">📦 {new Set(inspectOrders.orders.filter((item) => item.productLabel !== 'ORDER').map((item) => item.orderCode)).size ? `${new Set(inspectOrders.orders.filter((item) => item.productLabel !== 'ORDER').map((item) => item.orderCode)).size} Đơn hàng` : 'Nội dung Order'}</h2>
               <button type="button" onClick={() => setInspectOrders(null)} className="text-2xl text-neutral-400" aria-label="Đóng">×</button>
             </div>
             <div className="mt-3 max-h-72 space-y-2 overflow-auto">
-              {inspectOrders.map((order) => (
+              {inspectOrders.orders.map((order) => (
                 <div key={order.id} className="rounded-xl bg-neutral-50 p-3">
                   {order.productLabel === 'ORDER' ? (
                     <>
@@ -183,54 +193,73 @@ export default function KhoOrderView({
               ))}
             </div>
             {(() => {
-              const productItems = inspectOrders.filter((item) => item.productLabel !== 'ORDER');
-              const inboxItems = inspectOrders.filter((item) => item.productLabel === 'ORDER');
+              const productItems = inspectOrders.orders.filter((item) => item.productLabel !== 'ORDER');
+              const inboxItems = inspectOrders.orders.filter((item) => item.productLabel === 'ORDER');
+              const selected = inspectOrders.orders.find((item) => item.id === inspectOrders.selectedId) ?? inspectOrders.orders[0];
               const productClaims = Array.from(new Map(productItems.map((item) => [claimKey(item.orderCode), item])).values()).map((item) => ({ orderCode: item.orderCode, stt: item.stt, productLabel: item.productLabel, product: item.product, claimedBy, claimedDesk, claimedName, claimedMsnv }));
-              const allProductsClaimed = productClaims.length > 1 && productClaims.every((item) => claims[claimKey(item.orderCode)]);
               const productKey = `popup-products-${productClaims.map((item) => item.orderCode).join('|')}`;
               const productBusy = claiming === productKey;
               const inboxUnclaimed = inboxItems.filter((item) => !claims[claimKey(item.orderCode)]);
-              const productClaimed = productClaims.length === 1 && Boolean(claims[claimKey(productClaims[0].orderCode)]);
+              const selectedClaim = selected && claims[claimKey(selected.orderCode)];
+              const selectedKey = selected
+                ? selected.productLabel === 'ORDER'
+                  ? `popup-inbox-${selected.orderCode}`
+                  : `popup-selected-${selected.id}`
+                : null;
+              const selectedBusy = selectedKey !== null && claiming === selectedKey;
+              const claimSelected = async () => {
+                if (!selected || selectedClaim) return;
+                setClaiming(selectedKey);
+                try {
+                  await onClaim({ orderCode: selected.orderCode, stt: selected.stt, productLabel: selected.productLabel, product: selected.product, claimedBy, claimedDesk, claimedName, claimedMsnv });
+                } finally {
+                  setClaiming(null);
+                }
+              };
               const claimInbox = async (item: OrderPreview) => {
                 const inboxKey = `popup-inbox-${item.orderCode}`;
                 setClaiming(inboxKey);
                 try {
                   const won = await onClaim({ orderCode: item.orderCode, stt: item.stt, productLabel: 'ORDER', product: 'Order từ Tư vấn', claimedBy, claimedDesk, claimedName, claimedMsnv });
-                  if (won && inboxUnclaimed.length === 1 && !productClaims.some((product) => !claims[claimKey(product.orderCode)])) setInspectOrders(null);
+                  if (won) setInspectOrders(null);
                 } finally {
                   setClaiming(null);
                 }
               };
-              if (!productClaims.length && !inboxUnclaimed.length) return <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Đã khóa toàn bộ mã đơn.</p>;
-              const claimProducts = async () => {
+              const allUnclaimed = [
+                ...productClaims.filter((item) => !claims[claimKey(item.orderCode)]),
+                ...inboxUnclaimed.map((item) => ({ orderCode: item.orderCode, stt: item.stt, productLabel: 'ORDER', product: 'Order từ Tư vấn', claimedBy, claimedDesk, claimedName, claimedMsnv })),
+              ];
+              if (!allUnclaimed.length) return <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Đã khóa toàn bộ mã đơn.</p>;
+              const claimAll = async () => {
                 setClaiming(productKey);
                 try {
-                  const won = productClaims.length > 1
-                    ? await onClaimAll(productClaims)
-                    : productClaims[0]
-                      ? await onClaim(productClaims[0])
-                      : false;
-                  if (won && !inboxUnclaimed.length) setInspectOrders(null);
+                  await onClaimAll(allUnclaimed);
                 } finally {
                   setClaiming(null);
                 }
               };
-              const productButton = productClaims.length ? (
+              const selectedButton = selected && !selectedClaim ? (
                 <button
                   type="button"
-                  disabled={productBusy || allProductsClaimed || productClaimed}
-                  onClick={() => void claimProducts()}
+                  disabled={selectedBusy}
+                  onClick={() => void (selected.productLabel === 'ORDER' ? claimInbox(selected) : claimSelected())}
                   className="mt-3 min-h-12 w-full rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white disabled:bg-neutral-200 disabled:text-neutral-500"
                 >
-                  {allProductsClaimed || productClaimed ? '✓ Đã khóa mã đơn' : productBusy ? 'Đang tiếp nhận…' : productClaims.length > 1 ? `Tiếp nhận tất cả (${productClaims.length} đơn)` : 'Tiếp nhận'}
+                  {selectedBusy ? 'Đang tiếp nhận…' : `Tiếp nhận ${selected.productLabel === 'ORDER' ? 'Order' : selected.productLabel}`}
                 </button>
               ) : null;
-              const inboxButtons = inboxUnclaimed.map((item) => {
-                const inboxKey = `popup-inbox-${item.orderCode}`;
-                const inboxBusy = claiming === inboxKey;
-                return <button key={item.id} type="button" disabled={inboxBusy} onClick={() => void claimInbox(item)} className="mt-3 min-h-12 w-full rounded-xl border-2 border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800 disabled:opacity-50">{inboxBusy ? 'Đang tiếp nhận…' : 'Tiếp nhận Order'}</button>;
-              });
-              return <>{productButton}{inboxButtons}</>;
+              const allButton = allUnclaimed.length > 1 ? (
+                <button
+                  type="button"
+                  disabled={productBusy}
+                  onClick={() => void claimAll()}
+                  className="mt-3 min-h-12 w-full rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white disabled:bg-neutral-200 disabled:text-neutral-500"
+                >
+                  {productBusy ? 'Đang tiếp nhận…' : `Tiếp nhận tất cả (${allUnclaimed.length} đơn)`}
+                </button>
+              ) : null;
+              return <>{selectedButton}{allButton}</>;
             })()}
           </div>
         </div>

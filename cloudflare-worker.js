@@ -20,6 +20,8 @@ import { DurableObject } from 'cloudflare:workers';
  * App trỏ ô "Webhook Tiếp nhận / Hoàn tất" vào `https://<worker>/webhook2`.
  * `CHECKIN_PASSWORD` = mật khẩu cho tài khoản cố định `checkin` tại `/check-in`.
  * Secret này không được đưa vào bundle frontend.
+ * `LARK_WAREHOUSE_ORDER_WEBHOOK_URL` = webhook Workflow nhận sự kiện Kho khóa
+ * một mã đơn hàng. Secret này không được đưa vào bundle frontend.
  *
  * `POST /upload` (2026-08-12, tiếp) — ảnh nghiệm thu ở form Hoàn tất khâu Thu
  * cũ/Backup: nhận multipart `file`, upload lên Lark bằng tenant token của
@@ -481,7 +483,7 @@ function matchRosterAccount(rows, username, password) {
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...CORS },
   });
 }
 
@@ -1699,6 +1701,42 @@ export class GuestSimulationRoom extends DurableObject {
   }
 }
 
+/** Gửi event cho Workflow sau khi DO đã khóa thành công từng mã đơn. */
+async function notifyWarehouseOrderClaims(env, claims) {
+  const url = String(env.LARK_WAREHOUSE_ORDER_WEBHOOK_URL || '').trim();
+  if (!url || !claims.length) return [];
+  const errors = [];
+  await Promise.all(claims.map(async (claim) => {
+    const khoNhanOrders = [claim.claimedDesk, claim.claimedName, claim.claimedMsnv]
+      .filter((value) => String(value || '').trim())
+      .join(' - ');
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'kho_nhan_order',
+          orderCode: claim.orderCode,
+          stt: claim.stt,
+          productLabel: claim.productLabel,
+          product: claim.product,
+          'KHO_Nhận Orders': khoNhanOrders,
+          khoNhanOrders,
+          claimedBy: claim.claimedBy,
+          claimedDesk: claim.claimedDesk,
+          claimedName: claim.claimedName,
+          claimedMsnv: claim.claimedMsnv,
+          claimedAt: new Date(claim.claimedAt).toISOString(),
+        }),
+      });
+      if (!response.ok) errors.push(`${claim.orderCode}: HTTP ${response.status}`);
+    } catch (error) {
+      errors.push(`${claim.orderCode}: ${String(error?.message || error)}`);
+    }
+  }));
+  return errors;
+}
+
 /**
  * Khóa nhận order của Kho dùng chung cho mọi thiết bị.
  * Durable Object serialize toàn bộ request theo một namespace duy nhất, nên
@@ -1708,6 +1746,7 @@ export class WarehouseOrderClaims extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.ctx = ctx;
+    this.env = env;
     this.state = null;
     this.ready = ctx.blockConcurrencyWhile(async () => {
       this.state = await ctx.storage.get('claims') || {};
@@ -1733,6 +1772,7 @@ export class WarehouseOrderClaims extends DurableObject {
       const validOrders = body.orders.filter((item) => item && typeof item.orderCode === 'string');
       if (!validOrders.length) return json({ code: -1, msg: 'Thiếu danh sách mã đơn hàng.' }, 400);
       let wonAll = true;
+      const createdClaims = [];
       for (const item of validOrders) {
         const code = item.orderCode.trim().slice(0, 120);
         const key = code.toUpperCase();
@@ -1748,11 +1788,13 @@ export class WarehouseOrderClaims extends DurableObject {
             claimedMsnv: String(item.claimedMsnv || '').slice(0, 80),
             claimedAt: Date.now(),
           };
+          createdClaims.push(this.state[key]);
         }
         if (this.state[key].claimedBy !== item.claimedBy) wonAll = false;
       }
       await this.ctx.storage.put('claims', this.state);
-      return json({ code: 0, msg: wonAll ? 'success' : 'order_already_claimed', data: { claims: this.state, wonAll } });
+      const webhookErrors = await notifyWarehouseOrderClaims(this.env, createdClaims);
+      return json({ code: 0, msg: wonAll ? 'success' : 'order_already_claimed', data: { claims: this.state, wonAll, webhookErrors } });
     }
     const orderCode = String(body?.orderCode || '').trim();
     if (!orderCode) return json({ code: -1, msg: 'Thiếu mã đơn hàng.' }, 400);
@@ -1774,7 +1816,8 @@ export class WarehouseOrderClaims extends DurableObject {
     };
     this.state[key] = claim;
     await this.ctx.storage.put('claims', this.state);
-    return json({ code: 0, msg: 'success', data: { claim, claims: this.state } });
+    const webhookErrors = await notifyWarehouseOrderClaims(this.env, [claim]);
+    return json({ code: 0, msg: 'success', data: { claim, claims: this.state, webhookErrors } });
   }
 }
 

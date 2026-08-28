@@ -206,6 +206,7 @@ function CustomerCard({
   claims: WarehouseOrderClaims;
 }) {
   const hasOrder = orders.length > 0;
+  const hasClaim = orders.some((order) => Boolean(claims[order.orderCode.trim().toUpperCase()]));
   return (
     <li
       role="button"
@@ -218,7 +219,10 @@ function CustomerCard({
         }
       }}
       title="Bấm để xem chi tiết khách"
-      className={['cursor-pointer rounded-lg border bg-white px-2 py-1.5 shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand', hasOrder ? 'border-red-400' : 'border-emerald-400'].join(' ')}
+      className={[
+        'cursor-pointer rounded-lg border bg-white px-2 py-1.5 shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+        hasClaim ? 'border-red-400' : hasOrder ? 'border-emerald-400' : 'border-neutral-200',
+      ].join(' ')}
     >
       <CustomerCardBody customer={customer} showTradeIn={showTradeIn} onZoom={onZoom} orders={orders} claims={claims} />
     </li>
@@ -477,6 +481,8 @@ function DeskColumn({
   const completed = desk.customers.filter((c) => c.status === 'completed');
   const deskOrders = inboxOrders.filter((order) => desk.customers.some((customer) => customer.stt === order.stt));
   const hasOrder = deskOrders.length > 0;
+  const hasClaim = deskOrders.some((order) => Boolean(claims[order.orderCode.trim().toUpperCase()]));
+  const deskTone = active.length === 0 ? 'neutral' : hasClaim ? 'red' : hasOrder ? 'green' : 'neutral';
   // Bàn Thu cũ / Backup MỞ SẴN danh sách đã hoàn tất: máy cũ đã thu nằm hết ở
   // đó, kho phải đối chiếu IMEI/QR/ảnh nên không bắt bấm mở từng cột. Tư vấn
   // thì gấp lại như cũ. Công tắc chung ở header vẫn mở được tất cả, và mỗi cột
@@ -490,7 +496,7 @@ function DeskColumn({
     <section
       className={[
         'relative flex min-h-0 min-w-0 flex-col overflow-y-auto rounded-xl border-2 bg-neutral-50/80 p-2',
-        active.length === 0 ? 'border-neutral-200' : hasOrder ? 'border-red-400' : 'border-emerald-400',
+        deskTone === 'red' ? 'border-red-400' : deskTone === 'green' ? 'border-emerald-400' : 'border-neutral-200',
       ].join(' ')}
     >
       <button
@@ -499,13 +505,27 @@ function DeskColumn({
         title="Kéo để chỉnh độ rộng cột"
         onPointerDown={(event) => onResizeStart(event, columnIndex)}
         className={[
-          'group absolute right-0 top-0 bottom-0 z-20 flex w-6 cursor-col-resize touch-none items-center justify-center rounded-none opacity-0 transition-[opacity,box-shadow,background-color] hover:opacity-100 hover:bg-brand/10 hover:shadow-[0_0_10px_rgba(37,99,235,0.28)]',
-          resizing ? 'bg-brand/20 opacity-100' : 'bg-transparent',
+          'group absolute right-0 top-0 bottom-0 z-20 flex w-6 cursor-col-resize touch-none items-center justify-center rounded-none opacity-0 transition-[opacity,box-shadow,background-color]',
+          deskTone === 'red'
+            ? 'hover:opacity-100 hover:bg-red-400/10 hover:shadow-[0_0_10px_rgba(248,113,113,0.28)]'
+            : deskTone === 'green'
+              ? 'hover:opacity-100 hover:bg-emerald-400/10 hover:shadow-[0_0_10px_rgba(52,211,153,0.28)]'
+              : 'hover:opacity-100 hover:bg-neutral-400/10 hover:shadow-[0_0_10px_rgba(163,163,163,0.24)]',
+          resizing
+            ? deskTone === 'red'
+              ? 'bg-red-400/20 opacity-100'
+              : deskTone === 'green'
+                ? 'bg-emerald-400/20 opacity-100'
+                : 'bg-neutral-400/20 opacity-100'
+            : 'bg-transparent',
         ].join(' ')}
       >
         <svg
           viewBox="0 0 8 32"
-          className="absolute right-0 h-8 w-2 translate-x-1/2 text-neutral-300 transition-colors group-hover:text-brand"
+          className={[
+            'absolute right-0 h-8 w-2 translate-x-1/2 text-neutral-300 transition-colors',
+            deskTone === 'red' ? 'group-hover:text-red-400' : deskTone === 'green' ? 'group-hover:text-emerald-400' : 'group-hover:text-neutral-400',
+          ].join(' ')}
           aria-hidden="true"
         >
           <path d="M1 1v30M7 1v30" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
