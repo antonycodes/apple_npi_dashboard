@@ -19,6 +19,8 @@ export interface WarehouseInboxOrder {
   id: string;
   orderCode: string;
   rawText: string;
+  /** Các mã đơn hàng thật của khách nhận cùng nội dung Order từ Tư vấn. */
+  productOrders?: Array<{ label: string; product: string; orderCode: string | null }>;
   deskId: string;
   stt: string | null;
   customerName: string | null;

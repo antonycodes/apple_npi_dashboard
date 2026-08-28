@@ -1527,6 +1527,13 @@ export class GuestSimulationRoom extends DurableObject {
           id: crypto.randomUUID(),
           orderCode: String(sentOrder?.orderCode || `INBOX-${crypto.randomUUID().slice(0, 8)}`).trim().slice(0, 120),
           rawText,
+          productOrders: Array.isArray(sentOrder?.productOrders)
+            ? sentOrder.productOrders.slice(0, 20).map((item) => ({
+                label: String(item?.label || '').trim().slice(0, 40),
+                product: String(item?.product || '').trim().slice(0, 240),
+                orderCode: item?.orderCode ? String(item.orderCode).trim().slice(0, 120) : null,
+              }))
+            : [],
           deskId: String(sentOrder?.deskId || deskId).trim().slice(0, 40),
           stt: sentOrder?.stt ? String(sentOrder.stt).trim().slice(0, 40) : null,
           customerName: sentOrder?.customerName ? String(sentOrder.customerName).trim().slice(0, 160) : null,
@@ -1741,35 +1748,49 @@ async function notifyWarehouseOrderClaims(env, claims) {
 async function notifyWarehouseInboxOrder(env, order) {
   const url = String(env.LARK_WAREHOUSE_ORDER_WEBHOOK_URL || '').trim();
   if (!url) return ['Webhook Kho chưa được cấu hình.'];
-  try {
-    const createdAt = new Date(order.createdAt).toISOString();
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'tu_van_gui_order',
-        // `INBOX-...` chỉ là định danh nội bộ. Không đặt key `orderCode` để
-        // Workflow không nhầm nó với Mã đơn hàng thật dạng `DH...`.
-        inboxId: order.orderCode,
-        stt: order.stt,
-        deskId: order.deskId,
-        customerName: order.customerName,
-        noiDungOrder: order.rawText,
-        sentBy: order.sentBy,
-        createdAt,
-        'STT': order.stt,
-        'Mã bàn': order.deskId,
-        'Họ và tên': order.customerName,
-        'Nội dung Order': order.rawText,
-        'Submit by': order.sentBy,
-        'Thời gian': createdAt,
-      }),
-    });
-    if (!response.ok) return [`${order.orderCode}: HTTP ${response.status}`];
-    return [];
-  } catch (error) {
-    return [`${order.orderCode}: ${String(error?.message || error)}`];
+  const productOrders = Array.isArray(order.productOrders)
+    ? [...new Map(order.productOrders
+      .filter((item) => /^DH[\p{L}\p{N}_-]+$/iu.test(String(item?.orderCode || '').trim()))
+      .map((item) => [String(item.orderCode).trim().toUpperCase(), item])).values()]
+    : [];
+  if (!productOrders.length) return ['Khách chưa có Mã đơn hàng DH để cập nhật KHO_Inbox Orders.'];
+
+  const createdAt = new Date(order.createdAt).toISOString();
+  const errors = [];
+  for (const item of productOrders) {
+    const orderCode = String(item.orderCode).trim().toUpperCase();
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'tu_van_gui_order',
+          inboxId: order.orderCode,
+          orderCode,
+          productLabel: item.label,
+          product: item.product,
+          stt: order.stt,
+          deskId: order.deskId,
+          customerName: order.customerName,
+          noiDungOrder: order.rawText,
+          sentBy: order.sentBy,
+          createdAt,
+          'Mã đơn hàng': orderCode,
+          'KHO_Inbox Orders': order.rawText,
+          'STT': order.stt,
+          'Mã bàn': order.deskId,
+          'Họ và tên': order.customerName,
+          'Nội dung Order': order.rawText,
+          'Submit by': order.sentBy,
+          'Thời gian': createdAt,
+        }),
+      });
+      if (!response.ok) errors.push(`${orderCode}: HTTP ${response.status}`);
+    } catch (error) {
+      errors.push(`${orderCode}: ${String(error?.message || error)}`);
+    }
   }
+  return errors;
 }
 
 /**
@@ -1878,6 +1899,13 @@ export class WarehouseOrderInbox extends DurableObject {
       id: crypto.randomUUID(),
       orderCode: String(body?.orderCode || `INBOX-${crypto.randomUUID().slice(0, 8)}`).trim().slice(0, 120),
       rawText,
+      productOrders: Array.isArray(body?.productOrders)
+        ? body.productOrders.slice(0, 20).map((item) => ({
+            label: String(item?.label || '').trim().slice(0, 40),
+            product: String(item?.product || '').trim().slice(0, 240),
+            orderCode: item?.orderCode ? String(item.orderCode).trim().slice(0, 120) : null,
+          }))
+        : [],
       deskId: String(body?.deskId || '').trim().slice(0, 40),
       stt: body?.stt ? String(body.stt).trim().slice(0, 40) : null,
       customerName: body?.customerName ? String(body.customerName).trim().slice(0, 160) : null,
