@@ -292,7 +292,22 @@ function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, 
   );
 }
 
-function OrderDetailsModal({ order, onClose }: { order: WarehouseInboxOrder; onClose: () => void }) {
+function OrderDetailsModal({ order, canDelete, onDelete, onClose }: { order: WarehouseInboxOrder; canDelete: boolean; onDelete?: (order: WarehouseInboxOrder) => Promise<void>; onClose: () => void }) {
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const handleDelete = async () => {
+    if (!onDelete || deleting || !window.confirm('Xóa order này khỏi màn hình Kho? Log vẫn được giữ lại.')) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete(order);
+      onClose();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Không thể xóa order.');
+    } finally {
+      setDeleting(false);
+    }
+  };
   return (
     <div role="dialog" aria-modal="true" aria-label="Chi tiết order" onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
@@ -305,6 +320,12 @@ function OrderDetailsModal({ order, onClose }: { order: WarehouseInboxOrder; onC
         </header>
         <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-sm text-neutral-800">{order.rawText}</pre>
         <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">Order chỉ để xem thông tin.</p>
+        {canDelete && onDelete && (
+          <button type="button" onClick={() => void handleDelete()} disabled={deleting} className="mt-3 min-h-11 w-full rounded-xl bg-red-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
+            {deleting ? 'Đang xóa…' : 'Xóa order khỏi màn hình'}
+          </button>
+        )}
+        {deleteError && <p className="mt-2 text-xs font-semibold text-red-600">{deleteError}</p>}
       </div>
     </div>
   );
@@ -651,6 +672,8 @@ export default function KhoBoard({
   inboxOrders = [],
   claims = {},
   onUnlockOrder,
+  canDeleteOrder = false,
+  onDeleteOrder,
 }: {
   desks: DeskKhoState[];
   showCompleted?: boolean;
@@ -661,6 +684,8 @@ export default function KhoBoard({
   inboxOrders?: WarehouseInboxOrder[];
   claims?: WarehouseOrderClaims;
   onUnlockOrder?: (orderCode: string) => Promise<boolean>;
+  canDeleteOrder?: boolean;
+  onDeleteOrder?: (order: WarehouseInboxOrder) => Promise<void>;
 }) {
   const [zoom, setZoom] = useState<string | null>(null);
   const [details, setDetails] = useState<{ desk: DeskKhoState; customer: KhoCustomer } | null>(null);
@@ -766,6 +791,8 @@ export default function KhoBoard({
       )}
       {orderDetails && <OrderDetailsModal
         order={orderDetails}
+        canDelete={canDeleteOrder}
+        onDelete={onDeleteOrder}
         onClose={() => setOrderDetails(null)}
       />}
       {productOrderDetails && <ProductOrderDetailsModal

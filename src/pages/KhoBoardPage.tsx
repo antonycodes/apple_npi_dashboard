@@ -15,6 +15,7 @@ import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useKhoBoardData } from '@/hooks/useKhoBoardData';
 import { useWarehouseOrderClaims } from '@/hooks/useWarehouseOrderClaims';
+import { downloadWarehouseOrderLog } from '@/services/warehouseOrderClaims';
 import { useWarehouseOrders } from '@/hooks/useWarehouseOrders';
 import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { useAdminInfo } from '@/config/adminSession';
@@ -67,6 +68,7 @@ export default function KhoBoardPage() {
   const warehouseApiUrl = toRuntimeConfig(settings).apiUrl;
   const orderClaims = useWarehouseOrderClaims(warehouseApiUrl, true);
   const warehouseOrders = useWarehouseOrders(warehouseApiUrl, true);
+  const [downloadingLog, setDownloadingLog] = useState(false);
   const { desks, loading, error, lastUpdated, isMock, refresh } = useKhoBoardData(
     filter === 'all' ? undefined : filter,
   );
@@ -99,6 +101,26 @@ export default function KhoBoardPage() {
   }, [filter]);
   const activeColumnWidths = columnWidths[filter] ?? {};
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
+  const downloadLog = async () => {
+    if (downloadingLog || session?.role !== 'admin') return;
+    setDownloadingLog(true);
+    try {
+      if (!warehouseApiUrl) throw new Error('Thiếu API URL của Worker.');
+      const blob = await downloadWarehouseOrderLog(warehouseApiUrl);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `warehouse-order-log-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Không thể tải log order.');
+    } finally {
+      setDownloadingLog(false);
+    }
+  };
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-neutral-100 text-neutral-800">
@@ -177,6 +199,16 @@ export default function KhoBoardPage() {
               Khôi phục cột
             </button>
           )}
+          {session?.role === 'admin' && (
+            <button
+              type="button"
+              onClick={() => void downloadLog()}
+              disabled={downloadingLog}
+              className="rounded border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-white disabled:opacity-50"
+            >
+              {downloadingLog ? 'Đang tải…' : 'Tải log CSV'}
+            </button>
+          )}
         </div>
 
         {error && (
@@ -201,6 +233,8 @@ export default function KhoBoardPage() {
             inboxOrders={warehouseOrders.orders}
             claims={orderClaims.claims}
             onUnlockOrder={session?.role === 'admin' ? orderClaims.unlock : undefined}
+            canDeleteOrder={session?.role === 'admin'}
+            onDeleteOrder={session?.role === 'admin' ? async (order) => warehouseOrders.remove(order.id) : undefined}
           />
         )}
       </main>

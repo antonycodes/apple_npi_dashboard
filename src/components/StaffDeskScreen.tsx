@@ -384,6 +384,15 @@ export default function StaffDeskScreen({
   const primary = current[0] ?? null;
   const extras = current.slice(1);
   const busy = Boolean(primary || ghost);
+  const orderCustomers = useMemo(() => {
+    const byStt = new Map<string, StaffCustomer>();
+    for (const customer of [...current, ...(ghost ? [ghost] : [])]) {
+      const stt = customer.stt?.trim();
+      if (stt && !byStt.has(stt)) byStt.set(stt, customer);
+    }
+    return [...byStt.values()];
+  }, [current, ghost]);
+  const [selectedOrderStt, setSelectedOrderStt] = useState('');
   const [orderText, setOrderText] = useState('');
   const [orderSending, setOrderSending] = useState(false);
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
@@ -769,7 +778,15 @@ export default function StaffDeskScreen({
 
   const nextStt = view.next?.stt ?? null;
   const webhookMode = simulation || Boolean(webhookUrl);
-  const orderCustomer = primary ?? ghost;
+  const effectiveOrderStt = orderCustomers.length === 1
+    ? orderCustomers[0]?.stt?.trim() ?? ''
+    : selectedOrderStt;
+  const orderCustomer = orderCustomers.find((customer) => customer.stt?.trim() === effectiveOrderStt) ?? null;
+  useEffect(() => {
+    if (selectedOrderStt && !orderCustomers.some((customer) => customer.stt?.trim() === selectedOrderStt)) {
+      setSelectedOrderStt('');
+    }
+  }, [orderCustomers, selectedOrderStt]);
   const pasteOrder = async () => {
     if (!window.isSecureContext || !navigator.clipboard?.readText) {
       setOrderMessage('Trình duyệt chặn đọc clipboard trên kết nối này. Hãy mở HTTPS hoặc dán trực tiếp vào ô.');
@@ -945,7 +962,11 @@ export default function StaffDeskScreen({
               <div className="min-w-0">
                 <h2 className="text-xs font-bold uppercase tracking-wide text-sky-600">Gửi order tới kho</h2>
                 <p className="mt-1 text-xs text-neutral-500">
-                  {orderCustomer?.stt ? `STT ${orderCustomer.stt} · ${orderCustomer.name ?? 'Khách'}` : 'Cần có khách đang phục vụ'}
+                  {orderCustomer?.stt
+                    ? `STT ${orderCustomer.stt} · ${orderCustomer.name ?? 'Khách'}`
+                    : orderCustomers.length > 1
+                      ? 'Chọn STT khách để gửi order'
+                      : 'Cần có khách đang phục vụ'}
                 </p>
               </div>
               <span className="flex shrink-0 items-center gap-2 text-2xl" aria-hidden="true">
@@ -954,6 +975,29 @@ export default function StaffDeskScreen({
             </button>
             {orderOpen && (
               <>
+                {orderCustomers.length > 1 && (
+                  <label className="mt-3 block">
+                    <span className="text-xs font-bold uppercase tracking-wide text-neutral-500">
+                      Khách nhận order
+                    </span>
+                    <select
+                      value={selectedOrderStt}
+                      onChange={(event) => {
+                        setSelectedOrderStt(event.target.value);
+                        setOrderMessage(null);
+                      }}
+                      className="mt-1 min-h-12 w-full rounded-2xl border-2 border-neutral-200 bg-white px-3 text-sm font-bold text-neutral-800 outline-none focus:border-sky-400"
+                      disabled={orderSending}
+                    >
+                      <option value="">— Chọn theo STT —</option>
+                      {orderCustomers.map((customer) => (
+                        <option key={customer.stt} value={customer.stt ?? ''}>
+                          STT {customer.stt} · {customer.name ?? 'Khách'}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <textarea
                   value={orderText}
                   onChange={(event) => setOrderText(event.target.value)}

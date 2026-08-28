@@ -1890,7 +1890,44 @@ export class WarehouseOrderInbox extends DurableObject {
 
   async fetch(request) {
     await this.ready;
-    if (request.method === 'GET') return json({ code: 0, msg: 'success', data: { orders: this.orders } });
+    if (request.method === 'GET') {
+      const visible = this.orders.filter((order) => !order.deletedAt);
+      if (new URL(request.url).pathname.endsWith('/log')) {
+        const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+        const header = ['id', 'createdAt', 'deletedAt', 'deletedBy', 'deskId', 'stt', 'customerName', 'sentBy', 'orderCode', 'rawText', 'productOrders'];
+        const rows = this.orders.map((order) => [
+          order.id,
+          new Date(order.createdAt).toISOString(),
+          order.deletedAt ? new Date(order.deletedAt).toISOString() : '',
+          order.deletedBy || '',
+          order.deskId,
+          order.stt || '',
+          order.customerName || '',
+          order.sentBy,
+          order.orderCode,
+          order.rawText,
+          JSON.stringify(order.productOrders || []),
+        ]);
+        return new Response(`\uFEFF${[header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n')}`, {
+          status: 200,
+          headers: { ...CORS, 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="warehouse-order-log.csv"' },
+        });
+      }
+      return json({ code: 0, msg: 'success', data: { orders: visible } });
+    }
+    if (request.method === 'DELETE') {
+      const body = await request.json();
+      const id = String(body?.id || '').trim();
+      if (!id) return json({ code: -1, msg: 'Thiếu mã order.' }, 400);
+      const order = this.orders.find((item) => item.id === id);
+      if (!order) return json({ code: -1, msg: 'Không tìm thấy order.' }, 404);
+      if (!order.deletedAt) {
+        order.deletedAt = Date.now();
+        order.deletedBy = String(body?.deletedBy || 'admin').slice(0, 120);
+        await this.ctx.storage.put('orders', this.orders);
+      }
+      return json({ code: 0, msg: 'success' });
+    }
     if (request.method !== 'POST') return json({ code: -1, msg: 'Method không được hỗ trợ.' }, 405);
     const body = await request.json();
     const rawText = String(body?.rawText || '').trim().slice(0, 4000);
@@ -1966,11 +2003,22 @@ export default {
       }
     }
 
-    if (route === 'warehouse-orders') {
+    if (route === 'warehouse-orders' || route === 'warehouse-orders/log') {
       try {
         if (!env.WAREHOUSE_ORDER_INBOX) throw new Error('Thiếu Durable Object binding "WAREHOUSE_ORDER_INBOX"');
+        const isAdminRoute = request.method === 'DELETE' || new URL(request.url).pathname.endsWith('/log');
+        const admin = isAdminRoute ? await verifyToken(env, bearer(request)) : null;
+        if (isAdminRoute && admin?.role !== 'admin') return json({ code: -1, msg: 'Chỉ admin được thao tác log order.' }, 403);
         const scope = new URL(request.url).hostname.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
         const stub = env.WAREHOUSE_ORDER_INBOX.getByName(`npi-cps-warehouse-orders-${scope}`);
+        if (request.method === 'DELETE') {
+          const body = await request.json();
+          return await stub.fetch(new Request('https://warehouse-orders', {
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...body, deletedBy: admin.username || admin.msnv || 'admin' }),
+          }));
+        }
+        if (new URL(request.url).pathname.endsWith('/log')) return await stub.fetch(new Request('https://warehouse-orders/log', request));
         return await stub.fetch(new Request('https://warehouse-orders', request));
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);

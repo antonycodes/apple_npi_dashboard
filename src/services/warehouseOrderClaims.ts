@@ -67,6 +67,29 @@ export async function fetchWarehouseOrders(apiUrl: string, signal?: AbortSignal)
   return body.data?.orders ?? [];
 }
 
+export async function deleteWarehouseOrder(apiUrl: string, orderId: string): Promise<void> {
+  const token = adminSessionStore.getSnapshot();
+  if (!token) throw new Error('Phiên admin đã hết hạn — đăng nhập lại.');
+  const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/warehouse-orders`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ id: orderId }),
+  });
+  const body = await response.json() as { code: number; msg?: string };
+  if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Không thể xóa order.');
+}
+
+export async function downloadWarehouseOrderLog(apiUrl: string): Promise<Blob> {
+  const token = adminSessionStore.getSnapshot();
+  if (!token) throw new Error('Phiên admin đã hết hạn — đăng nhập lại.');
+  const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/warehouse-orders/log`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('Không thể tải log order.');
+  return response.blob();
+}
+
 export async function sendWarehouseOrder(
   apiUrl: string,
   order: Omit<WarehouseInboxOrder, 'id' | 'orderCode' | 'createdAt'> & { orderCode?: string },

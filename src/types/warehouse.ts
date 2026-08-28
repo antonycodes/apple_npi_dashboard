@@ -26,4 +26,7 @@ export interface WarehouseInboxOrder {
   customerName: string | null;
   sentBy: string;
   createdAt: number;
+  /** Xóa mềm khỏi màn hình; log CSV vẫn giữ lại bản ghi. */
+  deletedAt?: number;
+  deletedBy?: string;
 }
