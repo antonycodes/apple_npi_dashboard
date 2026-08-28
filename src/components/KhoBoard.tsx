@@ -44,14 +44,7 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function claimedLocation(claim: WarehouseOrderClaims[string], warehouseStaffByMsnv?: Map<string, { desk: string; name: string | null; msnv: string | null }>): string {
-  const parts = [claim.claimedDesk, claim.claimedName, claim.claimedMsnv].filter((value) => value?.trim());
-  if (parts.length) return parts.join(' - ');
-  const staff = warehouseStaffByMsnv?.get(claim.claimedBy.trim().toUpperCase());
-  return staff ? [staff.desk, staff.name, staff.msnv].filter(Boolean).join(' - ') : claim.claimedBy;
-}
-
-function OrderStatusBlock({ orders, claims, compact = false, onInspect, warehouseStaffByMsnv }: { orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; compact?: boolean; onInspect?: (order: WarehouseInboxOrder) => void; warehouseStaffByMsnv?: Map<string, { desk: string; name: string | null; msnv: string | null }> }) {
+function OrderStatusBlock({ orders, compact = false, onInspect }: { orders: WarehouseInboxOrder[]; compact?: boolean; onInspect?: (order: WarehouseInboxOrder) => void }) {
   if (!orders.length) return null;
   if (compact) {
     return <div className="mt-1.5 border-t border-neutral-200 pt-1.5 text-[10px] font-bold text-amber-700">📦 Có order</div>;
@@ -59,17 +52,14 @@ function OrderStatusBlock({ orders, claims, compact = false, onInspect, warehous
   return (
     <div className="mt-1.5 space-y-0.5 border-t border-neutral-200 pt-1.5">
       {orders.map((order) => {
-        const claim = claims[order.orderCode.trim().toUpperCase()];
         const content = (
           <>
             <span className="shrink-0" aria-hidden="true">📦</span>
             <span className="min-w-0 flex-1 truncate font-semibold text-neutral-700" title={order.rawText}>Nội dung Order · {order.orderCode}</span>
-            <span className={claim ? 'shrink-0 font-bold text-red-600' : 'shrink-0 font-semibold text-amber-700'}>
-              {claim ? `Đã nhận · ${claimedLocation(claim, warehouseStaffByMsnv)}` : 'Chờ tiếp nhận'}
-            </span>
+            <span className="shrink-0 font-semibold text-amber-700">Có order</span>
           </>
         );
-        const rowClass = ['flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-left text-[10px] leading-tight', claim ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50', 'hover:bg-white'];
+        const rowClass = ['flex w-full items-center gap-1.5 rounded border border-emerald-300 bg-emerald-50 px-1.5 py-1 text-left text-[10px] leading-tight', 'hover:bg-white'];
         return onInspect ? <button key={order.id} type="button" onClick={() => onInspect(order)} className={rowClass.join(' ')}>{content}</button> : <div key={order.id} className={rowClass.join(' ')}>{content}</div>;
       })}
     </div>
@@ -137,13 +127,11 @@ function CustomerCardBody({
   showTradeIn,
   onZoom,
   orders = [],
-  claims = {},
 }: {
   customer: KhoCustomer;
   showTradeIn: boolean;
   onZoom: (url: string) => void;
   orders?: WarehouseInboxOrder[];
-  claims?: WarehouseOrderClaims;
 }) {
   const received = customer.status === 'received';
   return (
@@ -184,7 +172,7 @@ function CustomerCardBody({
       </div>
 
       {showTradeIn && <TradeInBlock customer={customer} onZoom={onZoom} />}
-      <OrderStatusBlock orders={orders} claims={claims} compact />
+      <OrderStatusBlock orders={orders} compact />
     </>
   );
 }
@@ -206,7 +194,7 @@ function CustomerCard({
   claims: WarehouseOrderClaims;
 }) {
   const hasOrder = orders.length > 0;
-  const hasClaim = orders.some((order) => Boolean(claims[order.orderCode.trim().toUpperCase()]));
+  const hasClaim = customer.productOrders?.some((item) => item.orderCode && claims[item.orderCode.trim().toUpperCase()]) ?? false;
   return (
     <li
       role="button"
@@ -224,12 +212,12 @@ function CustomerCard({
         hasClaim ? 'border-red-400' : hasOrder ? 'border-emerald-400' : 'border-neutral-200',
       ].join(' ')}
     >
-      <CustomerCardBody customer={customer} showTradeIn={showTradeIn} onZoom={onZoom} orders={orders} claims={claims} />
+      <CustomerCardBody customer={customer} showTradeIn={showTradeIn} onZoom={onZoom} orders={orders} />
     </li>
   );
 }
 
-function CustomerDetailsModal({ customer, desk, orders, claims, warehouseStaffByMsnv, onInspectOrder, onClose }: { customer: KhoCustomer; desk: DeskKhoState; orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; warehouseStaffByMsnv?: Map<string, { desk: string; name: string | null; msnv: string | null }>; onInspectOrder: (order: WarehouseInboxOrder) => void; onClose: () => void }) {
+function CustomerDetailsModal({ customer, desk, orders, onInspectOrder, onClose }: { customer: KhoCustomer; desk: DeskKhoState; orders: WarehouseInboxOrder[]; onInspectOrder: (order: WarehouseInboxOrder) => void; onClose: () => void }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -291,30 +279,14 @@ function CustomerDetailsModal({ customer, desk, orders, claims, warehouseStaffBy
               )) : (customer.productName ? <ProductList value={customer.productName} /> : '—')}
             </dd>
           </div>
-          <OrderStatusBlock orders={orders} claims={claims} onInspect={onInspectOrder} warehouseStaffByMsnv={warehouseStaffByMsnv} />
+          <OrderStatusBlock orders={orders} onInspect={onInspectOrder} />
         </dl>
       </div>
     </div>
   );
 }
 
-function OrderDetailsModal({ order, claim, orderCodes, claims, warehouseStaffByMsnv, onClose, onUnlock }: { order: WarehouseInboxOrder; claim?: WarehouseOrderClaims[string]; orderCodes: string[]; claims: WarehouseOrderClaims; warehouseStaffByMsnv?: Map<string, { desk: string; name: string | null; msnv: string | null }>; onClose: () => void; onUnlock?: (orderCodes: string[]) => Promise<boolean> }) {
-  const [unlocking, setUnlocking] = useState(false);
-  const [unlockError, setUnlockError] = useState<string | null>(null);
-
-  const handleUnlock = async () => {
-    if (!onUnlock || !orderCodes.some((code) => claims[code.trim().toUpperCase()]) || unlocking) return;
-    setUnlocking(true);
-    setUnlockError(null);
-    try {
-      if (await onUnlock(orderCodes)) onClose();
-    } catch (error) {
-      setUnlockError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setUnlocking(false);
-    }
-  };
-
+function OrderDetailsModal({ order, onClose }: { order: WarehouseInboxOrder; onClose: () => void }) {
   return (
     <div role="dialog" aria-modal="true" aria-label="Chi tiết order" onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
@@ -326,22 +298,7 @@ function OrderDetailsModal({ order, claim, orderCodes, claims, warehouseStaffByM
           <button type="button" onClick={onClose} aria-label="Đóng" className="rounded-lg px-2 text-2xl leading-none text-neutral-400 hover:bg-neutral-100">×</button>
         </header>
         <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-sm text-neutral-800">{order.rawText}</pre>
-        <p className={['mt-3 rounded-xl px-3 py-2 text-sm font-bold', claim ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'].join(' ')}>
-          {claim ? `Đã nhận · ${claimedLocation(claim, warehouseStaffByMsnv)}` : 'Chờ tiếp nhận'}
-        </p>
-        {orderCodes.some((code) => claims[code.trim().toUpperCase()]) && onUnlock && (
-          <>
-            <button
-              type="button"
-              onClick={handleUnlock}
-              disabled={unlocking}
-              className="mt-3 w-full rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60"
-            >
-              {unlocking ? 'Đang mở khóa…' : `Mở khóa tất cả order (${orderCodes.length})`}
-            </button>
-            {unlockError && <p className="mt-2 text-xs font-semibold text-red-600">{unlockError}</p>}
-          </>
-        )}
+        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">Order chỉ để xem thông tin.</p>
       </div>
     </div>
   );
@@ -481,7 +438,7 @@ function DeskColumn({
   const completed = desk.customers.filter((c) => c.status === 'completed');
   const deskOrders = inboxOrders.filter((order) => desk.customers.some((customer) => customer.stt === order.stt));
   const hasOrder = deskOrders.length > 0;
-  const hasClaim = deskOrders.some((order) => Boolean(claims[order.orderCode.trim().toUpperCase()]));
+  const hasClaim = active.some((customer) => customer.productOrders?.some((item) => item.orderCode && claims[item.orderCode.trim().toUpperCase()]) ?? false);
   const deskTone = active.length === 0 ? 'neutral' : hasClaim ? 'red' : hasOrder ? 'green' : 'neutral';
   // Bàn Thu cũ / Backup MỞ SẴN danh sách đã hoàn tất: máy cũ đã thu nằm hết ở
   // đó, kho phải đối chiếu IMEI/QR/ảnh nên không bắt bấm mở từng cột. Tư vấn
@@ -624,8 +581,6 @@ export default function KhoBoard({
   onColumnResize,
   inboxOrders = [],
   claims = {},
-  onUnlockOrder,
-  warehouseStaffByMsnv,
 }: {
   desks: DeskKhoState[];
   showCompleted?: boolean;
@@ -635,12 +590,10 @@ export default function KhoBoard({
   onColumnResize?: (columnIndex: number, width: number) => void;
   inboxOrders?: WarehouseInboxOrder[];
   claims?: WarehouseOrderClaims;
-  onUnlockOrder?: (orderCode: string) => Promise<boolean>;
-  warehouseStaffByMsnv?: Map<string, { desk: string; name: string | null; msnv: string | null }>;
 }) {
   const [zoom, setZoom] = useState<string | null>(null);
   const [details, setDetails] = useState<{ desk: DeskKhoState; customer: KhoCustomer } | null>(null);
-  const [orderDetails, setOrderDetails] = useState<{ order: WarehouseInboxOrder; orderCodes: string[] } | null>(null);
+  const [orderDetails, setOrderDetails] = useState<WarehouseInboxOrder | null>(null);
   const [resizingIndex, setResizingIndex] = useState<number | null>(null);
   const resizeRef = useRef<{
     columnIndex: number;
@@ -727,32 +680,12 @@ export default function KhoBoard({
           desk={details.desk}
           customer={details.customer}
           orders={inboxOrders.filter((order) => order.deskId === details.desk.id && order.stt === details.customer.stt)}
-          claims={claims}
-          warehouseStaffByMsnv={warehouseStaffByMsnv}
-          onInspectOrder={(order) => setOrderDetails({
-            order,
-            orderCodes: Array.from(new Set([
-              ...details.customer.productOrders?.map((item) => item.orderCode).filter((code): code is string => Boolean(code)) ?? [],
-              ...inboxOrders
-                .filter((item) => item.deskId === details.desk.id && item.stt === details.customer.stt)
-                .map((item) => item.orderCode),
-            ])),
-          })}
+          onInspectOrder={(order) => setOrderDetails(order)}
           onClose={() => setDetails(null)}
         />
       )}
       {orderDetails && <OrderDetailsModal
-        order={orderDetails.order}
-        claim={claims[orderDetails.order.orderCode.trim().toUpperCase()]}
-        orderCodes={orderDetails.orderCodes}
-        claims={claims}
-        warehouseStaffByMsnv={warehouseStaffByMsnv}
-        onUnlock={onUnlockOrder ? async (codes) => {
-          for (const code of codes) {
-            if (claims[code.trim().toUpperCase()]) await onUnlockOrder(code);
-          }
-          return true;
-        } : undefined}
+        order={orderDetails}
         onClose={() => setOrderDetails(null)}
       />}
     </>

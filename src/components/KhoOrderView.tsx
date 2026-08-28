@@ -194,17 +194,15 @@ export default function KhoOrderView({
             </div>
             {(() => {
               const productItems = inspectOrders.orders.filter((item) => item.productLabel !== 'ORDER');
-              const inboxItems = inspectOrders.orders.filter((item) => item.productLabel === 'ORDER');
               const selected = inspectOrders.orders.find((item) => item.id === inspectOrders.selectedId) ?? inspectOrders.orders[0];
               const productClaims = Array.from(new Map(productItems.map((item) => [claimKey(item.orderCode), item])).values()).map((item) => ({ orderCode: item.orderCode, stt: item.stt, productLabel: item.productLabel, product: item.product, claimedBy, claimedDesk, claimedName, claimedMsnv }));
               const productKey = `popup-products-${productClaims.map((item) => item.orderCode).join('|')}`;
               const productBusy = claiming === productKey;
-              const inboxUnclaimed = inboxItems.filter((item) => !claims[claimKey(item.orderCode)]);
-              const selectedClaim = selected && claims[claimKey(selected.orderCode)];
+              const selectedClaim = selected?.productLabel !== 'ORDER' && selected ? claims[claimKey(selected.orderCode)] : undefined;
               const selectedKey = selected
-                ? selected.productLabel === 'ORDER'
-                  ? `popup-inbox-${selected.orderCode}`
-                  : `popup-selected-${selected.id}`
+                ? selected.productLabel !== 'ORDER'
+                  ? `popup-selected-${selected.id}`
+                  : null
                 : null;
               const selectedBusy = selectedKey !== null && claiming === selectedKey;
               const claimSelected = async () => {
@@ -216,26 +214,15 @@ export default function KhoOrderView({
                   setClaiming(null);
                 }
               };
-              const claimInbox = async (item: OrderPreview) => {
-                const inboxKey = `popup-inbox-${item.orderCode}`;
-                setClaiming(inboxKey);
-                try {
-                  const won = await onClaim({ orderCode: item.orderCode, stt: item.stt, productLabel: 'ORDER', product: 'Order từ Tư vấn', claimedBy, claimedDesk, claimedName, claimedMsnv });
-                  if (won) setInspectOrders(null);
-                } finally {
-                  setClaiming(null);
-                }
-              };
               const allUnclaimed = [
                 ...productClaims.filter((item) => !claims[claimKey(item.orderCode)]),
-                ...inboxUnclaimed.map((item) => ({ orderCode: item.orderCode, stt: item.stt, productLabel: 'ORDER', product: 'Order từ Tư vấn', claimedBy, claimedDesk, claimedName, claimedMsnv })),
               ];
               if (!allUnclaimed.length) {
-                const selectedMessage = selectedClaim
-                  ? selected && selected.productLabel === 'ORDER'
-                    ? 'Order này đã được KHO khác tiếp nhận.'
-                    : 'Mã đơn này đã được KHO khác tiếp nhận.'
-                  : 'Đã khóa toàn bộ mã đơn của STT này.';
+                const selectedMessage = selected?.productLabel === 'ORDER'
+                  ? 'Order chỉ để xem thông tin.'
+                  : selectedClaim
+                    ? 'Mã đơn này đã được KHO khác tiếp nhận.'
+                    : 'Đã khóa toàn bộ mã đơn của STT này.';
                 return <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{selectedMessage}</p>;
               }
               const claimAll = async () => {
@@ -246,14 +233,14 @@ export default function KhoOrderView({
                   setClaiming(null);
                 }
               };
-              const selectedButton = selected && !selectedClaim ? (
+              const selectedButton = selected && selected.productLabel !== 'ORDER' && !selectedClaim ? (
                 <button
                   type="button"
                   disabled={selectedBusy}
-                  onClick={() => void (selected.productLabel === 'ORDER' ? claimInbox(selected) : claimSelected())}
+                  onClick={() => void claimSelected()}
                   className="mt-3 min-h-12 w-full rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white disabled:bg-neutral-200 disabled:text-neutral-500"
                 >
-                  {selectedBusy ? 'Đang tiếp nhận…' : `Tiếp nhận ${selected.productLabel === 'ORDER' ? 'Order' : selected.productLabel}`}
+                  {selectedBusy ? 'Đang tiếp nhận…' : `Tiếp nhận ${selected.productLabel}`}
                 </button>
               ) : null;
               const allButton = allUnclaimed.length > 1 ? (

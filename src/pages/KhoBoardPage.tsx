@@ -14,11 +14,9 @@ import KhoBoard from '@/components/KhoBoard';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useKhoBoardData } from '@/hooks/useKhoBoardData';
-import { useKhoHandoverData } from '@/hooks/useKhoHandoverData';
 import { useWarehouseOrderClaims } from '@/hooks/useWarehouseOrderClaims';
 import { useWarehouseOrders } from '@/hooks/useWarehouseOrders';
 import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
-import { useAdminInfo } from '@/config/adminSession';
 import type { ClusterKey } from '@/types/desk';
 
 type ClusterFilter = ClusterKey | 'all';
@@ -64,23 +62,12 @@ export default function KhoBoardPage() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>(readColumnWidths);
   const settings = useLarkSettings();
-  const session = useAdminInfo();
   const warehouseApiUrl = toRuntimeConfig(settings).apiUrl;
   const orderClaims = useWarehouseOrderClaims(warehouseApiUrl, true);
   const warehouseOrders = useWarehouseOrders(warehouseApiUrl, true);
   const { desks, loading, error, lastUpdated, isMock, refresh } = useKhoBoardData(
     filter === 'all' ? undefined : filter,
   );
-  const { staffByDesk } = useKhoHandoverData();
-  const warehouseStaffByMsnv = useMemo(
-    () => new Map(
-      [...staffByDesk.values()]
-        .filter((staff) => staff.loai?.trim().toLowerCase() === 'kho' && staff.msnv)
-        .map((staff) => [staff.msnv!.trim().toUpperCase(), staff] as const),
-    ),
-    [staffByDesk],
-  );
-
   const shown = useMemo(
     () => (hideEmpty ? desks.filter((d) => d.customers.some((c) => c.status === 'received')) : desks),
     [desks, hideEmpty],
@@ -211,8 +198,6 @@ export default function KhoBoardPage() {
             onColumnResize={handleColumnResize}
             inboxOrders={warehouseOrders.orders}
             claims={orderClaims.claims}
-            onUnlockOrder={session?.role === 'admin' ? orderClaims.unlock : undefined}
-            warehouseStaffByMsnv={warehouseStaffByMsnv}
           />
         )}
       </main>
