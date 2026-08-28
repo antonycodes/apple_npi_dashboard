@@ -230,7 +230,14 @@ export default function KhoOrderView({
                 ...productClaims.filter((item) => !claims[claimKey(item.orderCode)]),
                 ...inboxUnclaimed.map((item) => ({ orderCode: item.orderCode, stt: item.stt, productLabel: 'ORDER', product: 'Order từ Tư vấn', claimedBy, claimedDesk, claimedName, claimedMsnv })),
               ];
-              if (!allUnclaimed.length) return <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Đã khóa toàn bộ mã đơn.</p>;
+              if (!allUnclaimed.length) {
+                const selectedMessage = selectedClaim
+                  ? selected && selected.productLabel === 'ORDER'
+                    ? 'Order này đã được KHO khác tiếp nhận.'
+                    : 'Mã đơn này đã được KHO khác tiếp nhận.'
+                  : 'Đã khóa toàn bộ mã đơn của STT này.';
+                return <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{selectedMessage}</p>;
+              }
               const claimAll = async () => {
                 setClaiming(productKey);
                 try {
