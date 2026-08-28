@@ -319,10 +319,21 @@ function OrderDetailsModal({ order, canDelete, onDelete, onClose }: { order: War
           <button type="button" onClick={onClose} aria-label="Đóng" className="rounded-lg px-2 text-2xl leading-none text-neutral-400 hover:bg-neutral-100">×</button>
         </header>
         <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-sm text-neutral-800">{order.rawText}</pre>
-        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">Order chỉ để xem thông tin.</p>
         {canDelete && onDelete && (
-          <button type="button" onClick={() => void handleDelete()} disabled={deleting} className="mt-3 min-h-11 w-full rounded-xl bg-red-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
-            {deleting ? 'Đang xóa…' : 'Xóa order khỏi màn hình'}
+          <button
+            type="button"
+            onClick={() => void handleDelete()}
+            disabled={deleting}
+            aria-label={deleting ? 'Đang xóa order' : 'Xóa order'}
+            title={deleting ? 'Đang xóa order' : 'Xóa order'}
+            className="mt-3 inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18" />
+              <path d="M8 6V4h8v2" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v5M14 11v5" />
+            </svg>
           </button>
         )}
         {deleteError && <p className="mt-2 text-xs font-semibold text-red-600">{deleteError}</p>}
