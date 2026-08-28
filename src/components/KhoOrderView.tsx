@@ -75,6 +75,8 @@ export default function KhoOrderView({
   claimedName,
   claimedMsnv,
   inboxOrders,
+  claimsReady = true,
+  claimsError,
 }: {
   desks: DeskKhoState[];
   claims: WarehouseOrderClaims;
@@ -85,6 +87,8 @@ export default function KhoOrderView({
   claimedName?: string;
   claimedMsnv?: string;
   inboxOrders: WarehouseInboxOrder[];
+  claimsReady?: boolean;
+  claimsError?: string | null;
 }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [completedCollapsed, setCompletedCollapsed] = useState<Record<string, boolean>>({});
@@ -106,6 +110,13 @@ export default function KhoOrderView({
     ])));
   }, [occupied]);
 
+  if (!claimsReady) {
+    return (
+      <div className="m-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-sm font-semibold text-amber-800">
+        {claimsError || 'Đang đồng bộ trạng thái đơn hàng…'}
+      </div>
+    );
+  }
   if (!occupied.length) return <div className="p-6 text-center text-sm text-neutral-500">Chưa có bàn nào đang có khách.</div>;
 
   return (
@@ -226,6 +237,7 @@ export default function KhoOrderView({
                 return <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{selectedMessage}</p>;
               }
               const claimAll = async () => {
+                if (!window.confirm(`Tiếp nhận tất cả ${allUnclaimed.length} mã đơn của STT này?`)) return;
                 setClaiming(productKey);
                 try {
                   await onClaimAll(allUnclaimed);

@@ -312,10 +312,12 @@ function CompletedRow({
   customer,
   showTradeIn,
   onZoom,
+  orders,
 }: {
   customer: KhoCustomer;
   showTradeIn: boolean;
   onZoom: (url: string) => void;
+  orders: WarehouseInboxOrder[];
 }) {
   const [open, setOpen] = useState(false);
   const thumb = customer.device?.images?.[0] ?? null;
@@ -325,7 +327,7 @@ function CompletedRow({
       <li>
         <button type="button" onClick={() => setOpen(false)} className="w-full text-left">
           <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1.5">
-            <CustomerCardBody customer={customer} showTradeIn={showTradeIn} onZoom={onZoom} />
+            <CustomerCardBody customer={customer} showTradeIn={showTradeIn} onZoom={onZoom} orders={orders} />
           </div>
         </button>
       </li>
@@ -366,12 +368,14 @@ function CompletedModal({
   showTradeIn,
   onZoom,
   onClose,
+  inboxOrders,
 }: {
   desk: DeskKhoState;
   customers: KhoCustomer[];
   showTradeIn: boolean;
   onZoom: (url: string) => void;
   onClose: () => void;
+  inboxOrders: WarehouseInboxOrder[];
 }) {
   return (
     <div
@@ -402,7 +406,12 @@ function CompletedModal({
               key={`m-${c.stt ?? i}-${c.name ?? i}`}
               className="rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1.5"
             >
-              <CustomerCardBody customer={c} showTradeIn={showTradeIn} onZoom={onZoom} />
+              <CustomerCardBody
+                customer={c}
+                showTradeIn={showTradeIn}
+                onZoom={onZoom}
+                orders={inboxOrders.filter((order) => order.stt === c.stt)}
+              />
             </li>
           ))}
         </ul>
@@ -543,6 +552,7 @@ function DeskColumn({
                     customer={c}
                     showTradeIn={showTradeIn}
                     onZoom={onZoom}
+                    orders={inboxOrders.filter((order) => order.stt === c.stt)}
                   />
                 ))}
               </ul>
@@ -566,6 +576,7 @@ function DeskColumn({
           customers={completed}
           showTradeIn={showTradeIn}
           onZoom={onZoom}
+          inboxOrders={inboxOrders.filter((order) => order.stt && completed.some((customer) => customer.stt === order.stt))}
           onClose={() => setModal(false)}
         />
       )}

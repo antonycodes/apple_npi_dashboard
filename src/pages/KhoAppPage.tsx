@@ -45,7 +45,11 @@ export default function KhoAppPage({
   const session = useAdminInfo();
   const settings = useLarkSettings();
   const guestSimulation = useGuestSimulation();
-  const [tab, setTab] = useState<Tab>('handover');
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === 'undefined') return 'handover';
+    const saved = window.sessionStorage.getItem('kho-app-tab');
+    return saved === 'board' || saved === 'handover' ? saved : 'handover';
+  });
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
@@ -55,7 +59,9 @@ export default function KhoAppPage({
   // Bảng kanban chỉ tải khi thật sự mở tab đó — kho thường để máy ở tab Bàn
   // giao suốt buổi, không việc gì phải map lại 36 bàn mỗi 5 giây.
   const board = useKhoBoardData(undefined, tab === 'board', guestMode);
-  const liveClaims = useWarehouseOrderClaims(toRuntimeConfig(settings).apiUrl, tab === 'board' && !guestMode);
+  // Claims là trạng thái dùng chung giữa các máy. Tải ngay cả khi đang ở tab
+  // Bàn giao, để F5 không làm giao diện tạm quay về trạng thái rỗng.
+  const liveClaims = useWarehouseOrderClaims(toRuntimeConfig(settings).apiUrl, !guestMode);
   const liveOrders = useWarehouseOrders(toRuntimeConfig(settings).apiUrl, tab === 'board' && !guestMode);
 
   const webhookUrl = staffActionWebhookUrl(settings);
@@ -235,6 +241,8 @@ export default function KhoAppPage({
               onClaim={claimOrder}
               onClaimAll={claimAllOrders}
               inboxOrders={orders}
+              claimsReady={guestMode || liveClaims.ready}
+              claimsError={liveClaims.error}
             />
           </div>
         )}
@@ -250,7 +258,10 @@ export default function KhoAppPage({
           <button
             key={t.key}
             type="button"
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setTab(t.key);
+              window.sessionStorage.setItem('kho-app-tab', t.key);
+            }}
             aria-pressed={tab === t.key}
             className={[
               'min-h-14 flex-1 text-sm font-bold',
