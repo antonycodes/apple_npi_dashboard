@@ -2,11 +2,16 @@ import type { WarehouseInboxOrder, WarehouseOrderClaim, WarehouseOrderClaims } f
 import { adminSessionStore } from '@/config/adminSession';
 
 export async function fetchWarehouseOrderClaims(apiUrl: string, signal?: AbortSignal): Promise<WarehouseOrderClaims> {
-  const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/warehouse-order-claims?ts=${Date.now()}`, {
-    signal,
-    cache: 'no-store',
-    headers: { 'Cache-Control': 'no-cache' },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${apiUrl.replace(/\/+$/, '')}/warehouse-order-claims?ts=${Date.now()}`, {
+      signal,
+      cache: 'no-store',
+    });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    throw new Error('Không thể kết nối API trạng thái đơn hàng. Hãy bấm Làm mới.');
+  }
   const body = await response.json() as { code: number; msg?: string; data?: { claims?: WarehouseOrderClaims } };
   if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Không thể tải trạng thái order Kho.');
   return body.data?.claims ?? {};
