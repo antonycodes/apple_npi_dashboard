@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 import type { WarehouseInboxOrder, WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
+import { warehouseClaimantFull, warehouseClaimantShort } from '@/utils/warehouseClaimant';
 
 function claimKey(orderCode: string) {
   return orderCode.trim().toUpperCase();
@@ -49,7 +50,7 @@ function CustomerOrders({
   return (
     <div className="space-y-1 px-2 pb-2">
       {previews.map((item) => {
-        const current = claims[claimKey(item.orderCode)];
+        const current = item.productLabel === 'ORDER' ? undefined : claims[claimKey(item.orderCode)];
         return (
           <button key={item.id} type="button" onClick={() => onInspect(previews, item.id)} className={['flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left', current ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'].join(' ')}>
             {item.productLabel === 'ORDER' ? <span className="shrink-0 text-base" aria-label="Có order">📦</span> : <span className={['shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black', current ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'].join(' ')}>{item.productLabel}</span>}
@@ -57,7 +58,7 @@ function CustomerOrders({
               <p className="truncate text-xs font-semibold text-neutral-800">{item.productLabel === 'ORDER' ? 'Nội dung Order' : item.product || '—'}</p>
               <p className="truncate text-[10px] text-neutral-500">Mã đơn: {item.orderCode}</p>
             </div>
-            {current && <span className="shrink-0 rounded-lg bg-red-100 px-2 py-1.5 text-[10px] font-bold text-red-700">Đã nhận</span>}
+            {current && <span className="shrink-0 rounded-lg bg-red-100 px-2 py-1.5 text-[10px] font-bold text-red-700">Đã nhận · {warehouseClaimantShort(current)}</span>}
           </button>
         );
       })}
@@ -93,6 +94,7 @@ export default function KhoOrderView({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [completedCollapsed, setCompletedCollapsed] = useState<Record<string, boolean>>({});
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [claimFeedback, setClaimFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [inspectOrders, setInspectOrders] = useState<{ orders: OrderPreview[]; selectedId: string } | null>(null);
   const occupied = useMemo(() => desks.filter((desk) => desk.customers.length > 0), [desks]);
 
@@ -121,6 +123,19 @@ export default function KhoOrderView({
 
   return (
     <div className="space-y-2 p-2">
+      {claimFeedback && (
+        <div
+          role="status"
+          className={[
+            'sticky top-2 z-30 rounded-xl border px-3 py-3 text-center text-sm font-bold shadow-sm',
+            claimFeedback.kind === 'success'
+              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+              : 'border-red-300 bg-red-50 text-red-700',
+          ].join(' ')}
+        >
+          {claimFeedback.message}
+        </div>
+      )}
       {occupied.map((desk) => {
         const active = desk.customers.filter((customer) => customer.status === 'received');
         const completed = desk.customers.filter((customer) => customer.status === 'completed');
@@ -186,7 +201,9 @@ export default function KhoOrderView({
               <button type="button" onClick={() => setInspectOrders(null)} className="text-2xl text-neutral-400" aria-label="Đóng">×</button>
             </div>
             <div className="mt-3 max-h-72 space-y-2 overflow-auto">
-              {inspectOrders.orders.map((order) => (
+              {inspectOrders.orders.map((order) => {
+                const currentClaim = order.productLabel === 'ORDER' ? undefined : claims[claimKey(order.orderCode)];
+                return (
                 <div key={order.id} className="rounded-xl bg-neutral-50 p-3">
                   {order.productLabel === 'ORDER' ? (
                     <>
@@ -198,10 +215,12 @@ export default function KhoOrderView({
                     <>
                       <p className="text-sm font-bold text-neutral-900">{order.orderCode}</p>
                       <p className="mt-2 whitespace-pre-wrap text-xs text-neutral-800">{order.product}</p>
+                      {currentClaim && <p className="mt-2 rounded-lg bg-red-50 px-2 py-1.5 text-xs font-bold text-red-700">Đã nhận · {warehouseClaimantFull(currentClaim)}</p>}
                     </>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
             {(() => {
               const productItems = inspectOrders.orders.filter((item) => item.productLabel !== 'ORDER');
@@ -219,8 +238,17 @@ export default function KhoOrderView({
               const claimSelected = async () => {
                 if (!selected || selectedClaim) return;
                 setClaiming(selectedKey);
+                setClaimFeedback(null);
                 try {
-                  await onClaim({ orderCode: selected.orderCode, stt: selected.stt, productLabel: selected.productLabel, product: selected.product, claimedBy, claimedDesk, claimedName, claimedMsnv });
+                  const won = await onClaim({ orderCode: selected.orderCode, stt: selected.stt, productLabel: selected.productLabel, product: selected.product, claimedBy, claimedDesk, claimedName, claimedMsnv });
+                  if (won) {
+                    setClaimFeedback({ kind: 'success', message: 'Tiếp nhận thành công' });
+                    setInspectOrders(null);
+                  } else {
+                    setClaimFeedback({ kind: 'error', message: 'Mã đơn đã được KHO khác tiếp nhận.' });
+                  }
+                } catch (error) {
+                  setClaimFeedback({ kind: 'error', message: error instanceof Error ? error.message : 'Tiếp nhận thất bại.' });
                 } finally {
                   setClaiming(null);
                 }
@@ -232,15 +260,24 @@ export default function KhoOrderView({
                 const selectedMessage = selected?.productLabel === 'ORDER'
                   ? 'Order chỉ để xem thông tin.'
                   : selectedClaim
-                    ? 'Mã đơn này đã được KHO khác tiếp nhận.'
+                    ? `Đã nhận · ${warehouseClaimantFull(selectedClaim)}`
                     : 'Đã khóa toàn bộ mã đơn của STT này.';
                 return <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{selectedMessage}</p>;
               }
               const claimAll = async () => {
                 if (!window.confirm(`Tiếp nhận tất cả ${allUnclaimed.length} mã đơn của STT này?`)) return;
                 setClaiming(productKey);
+                setClaimFeedback(null);
                 try {
-                  await onClaimAll(allUnclaimed);
+                  const wonAll = await onClaimAll(allUnclaimed);
+                  if (wonAll) {
+                    setClaimFeedback({ kind: 'success', message: 'Tiếp nhận thành công' });
+                    setInspectOrders(null);
+                  } else {
+                    setClaimFeedback({ kind: 'error', message: 'Một hoặc nhiều mã đơn đã được KHO khác tiếp nhận.' });
+                  }
+                } catch (error) {
+                  setClaimFeedback({ kind: 'error', message: error instanceof Error ? error.message : 'Tiếp nhận thất bại.' });
                 } finally {
                   setClaiming(null);
                 }

@@ -21,6 +21,7 @@ import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
 import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 import type { WarehouseInboxOrder, WarehouseOrderClaims } from '@/types/warehouse';
+import { warehouseClaimantFull } from '@/utils/warehouseClaimant';
 import ProductList from './ProductList';
 
 /** `file_token` không phải URL — ảnh Bitable phải đi qua `/media/<token>` của worker. */
@@ -217,7 +218,7 @@ function CustomerCard({
   );
 }
 
-function CustomerDetailsModal({ customer, desk, orders, onInspectOrder, onClose }: { customer: KhoCustomer; desk: DeskKhoState; orders: WarehouseInboxOrder[]; onInspectOrder: (order: WarehouseInboxOrder) => void; onClose: () => void }) {
+function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, onClose }: { customer: KhoCustomer; desk: DeskKhoState; orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; onInspectOrder: (order: WarehouseInboxOrder) => void; onClose: () => void }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -250,8 +251,9 @@ function CustomerDetailsModal({ customer, desk, orders, onInspectOrder, onClose 
           <div>
             <dt className="mb-1 text-neutral-500">Sản phẩm · Mã đơn hàng</dt>
             <dd className="space-y-1 rounded-lg bg-neutral-50 p-2 font-semibold text-neutral-800">
-              {customer.productOrders?.length ? customer.productOrders.map((item) => (
-                item.orderCode ? (
+              {customer.productOrders?.length ? customer.productOrders.map((item) => {
+                const claim = item.orderCode ? claims[item.orderCode.trim().toUpperCase()] : undefined;
+                return item.orderCode ? (
                   <button
                     key={item.label}
                     type="button"
@@ -268,15 +270,18 @@ function CustomerDetailsModal({ customer, desk, orders, onInspectOrder, onClose 
                     className="flex w-full items-start justify-between gap-3 border-b border-neutral-200 pb-1 text-left last:border-0 last:pb-0 hover:bg-white"
                   >
                     <span className="min-w-0"><span className="mr-1.5 text-brand">{item.label}</span>{item.product}</span>
-                    <span className="shrink-0 text-right text-neutral-500">{item.orderCode}</span>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-neutral-500">{item.orderCode}</span>
+                      {claim && <span className="mt-0.5 block text-[11px] font-bold text-red-700">Đã nhận · {warehouseClaimantFull(claim)}</span>}
+                    </span>
                   </button>
                 ) : (
                   <div key={item.label} className="flex items-start justify-between gap-3 border-b border-neutral-200 last:border-0 last:pb-0">
                     <span className="min-w-0"><span className="mr-1.5 text-brand">{item.label}</span>{item.product}</span>
                     <span className="shrink-0 text-right text-neutral-500">—</span>
                   </div>
-                )
-              )) : (customer.productName ? <ProductList value={customer.productName} /> : '—')}
+                );
+              }) : (customer.productName ? <ProductList value={customer.productName} /> : '—')}
             </dd>
           </div>
           <OrderStatusBlock orders={orders} onInspect={onInspectOrder} />
@@ -691,6 +696,7 @@ export default function KhoBoard({
           desk={details.desk}
           customer={details.customer}
           orders={inboxOrders.filter((order) => order.deskId === details.desk.id && order.stt === details.customer.stt)}
+          claims={claims}
           onInspectOrder={(order) => setOrderDetails(order)}
           onClose={() => setDetails(null)}
         />
