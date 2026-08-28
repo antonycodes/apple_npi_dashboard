@@ -1,25 +1,62 @@
 /**
  * QueueBoardPage — standalone "STT hiện tại / STT tiếp theo" display for one
  * cluster (Tư vấn, Thu cũ hoặc Backup), routed at /tuvanview,
- * /kythuatview và /backupview.
+ * /thucuview và /backupview.
  *
  * Its own page/hook/component chain (QueueBoard + useQueueBoardData +
  * queueMapper) — DashboardPage/LayoutDashboard/useDashboardData (the main
  * dashboard) are never imported or modified here.
  */
+import { useState } from 'react';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import QueueBoard from '@/components/QueueBoard';
+import Sidebar from '@/components/Sidebar';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useQueueBoardData } from '@/hooks/useQueueBoardData';
 import { useLarkSettings } from '@/config/larkSettings';
-import type { ClusterKey } from '@/types/desk';
+import type { ClusterKey, DeskCustomer, WaitingZoneKey } from '@/types/desk';
 
 export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
-  const { desks, loading, error, lastUpdated, isMock, refresh } = useQueueBoardData(cluster);
+  const {
+    desks,
+    summary,
+    waitingCheckin,
+    waitingDispatch,
+    loading,
+    error,
+    lastUpdated,
+    isMock,
+    refresh,
+  } = useQueueBoardData(cluster);
   const settings = useLarkSettings();
   const title = CLUSTER_LABELS[cluster];
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
+  const [onlyTradeIn, setOnlyTradeIn] = useState(false);
+  const [selectedWaiting, setSelectedWaiting] = useState<{ zone: WaitingZoneKey; index: number } | null>(null);
+
+  const hasTradeIn = (customer: DeskCustomer) => {
+    const normalized = customer.oldDeviceCheck
+      ?.normalize('NFKC')
+      .toLocaleUpperCase('vi-VN')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim();
+    return normalized === 'CÓ THU CŨ';
+  };
+
+  const visibleWaitingCheckin = onlyTradeIn ? waitingCheckin.filter(hasTradeIn) : waitingCheckin;
+  const visibleWaitingDispatch = onlyTradeIn ? waitingDispatch.filter(hasTradeIn) : waitingDispatch;
+
+  const toggleTradeInFilter = () => {
+    setSelectedWaiting(null);
+    setOnlyTradeIn((active) => !active);
+  };
+
+  const selectWaiting = (zone: WaitingZoneKey, index: number) => {
+    setSelectedWaiting((current) =>
+      current?.zone === zone && current.index === index ? null : { zone, index },
+    );
+  };
 
   return (
     <div className="min-h-full bg-neutral-100 text-neutral-800">
@@ -60,8 +97,21 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
         )}
       </header>
 
-      <main className="px-3 py-4 md:px-6 md:py-6">
-        <QueueBoard desks={desks} leadtimeMinutes={settings.leadtimeMinutes[cluster]} />
+      <main className="flex flex-col items-start gap-4 px-3 py-4 md:px-6 md:py-6 lg:flex-row">
+        <div className="min-w-0 flex-1">
+          <QueueBoard desks={desks} leadtimeMinutes={settings.leadtimeMinutes[cluster]} />
+        </div>
+        <div className="w-full shrink-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-auto lg:overflow-y-auto">
+          <Sidebar
+            summary={summary}
+            waitingCheckin={visibleWaitingCheckin}
+            waitingDispatch={visibleWaitingDispatch}
+            selectedWaiting={selectedWaiting}
+            onSelectWaiting={selectWaiting}
+            onCloseWaiting={() => setSelectedWaiting(null)}
+            tradeInFilter={{ active: onlyTradeIn, onToggle: toggleTradeInFilter }}
+          />
+        </div>
       </main>
       <SleepOverlay />
     </div>

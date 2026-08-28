@@ -4,7 +4,7 @@ export type AppView = 'main' | 'dash' | 'checkin' | 'tuvan' | 'tradein' | 'backu
 
 const OPERATION_VIEWS: Array<{ key: AppView; label: string; href: string }> = [
   { key: 'tuvan', label: 'Tư vấn', href: '/tuvanview' },
-  { key: 'tradein', label: 'Thu cũ', href: '/kythuatview' },
+  { key: 'tradein', label: 'Thu cũ', href: '/thucuview' },
   { key: 'backup', label: 'Backup', href: '/backupview' },
   { key: 'kho', label: 'Kho', href: '/khoview' },
 ];

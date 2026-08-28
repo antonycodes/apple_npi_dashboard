@@ -1,6 +1,6 @@
 /**
  * queueMapper — per-desk "STT hiện tại / STT tiếp theo" view for the
- * standalone queue-board pages (/tuvanview, /kythuatview, /backupview).
+ * standalone queue-board pages (/tuvanview, /thucuview, /backupview).
  *
  * Deliberately separate from `larkMapper.ts`'s `mapDeskStates` (which the main
  * dashboard depends on) so these display-only screens can never affect the
@@ -11,7 +11,7 @@
 import type { FieldConfig } from '@/config/larkConfig';
 import { toFieldConfig } from '@/config/larkSettings';
 import { ALL_POSITIONS } from '@/config/layoutConfig';
-import { cellToBool, cellToProducts, cellToString, mapDeskStates } from './larkMapper';
+import { cellToBool, cellToProducts, cellToString, mapDeskStates, type MappedData } from './larkMapper';
 import type { ClusterKey, DeskCustomer } from '@/types/desk';
 import type { LarkRecord, LarkTables } from './larkTypes';
 
@@ -52,8 +52,9 @@ function indexCheckinDetailByStt(rows: LarkRecord[], fm: FieldConfig['checkin'])
 export function mapQueueStates(
   tables: LarkTables,
   fields: FieldConfig = toFieldConfig(),
+  mapped: MappedData = mapDeskStates(tables, fields),
 ): Record<string, DeskQueueState> {
-  const { statesById } = mapDeskStates(tables, fields);
+  const { statesById } = mapped;
   const checkinByStt = indexCheckinDetailByStt(tables.checkin, fields.checkin);
 
   const out: Record<string, DeskQueueState> = {};

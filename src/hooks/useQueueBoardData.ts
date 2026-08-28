@@ -1,6 +1,6 @@
 /**
  * useQueueBoardData — polling data source for the per-cluster queue-board
- * pages (/tuvanview, /kythuatview, /backupview).
+ * pages (/tuvanview, /thucuview, /backupview).
  *
  * Mirrors `useDashboardData`'s fetch/poll/mock lifecycle but maps through
  * `queueMapper` instead of `larkMapper` directly, and lives in its own file
@@ -13,14 +13,36 @@ import { mockLarkTables } from '@/data/mockLarkData';
 import { fetchLarkData } from '@/services/larkService';
 import type { LarkTables } from '@/services/larkTypes';
 import { mapQueueStates, type DeskQueueState } from '@/services/queueMapper';
+import { mapDeskStates } from '@/services/larkMapper';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 import { subscribeDashboardRealtime } from '@/services/dashboardRealtime';
-import type { ClusterKey } from '@/types/desk';
+import {
+  computeSummary,
+  type ClusterKey,
+  type DashboardSummary,
+  type DeskData,
+  type WaitingCustomer,
+} from '@/types/desk';
+
+interface QueueSidebarState {
+  summary: DashboardSummary;
+  waitingCheckin: WaitingCustomer[];
+  waitingDispatch: WaitingCustomer[];
+}
+
+const EMPTY_SIDEBAR: QueueSidebarState = {
+  summary: computeSummary([]),
+  waitingCheckin: [],
+  waitingDispatch: [],
+};
 
 export interface UseQueueBoardDataResult {
   /** Chỉ các bàn thuộc `cluster` được yêu cầu, theo đúng thứ tự trong layoutConfig. */
   desks: DeskQueueState[];
+  summary: DashboardSummary;
+  waitingCheckin: WaitingCustomer[];
+  waitingDispatch: WaitingCustomer[];
   loading: boolean;
   error: string | null;
   lastUpdated: Date | null;
@@ -39,6 +61,7 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
 
   const [statesById, setStatesById] = useState<Record<string, DeskQueueState>>({});
+  const [sidebar, setSidebar] = useState<QueueSidebarState>(EMPTY_SIDEBAR);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -50,7 +73,20 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
     const controller = new AbortController();
 
     if (isMock) {
-      setStatesById(mapQueueStates(mockLarkTables, DEFAULT_FIELD_CONFIG));
+      const mapped = mapDeskStates(mockLarkTables, DEFAULT_FIELD_CONFIG);
+      const allDesks: DeskData[] = ALL_POSITIONS.map((position) => ({
+        ...position,
+        ...(mapped.statesById[position.id] ?? { hasData: false }),
+      }));
+      setStatesById(mapQueueStates(mockLarkTables, DEFAULT_FIELD_CONFIG, mapped));
+      setSidebar({
+        summary: computeSummary(allDesks, {
+          totalRegistered: mapped.totalRegistered,
+          checkedIn: mapped.totalCheckIn,
+        }),
+        waitingCheckin: mapped.waitingCheckin,
+        waitingDispatch: mapped.waitingDispatch,
+      });
       setError(null);
       setLoading(false);
       setLastUpdated(new Date());
@@ -66,7 +102,20 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
       try {
         const tables = realtimeTables ?? await fetchLarkData(cfg, req.signal);
         if (cancelled) return;
-        setStatesById(mapQueueStates(tables));
+        const mapped = mapDeskStates(tables, settings.fields);
+        const allDesks: DeskData[] = ALL_POSITIONS.map((position) => ({
+          ...position,
+          ...(mapped.statesById[position.id] ?? { hasData: false }),
+        }));
+        setStatesById(mapQueueStates(tables, settings.fields, mapped));
+        setSidebar({
+          summary: computeSummary(allDesks, {
+            totalRegistered: mapped.totalRegistered,
+            checkedIn: mapped.totalCheckIn,
+          }),
+          waitingCheckin: mapped.waitingCheckin,
+          waitingDispatch: mapped.waitingDispatch,
+        });
         setError(null);
         setLastUpdated(new Date());
       } catch (err) {
@@ -93,5 +142,15 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
     (p) => statesById[p.id] ?? emptyState(p.id, p.label, p.cluster),
   );
 
-  return { desks, loading, error, lastUpdated, isMock, refresh };
+  return {
+    desks,
+    summary: sidebar.summary,
+    waitingCheckin: sidebar.waitingCheckin,
+    waitingDispatch: sidebar.waitingDispatch,
+    loading,
+    error,
+    lastUpdated,
+    isMock,
+    refresh,
+  };
 }

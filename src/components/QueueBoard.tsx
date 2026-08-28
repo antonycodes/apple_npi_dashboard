@@ -1,7 +1,7 @@
 /**
  * QueueBoard — grid of "STT hiện tại / STT tiếp theo" cards for one cluster.
  *
- * Used only by the standalone queue-display pages (/tuvanview, /kythuatview,
+ * Used only by the standalone queue-display pages (/tuvanview, /thucuview,
  * /backupview).
  * Kept separate from LayoutDashboard/Desk (the coordinator's interactive
  * floor map) on purpose — this is a simpler, large-type view meant for a

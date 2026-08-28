@@ -37,7 +37,7 @@ type Route =
         | 'guest'
         | 'dashboard'
         | 'tuvanview'
-        | 'kythuatview'
+        | 'thucuview'
         | 'backupview'
         | 'khoview'
         | 'checkin'
@@ -73,7 +73,9 @@ function useAppRoute(): Route {
   if (path.startsWith('settings')) return { kind: 'settings' };
   if (path === 'mock') return { kind: 'dashboard' };
   if (path.startsWith('tuvanview')) return { kind: 'tuvanview' };
-  if (path.startsWith('kythuatview') || path.startsWith('thucuvview')) return { kind: 'kythuatview' };
+  if (path.startsWith('thucuview') || path.startsWith('kythuatview') || path.startsWith('thucuvview')) {
+    return { kind: 'thucuview' };
+  }
   if (path.startsWith('backupview')) return { kind: 'backupview' };
   if (path.startsWith('khoview')) return { kind: 'khoview' };
   if (path.startsWith('app')) return { kind: 'app' };
@@ -99,7 +101,7 @@ export default function App() {
   if (route.kind === 'guest') return <GuestPage />;
   if (route.kind === 'checkin') return <CheckinPage />;
   if (route.kind === 'tuvanview') return <QueueBoardPage cluster="consult" />;
-  if (route.kind === 'kythuatview') return <QueueBoardPage cluster="tradein" />;
+  if (route.kind === 'thucuview') return <QueueBoardPage cluster="tradein" />;
   if (route.kind === 'backupview') return <QueueBoardPage cluster="backup" />;
   if (route.kind === 'khoview') return <KhoBoardPage />;
   if (route.kind === 'app') return <AppPage />;

@@ -20,6 +20,11 @@ interface SidebarProps {
   onCloseWaiting?: () => void;
   /** Bấm "DP" trong popup khách chờ — mở Form Điều phối với STT điền sẵn. */
   onDispatchWaiting?: (customer: WaitingCustomer) => void;
+  /** Bộ lọc read-only cho ba màn STT độc lập. Dashboard chính không truyền prop này. */
+  tradeInFilter?: {
+    active: boolean;
+    onToggle: () => void;
+  };
 }
 
 export default function Sidebar({
@@ -30,6 +35,7 @@ export default function Sidebar({
   onSelectWaiting,
   onCloseWaiting,
   onDispatchWaiting,
+  tradeInFilter,
 }: SidebarProps) {
   const c = summary.customers;
   return (
@@ -59,6 +65,28 @@ export default function Sidebar({
             <Ratio label="Đang tư vấn / Check-in" num={c.consulting} den={c.checkedIn} numClass="text-occupied" barClass="bg-occupied" />
             <Ratio label="Chưa được phục vụ / Check-in" num={c.notServed} den={c.checkedIn} numClass="text-amber-600" barClass="bg-amber-500" />
           </div>
+          {tradeInFilter && (
+            <button
+              type="button"
+              aria-pressed={tradeInFilter.active}
+              onClick={tradeInFilter.onToggle}
+              className={[
+                'mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2',
+                tradeInFilter.active
+                  ? 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'
+                  : 'border-neutral-300 bg-white text-emerald-800 hover:border-emerald-500 hover:bg-emerald-50',
+              ].join(' ')}
+            >
+              <span
+                aria-hidden="true"
+                className={[
+                  'h-2.5 w-2.5 rounded-full border',
+                  tradeInFilter.active ? 'border-white bg-white' : 'border-emerald-600 bg-emerald-500',
+                ].join(' ')}
+              />
+              Chỉ STT có thu cũ
+            </button>
+          )}
         </div>
 
         <WaitingZoneCard
