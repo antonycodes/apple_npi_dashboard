@@ -17,6 +17,7 @@ import { useKhoBoardData } from '@/hooks/useKhoBoardData';
 import { useWarehouseOrderClaims } from '@/hooks/useWarehouseOrderClaims';
 import { useWarehouseOrders } from '@/hooks/useWarehouseOrders';
 import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
+import { useAdminInfo } from '@/config/adminSession';
 import type { ClusterKey } from '@/types/desk';
 
 type ClusterFilter = ClusterKey | 'all';
@@ -62,6 +63,7 @@ export default function KhoBoardPage() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>(readColumnWidths);
   const settings = useLarkSettings();
+  const session = useAdminInfo();
   const warehouseApiUrl = toRuntimeConfig(settings).apiUrl;
   const orderClaims = useWarehouseOrderClaims(warehouseApiUrl, true);
   const warehouseOrders = useWarehouseOrders(warehouseApiUrl, true);
@@ -198,6 +200,7 @@ export default function KhoBoardPage() {
             onColumnResize={handleColumnResize}
             inboxOrders={warehouseOrders.orders}
             claims={orderClaims.claims}
+            onUnlockOrder={session?.role === 'admin' ? orderClaims.unlock : undefined}
           />
         )}
       </main>

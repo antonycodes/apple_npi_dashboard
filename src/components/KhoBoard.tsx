@@ -24,6 +24,12 @@ import type { WarehouseInboxOrder, WarehouseOrderClaims } from '@/types/warehous
 import { warehouseClaimantFull } from '@/utils/warehouseClaimant';
 import ProductList from './ProductList';
 
+interface ProductOrderDetails {
+  orderCode: string;
+  productLabel: string;
+  product: string;
+}
+
 /** `file_token` không phải URL — ảnh Bitable phải đi qua `/media/<token>` của worker. */
 /** Số khách đã hoàn tất hiện thẳng trong cột; dư ra xem trong popup. */
 const MAX_COMPLETED_INLINE = 3;
@@ -218,7 +224,7 @@ function CustomerCard({
   );
 }
 
-function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, onClose }: { customer: KhoCustomer; desk: DeskKhoState; orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; onInspectOrder: (order: WarehouseInboxOrder) => void; onClose: () => void }) {
+function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, onInspectProduct, onClose }: { customer: KhoCustomer; desk: DeskKhoState; orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; onInspectOrder: (order: WarehouseInboxOrder) => void; onInspectProduct: (order: ProductOrderDetails) => void; onClose: () => void }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -257,15 +263,10 @@ function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, 
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => onInspectOrder({
-                      id: `product-${item.orderCode}`,
+                    onClick={() => onInspectProduct({
                       orderCode: item.orderCode!,
-                      rawText: item.product,
-                      deskId: desk.id,
-                      stt: customer.stt,
-                      customerName: customer.name,
-                      sentBy: 'Lark Base',
-                      createdAt: 0,
+                      productLabel: item.label,
+                      product: item.product,
                     })}
                     className="flex w-full items-start justify-between gap-3 border-b border-neutral-200 pb-1 text-left last:border-0 last:pb-0 hover:bg-white"
                   >
@@ -304,6 +305,58 @@ function OrderDetailsModal({ order, onClose }: { order: WarehouseInboxOrder; onC
         </header>
         <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-sm text-neutral-800">{order.rawText}</pre>
         <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">Order chỉ để xem thông tin.</p>
+      </div>
+    </div>
+  );
+}
+
+function ProductOrderDetailsModal({ order, claim, onUnlock, onUnlocked, onClose }: { order: ProductOrderDetails; claim?: WarehouseOrderClaims[string]; onUnlock?: (orderCode: string) => Promise<boolean>; onUnlocked: () => void; onClose: () => void }) {
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+
+  const handleUnlock = async () => {
+    if (!claim || !onUnlock || unlocking) return;
+    if (!window.confirm(`Mở khóa mã đơn ${order.orderCode}?`)) return;
+    setUnlocking(true);
+    setUnlockError(null);
+    try {
+      if (await onUnlock(order.orderCode)) {
+        onUnlocked();
+        onClose();
+      } else {
+        setUnlockError('Không thể mở khóa mã đơn này.');
+      }
+    } catch (error) {
+      setUnlockError(error instanceof Error ? error.message : 'Không thể mở khóa mã đơn này.');
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={`Chi tiết mã đơn ${order.orderCode}`} onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
+        <header className="flex items-start justify-between gap-3 border-b border-neutral-200 pb-3">
+          <div>
+            <h2 className="text-base font-black text-neutral-900">{order.productLabel} · {order.orderCode}</h2>
+            <p className="mt-1 text-sm text-neutral-700">{order.product}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Đóng" className="rounded-lg px-2 text-2xl leading-none text-neutral-400 hover:bg-neutral-100">×</button>
+        </header>
+        <p className={['mt-3 rounded-xl px-3 py-2 text-sm font-bold', claim ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'].join(' ')}>
+          {claim ? `Đã nhận · ${warehouseClaimantFull(claim)}` : 'Mã đơn chưa bị khóa.'}
+        </p>
+        {claim && onUnlock && (
+          <button
+            type="button"
+            onClick={() => void handleUnlock()}
+            disabled={unlocking}
+            className="mt-3 min-h-11 w-full rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60"
+          >
+            {unlocking ? 'Đang mở khóa…' : 'Mở khóa đơn hàng'}
+          </button>
+        )}
+        {unlockError && <p className="mt-2 text-xs font-semibold text-red-600">{unlockError}</p>}
       </div>
     </div>
   );
@@ -597,6 +650,7 @@ export default function KhoBoard({
   onColumnResize,
   inboxOrders = [],
   claims = {},
+  onUnlockOrder,
 }: {
   desks: DeskKhoState[];
   showCompleted?: boolean;
@@ -606,10 +660,13 @@ export default function KhoBoard({
   onColumnResize?: (columnIndex: number, width: number) => void;
   inboxOrders?: WarehouseInboxOrder[];
   claims?: WarehouseOrderClaims;
+  onUnlockOrder?: (orderCode: string) => Promise<boolean>;
 }) {
   const [zoom, setZoom] = useState<string | null>(null);
   const [details, setDetails] = useState<{ desk: DeskKhoState; customer: KhoCustomer } | null>(null);
   const [orderDetails, setOrderDetails] = useState<WarehouseInboxOrder | null>(null);
+  const [productOrderDetails, setProductOrderDetails] = useState<ProductOrderDetails | null>(null);
+  const [unlockSuccess, setUnlockSuccess] = useState(false);
   const [resizingIndex, setResizingIndex] = useState<number | null>(null);
   const resizeRef = useRef<{
     columnIndex: number;
@@ -661,6 +718,11 @@ export default function KhoBoard({
 
   return (
     <>
+      {unlockSuccess && (
+        <div role="status" className="fixed left-1/2 top-4 z-[60] -translate-x-1/2 rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-700 shadow-lg">
+          Mở khóa thành công
+        </div>
+      )}
       <div
         className="grid h-full auto-rows-fr gap-2"
         style={{ gridTemplateColumns }}
@@ -698,12 +760,23 @@ export default function KhoBoard({
           orders={inboxOrders.filter((order) => order.deskId === details.desk.id && order.stt === details.customer.stt)}
           claims={claims}
           onInspectOrder={(order) => setOrderDetails(order)}
+          onInspectProduct={(order) => setProductOrderDetails(order)}
           onClose={() => setDetails(null)}
         />
       )}
       {orderDetails && <OrderDetailsModal
         order={orderDetails}
         onClose={() => setOrderDetails(null)}
+      />}
+      {productOrderDetails && <ProductOrderDetailsModal
+        order={productOrderDetails}
+        claim={claims[productOrderDetails.orderCode.trim().toUpperCase()]}
+        onUnlock={onUnlockOrder}
+        onUnlocked={() => {
+          setUnlockSuccess(true);
+          window.setTimeout(() => setUnlockSuccess(false), 2500);
+        }}
+        onClose={() => setProductOrderDetails(null)}
       />}
     </>
   );
