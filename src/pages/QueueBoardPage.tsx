@@ -101,7 +101,7 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
         <div className="min-w-0 flex-1">
           <QueueBoard desks={desks} leadtimeMinutes={settings.leadtimeMinutes[cluster]} />
         </div>
-        <div className="w-full shrink-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-auto lg:overflow-y-auto">
+        <div className="w-full shrink-0 lg:sticky lg:top-4 lg:w-auto">
           <Sidebar
             summary={summary}
             waitingCheckin={visibleWaitingCheckin}
