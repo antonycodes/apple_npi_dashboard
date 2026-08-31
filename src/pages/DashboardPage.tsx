@@ -143,8 +143,8 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
   return (
-    <div className="min-h-full bg-neutral-100 text-neutral-800">
-      <header className="border-b border-neutral-200 bg-white px-4 py-3 md:px-6 md:py-4">
+    <div className="min-h-full bg-neutral-100 text-neutral-800 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
+      <header className="border-b border-neutral-200 bg-white px-4 py-3 md:px-6 md:py-4 lg:sticky lg:top-0 lg:z-40 lg:shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div className="flex min-w-0 items-center gap-3">
             <img
@@ -262,74 +262,78 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
         </div>
       )}
 
-      <main className="px-3 py-3 md:px-6 md:py-5">
-        <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-          <StatusLegend />
-          <FilterBar
-            overtimeDesks={overtimeDesks}
-            onSelectOvertimeDesk={handleSelect}
-            readOnly={!canDispatch}
-            endFlowCount={endFlow.length}
-            endFlowOpen={showEndFlow}
-            onToggleEndFlow={() => setShowEndFlow((v) => !v)}
-            dispatchFormOpen={showDispatchForm}
-            onToggleDispatchForm={() => {
-              setDispatchStt(''); // mở tay từ thanh lọc → form trống
-              setShowDispatchForm((v) => !v);
-            }}
-            pendingDeviceCount={pendingDevice.length}
-            pendingDeviceOpen={showPendingDevice}
-            onTogglePendingDevice={() => setShowPendingDevice((v) => !v)}
-          />
-        </div>
+      <main className="px-3 py-3 md:px-6 md:py-5 lg:min-h-0 lg:flex-1">
+        <div className="flex flex-col gap-4 lg:h-full lg:flex-row lg:gap-5">
+          <div className="min-w-0 flex-1 lg:h-full lg:overflow-y-auto lg:pr-1">
+            <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+              <StatusLegend />
+              <FilterBar
+                overtimeDesks={overtimeDesks}
+                onSelectOvertimeDesk={handleSelect}
+                readOnly={!canDispatch}
+                endFlowCount={endFlow.length}
+                endFlowOpen={showEndFlow}
+                onToggleEndFlow={() => setShowEndFlow((v) => !v)}
+                dispatchFormOpen={showDispatchForm}
+                onToggleDispatchForm={() => {
+                  setDispatchStt(''); // mở tay từ thanh lọc → form trống
+                  setShowDispatchForm((v) => !v);
+                }}
+                pendingDeviceCount={pendingDevice.length}
+                pendingDeviceOpen={showPendingDevice}
+                onTogglePendingDevice={() => setShowPendingDevice((v) => !v)}
+              />
+            </div>
 
-        <div className="flex flex-col gap-4 lg:flex-row lg:gap-5">
-          {/*
-            Board width is capped by the space left below the header + filter row
-            (≈11.5rem) times the board aspect ratio, so on a tablet in landscape
-            the whole floor map fits the screen without scrolling instead of
-            being squeezed vertically — the desks stay as large as possible.
-          */}
-          <div className="mx-auto w-full min-w-0 flex-1 max-w-[calc((100dvh-11.5rem)*16/9)] [@media(max-aspect-ratio:8/5)]:max-w-[calc((100dvh-11.5rem)*1.44)]">
-            <LayoutDashboard
-              desks={displayedDesks}
-              selectedId={selectedId}
-              onSelect={handleSelect}
-              onSelectCustomer={handleSelectCustomer}
-              selectedCustomer={selectedCustomer}
-              alertedDeskIds={new Set(visibleDeskAlerts.map((alert) => alert.deskId))}
-              overlay={
-                selectedDesk ? (
-                  <DeskPopover
-                    desk={selectedDesk}
-                    onClose={() => setSelectedId(null)}
-                    onAcknowledgeAlert={visibleDeskAlerts.some((alert) => alert.deskId === selectedDesk.id) ? () => {
-                      visibleDeskAlerts
-                        .filter((alert) => alert.deskId === selectedDesk.id)
-                        .forEach((alert) => simulation
-                          ? guestRoom?.clearCoordinatorAlert(alert.deskId)
-                          : clearDeskAlert(realtimeApiUrl, alert.id));
-                    } : undefined}
-                  />
-                ) : selectedCustomerData ? (
-                  <CustomerPopover
-                    desk={selectedCustomerData.desk}
-                    customer={selectedCustomerData.customer}
-                    onClose={() => setSelectedCustomer(null)}
-                  />
-                ) : null
-              }
+            {/*
+              Board width is capped by the space left below the header + filter row
+              (≈11.5rem) times the board aspect ratio, so on a tablet in landscape
+              the whole floor map fits the screen without scrolling instead of
+              being squeezed vertically — the desks stay as large as possible.
+            */}
+            <div className="mx-auto w-full max-w-[calc((100dvh-11.5rem)*16/9)] [@media(max-aspect-ratio:8/5)]:max-w-[calc((100dvh-11.5rem)*1.44)] lg:mx-0">
+              <LayoutDashboard
+                desks={displayedDesks}
+                selectedId={selectedId}
+                onSelect={handleSelect}
+                onSelectCustomer={handleSelectCustomer}
+                selectedCustomer={selectedCustomer}
+                alertedDeskIds={new Set(visibleDeskAlerts.map((alert) => alert.deskId))}
+                overlay={
+                  selectedDesk ? (
+                    <DeskPopover
+                      desk={selectedDesk}
+                      onClose={() => setSelectedId(null)}
+                      onAcknowledgeAlert={visibleDeskAlerts.some((alert) => alert.deskId === selectedDesk.id) ? () => {
+                        visibleDeskAlerts
+                          .filter((alert) => alert.deskId === selectedDesk.id)
+                          .forEach((alert) => simulation
+                            ? guestRoom?.clearCoordinatorAlert(alert.deskId)
+                            : clearDeskAlert(realtimeApiUrl, alert.id));
+                      } : undefined}
+                    />
+                  ) : selectedCustomerData ? (
+                    <CustomerPopover
+                      desk={selectedCustomerData.desk}
+                      customer={selectedCustomerData.customer}
+                      onClose={() => setSelectedCustomer(null)}
+                    />
+                  ) : null
+                }
+              />
+            </div>
+          </div>
+          <div className="w-full shrink-0 lg:h-full lg:w-auto">
+            <Sidebar
+              summary={summary}
+              waitingCheckin={waitingCheckin}
+              waitingDispatch={waitingDispatch}
+              selectedWaiting={selectedWaiting}
+              onSelectWaiting={handleSelectWaiting}
+              onCloseWaiting={() => setSelectedWaiting(null)}
+              onDispatchWaiting={canDispatch ? handleDispatchWaiting : undefined}
             />
           </div>
-          <Sidebar
-            summary={summary}
-            waitingCheckin={waitingCheckin}
-            waitingDispatch={waitingDispatch}
-            selectedWaiting={selectedWaiting}
-            onSelectWaiting={handleSelectWaiting}
-            onCloseWaiting={() => setSelectedWaiting(null)}
-            onDispatchWaiting={canDispatch ? handleDispatchWaiting : undefined}
-          />
         </div>
       </main>
 

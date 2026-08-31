@@ -59,8 +59,8 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
   };
 
   return (
-    <div className="min-h-full bg-neutral-100 text-neutral-800">
-      <header className="border-b border-neutral-200 bg-white px-4 py-3 md:px-6 md:py-4">
+    <div className="min-h-full bg-neutral-100 text-neutral-800 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
+      <header className="border-b border-neutral-200 bg-white px-4 py-3 md:px-6 md:py-4 lg:sticky lg:top-0 lg:z-40 lg:shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div>
             <h1 className="text-lg font-bold md:text-xl">Màn hình STT · Khu vực {title}</h1>
@@ -97,11 +97,11 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
         )}
       </header>
 
-      <main className="flex flex-col items-start gap-4 px-3 py-4 md:px-6 md:py-6 lg:flex-row">
-        <div className="min-w-0 flex-1">
+      <main className="flex flex-col items-start gap-4 px-3 py-4 md:px-6 md:py-6 lg:min-h-0 lg:flex-1 lg:flex-row">
+        <div className="min-w-0 flex-1 lg:h-full lg:overflow-y-auto lg:pr-1">
           <QueueBoard desks={desks} leadtimeMinutes={settings.leadtimeMinutes[cluster]} />
         </div>
-        <div className="w-full shrink-0 lg:sticky lg:top-4 lg:w-auto">
+        <div className="w-full shrink-0 lg:h-full lg:w-auto">
           <Sidebar
             summary={summary}
             waitingCheckin={visibleWaitingCheckin}

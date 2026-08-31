@@ -12,7 +12,6 @@ const OPERATION_VIEWS: Array<{ key: AppView; label: string; href: string }> = [
 export default function ViewSwitcher({ active }: { active: AppView }) {
   const session = useAdminInfo();
   const isAdmin = session?.role === 'admin';
-  const isCoordinator = session?.role === 'dieuphoi';
   const canOpenCheckin = isAdmin || session?.role === 'checkin';
   const views = isAdmin
     ? [
@@ -22,9 +21,7 @@ export default function ViewSwitcher({ active }: { active: AppView }) {
         ...OPERATION_VIEWS,
       ]
     : [
-        isCoordinator
-          ? { key: 'dash' as const, label: 'Dash', href: '/dashboard' }
-          : { key: 'main' as const, label: 'Main', href: '/dashboard' },
+        { key: 'dash' as const, label: 'Dash', href: '/dashboard' },
         ...(canOpenCheckin ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }] : []),
         ...OPERATION_VIEWS,
       ];
