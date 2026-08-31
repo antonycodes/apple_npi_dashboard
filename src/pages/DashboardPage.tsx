@@ -20,9 +20,18 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import { LEADTIME_WARNING_MINUTES, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { formatElapsed } from '@/config/staffTimers';
-import type { WaitingZoneKey } from '@/types/desk';
+import type { DeskCustomer, WaitingZoneKey } from '@/types/desk';
 import { clearDeskAlert, subscribeDeskAlerts } from '@/services/dashboardRealtime';
 import type { DeskAlert } from '@/services/deskAlerts';
+
+function hasTradeIn(customer: DeskCustomer) {
+  const normalized = customer.oldDeviceCheck
+    ?.normalize('NFKC')
+    .toLocaleUpperCase('vi-VN')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+  return normalized === 'CÓ THU CŨ';
+}
 
 export default function DashboardPage({ readOnly = false, simulation = false, onGuestBack }: { readOnly?: boolean; simulation?: boolean; onGuestBack?: () => void } = {}) {
   const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, pendingDevice, loading, error, lastUpdated, isMock, refresh } =
@@ -74,6 +83,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<{ deskId: string; index: number } | null>(null);
   const [selectedWaiting, setSelectedWaiting] = useState<{ zone: WaitingZoneKey; index: number } | null>(null);
+  const [onlyTradeIn, setOnlyTradeIn] = useState(false);
   const [showEndFlow, setShowEndFlow] = useState(false);
   const [showPendingDevice, setShowPendingDevice] = useState(false);
   // Form Điều phối — chỉ POST lên webhook Lark, không nối vào state dashboard.
@@ -106,6 +116,14 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
     setSelectedId(null);
     setSelectedCustomer(null);
     setSelectedWaiting((prev) => (prev?.zone === zone && prev?.index === index ? null : { zone, index }));
+  }, []);
+
+  const visibleWaitingCheckin = onlyTradeIn ? waitingCheckin.filter(hasTradeIn) : waitingCheckin;
+  const visibleWaitingDispatch = onlyTradeIn ? waitingDispatch.filter(hasTradeIn) : waitingDispatch;
+
+  const toggleTradeInFilter = useCallback(() => {
+    setSelectedWaiting(null);
+    setOnlyTradeIn((active) => !active);
   }, []);
 
   const selectedDesk = useMemo(() => {
@@ -326,12 +344,13 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
           <div className="w-full shrink-0 lg:h-full lg:w-auto">
             <Sidebar
               summary={summary}
-              waitingCheckin={waitingCheckin}
-              waitingDispatch={waitingDispatch}
+              waitingCheckin={visibleWaitingCheckin}
+              waitingDispatch={visibleWaitingDispatch}
               selectedWaiting={selectedWaiting}
               onSelectWaiting={handleSelectWaiting}
               onCloseWaiting={() => setSelectedWaiting(null)}
               onDispatchWaiting={canDispatch ? handleDispatchWaiting : undefined}
+              tradeInFilter={{ active: onlyTradeIn, onToggle: toggleTradeInFilter }}
             />
           </div>
         </div>
