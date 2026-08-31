@@ -84,7 +84,7 @@ export default function Sidebar({
                   tradeInFilter.active ? 'border-white bg-white' : 'border-emerald-600 bg-emerald-500',
                 ].join(' ')}
               />
-              Chỉ STT có thu cũ
+              Lọc Có thu cũ
             </button>
           )}
         </div>
