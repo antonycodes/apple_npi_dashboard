@@ -9,6 +9,7 @@
 import { deskUiStatus, type DeskData } from '@/types/desk';
 import { createPortal } from 'react-dom';
 import Desk from './Desk';
+import { isTradeInCustomer } from '@/utils/tradeInFilter';
 
 interface LayoutDashboardProps {
   desks: DeskData[];
@@ -21,6 +22,8 @@ interface LayoutDashboardProps {
   alertedDeskIds?: ReadonlySet<string>;
   /** Optional overlay (e.g. the popover) drawn on top of the board. */
   overlay?: React.ReactNode;
+  tradeInFilterActive?: boolean;
+  tradeInByStt?: ReadonlyMap<string, boolean>;
 }
 
 /**
@@ -48,6 +51,8 @@ export default function LayoutDashboard({
   selectedCustomer,
   alertedDeskIds,
   overlay,
+  tradeInFilterActive = false,
+  tradeInByStt,
 }: LayoutDashboardProps) {
   return (
     <div className="board relative aspect-video w-full [@media(max-aspect-ratio:8/5)]:aspect-[2360/1640]">
@@ -84,6 +89,8 @@ export default function LayoutDashboard({
             status={deskUiStatus(d)}
             staffName={d.staffName}
             nextWaitingStt={d.nextWaitingStt}
+            nextWaitingTradeIn={d.nextWaitingStt ? tradeInByStt?.get(d.nextWaitingStt) : null}
+            tradeInFilterActive={tradeInFilterActive}
             x={d.x}
             y={d.y}
             selected={selectedId === d.id}
@@ -123,7 +130,8 @@ export default function LayoutDashboard({
                       // node occupied. Khác hẳn badge VÀNG ở góc trên node
                       // ("STT tiếp theo" — khách đang CHỜ, xem `Desk.tsx`);
                       // trước đây cả hai đều vàng nên không phân biệt được.
-                      'rounded-full bg-occupied px-[2px] text-[length:var(--dot-fs)] font-bold leading-none',
+                      'rounded-full px-[2px] text-[length:var(--dot-fs)] font-bold leading-none',
+                      tradeInFilterActive ? (isTradeInCustomer(c) ? 'bg-red-600' : 'bg-neutral-400') : 'bg-occupied',
                       'text-white shadow ring-1 ring-white transition hover:scale-125',
                       active ? 'z-30 scale-125 ring-2 ring-blue-500 ring-offset-1' : '',
                     ].join(' ')}

@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { formatElapsed } from '@/config/staffTimers';
 import { LEADTIME_WARNING_MINUTES } from '@/config/larkSettings';
 import type { DeskQueueState } from '@/services/queueMapper';
+import { tradeInTone } from '@/utils/tradeInFilter';
 
 function useNow(active: boolean): number {
   const [now, setNow] = useState(() => Date.now());
@@ -39,7 +40,7 @@ function ServiceTimer({ startedAt, now, leadtimeMinutes }: { startedAt: number |
   );
 }
 
-function DeskQueueCard({ desk, leadtimeMinutes }: { desk: DeskQueueState; leadtimeMinutes: number }) {
+function DeskQueueCard({ desk, leadtimeMinutes, tradeInFilterActive }: { desk: DeskQueueState; leadtimeMinutes: number; tradeInFilterActive: boolean }) {
   const busy = desk.current.length > 0;
   const currentPrimary = desk.current[0]?.stt ?? null;
   const extraCurrent = desk.current.slice(1);
@@ -58,7 +59,7 @@ function DeskQueueCard({ desk, leadtimeMinutes }: { desk: DeskQueueState; leadti
 
       <div className="flex flex-col items-center gap-1">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Đang phục vụ</span>
-        <span className={`text-5xl font-black leading-none ${busy ? 'text-occupied' : 'text-neutral-300'}`}>
+        <span className={`text-5xl font-black leading-none ${busy ? (tradeInFilterActive ? tradeInTone(true, desk.current[0]).replace('bg-', 'text-') : 'text-occupied') : 'text-neutral-300'}`}>
           {currentPrimary ?? '—'}
         </span>
         {busy && (
@@ -68,7 +69,7 @@ function DeskQueueCard({ desk, leadtimeMinutes }: { desk: DeskQueueState; leadti
           </div>
         )}
         {extraCurrent.length > 0 && (
-          <span className="text-xs text-neutral-500" title="Các khách khác đang được phục vụ cùng bàn">
+          <span className={`text-xs ${tradeInFilterActive ? (desk.current.slice(1).some((c) => tradeInTone(true, c) === 'bg-red-600') ? 'text-red-600' : 'text-neutral-400') : 'text-neutral-500'}`} title="Các khách khác đang được phục vụ cùng bàn">
             + {extraCurrent.map((c) => c.stt ?? '•').join(', ')}
           </span>
         )}
@@ -78,7 +79,7 @@ function DeskQueueCard({ desk, leadtimeMinutes }: { desk: DeskQueueState; leadti
 
       <div className="flex flex-col items-center gap-1">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-500">STT tiếp theo</span>
-        <span className={`text-3xl font-bold leading-none ${nextPrimary ? 'text-amber-600' : 'text-neutral-300'}`}>
+        <span className={`text-3xl font-bold leading-none ${nextPrimary ? (tradeInFilterActive ? tradeInTone(true, desk.next[0]).replace('bg-', 'text-') : 'text-amber-600') : 'text-neutral-300'}`}>
           {nextPrimary ?? '—'}
         </span>
         {extraNextCount > 0 && <span className="text-xs text-amber-600">+{extraNextCount} đang chờ</span>}
@@ -87,11 +88,11 @@ function DeskQueueCard({ desk, leadtimeMinutes }: { desk: DeskQueueState; leadti
   );
 }
 
-export default function QueueBoard({ desks, leadtimeMinutes = 20 }: { desks: DeskQueueState[]; leadtimeMinutes?: number }) {
+export default function QueueBoard({ desks, leadtimeMinutes = 20, tradeInFilterActive = false }: { desks: DeskQueueState[]; leadtimeMinutes?: number; tradeInFilterActive?: boolean }) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {desks.map((d) => (
-        <DeskQueueCard key={d.id} desk={d} leadtimeMinutes={leadtimeMinutes} />
+        <DeskQueueCard key={d.id} desk={d} leadtimeMinutes={leadtimeMinutes} tradeInFilterActive={tradeInFilterActive} />
       ))}
     </div>
   );

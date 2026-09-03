@@ -17,7 +17,7 @@ import SleepOverlay from '@/components/SleepOverlay';
 import { useQueueBoardData } from '@/hooks/useQueueBoardData';
 import { useLarkSettings } from '@/config/larkSettings';
 import { useAdminInfo } from '@/config/adminSession';
-import type { ClusterKey, DeskCustomer, WaitingZoneKey } from '@/types/desk';
+import type { ClusterKey, WaitingZoneKey } from '@/types/desk';
 
 export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
   const {
@@ -44,18 +44,6 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
   const canDispatch = session?.role === 'admin'
     || session?.role === 'dieuphoi'
     || session?.workspaces.some((workspace) => workspace.role === 'dieuphoi');
-
-  const hasTradeIn = (customer: DeskCustomer) => {
-    const normalized = customer.oldDeviceCheck
-      ?.normalize('NFKC')
-      .toLocaleUpperCase('vi-VN')
-      .replace(/[^\p{L}\p{N}]+/gu, ' ')
-      .trim();
-    return normalized === 'CÓ THU CŨ';
-  };
-
-  const visibleWaitingCheckin = onlyTradeIn ? waitingCheckin.filter(hasTradeIn) : waitingCheckin;
-  const visibleWaitingDispatch = onlyTradeIn ? waitingDispatch.filter(hasTradeIn) : waitingDispatch;
 
   const toggleTradeInFilter = () => {
     setSelectedWaiting(null);
@@ -115,13 +103,13 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
 
       <main className="flex flex-col items-start gap-4 px-3 py-4 md:px-6 md:py-6 lg:min-h-0 lg:flex-1 lg:flex-row">
         <div className="min-w-0 flex-1 lg:h-full lg:overflow-y-auto lg:pr-1">
-          <QueueBoard desks={desks} leadtimeMinutes={settings.leadtimeMinutes[cluster]} />
+          <QueueBoard desks={desks} leadtimeMinutes={settings.leadtimeMinutes[cluster]} tradeInFilterActive={onlyTradeIn} />
         </div>
         <div className="w-full shrink-0 lg:h-full lg:w-auto">
           <Sidebar
             summary={summary}
-            waitingCheckin={visibleWaitingCheckin}
-            waitingDispatch={visibleWaitingDispatch}
+            waitingCheckin={waitingCheckin}
+            waitingDispatch={waitingDispatch}
             selectedWaiting={selectedWaiting}
             onSelectWaiting={selectWaiting}
             onCloseWaiting={() => setSelectedWaiting(null)}

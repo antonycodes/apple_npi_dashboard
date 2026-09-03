@@ -13,6 +13,8 @@ export interface DeskProps {
   staffName?: string | null;
   /** `DS Master.STT tiếp theo` — shown as the small badge above the desk. */
   nextWaitingStt?: string | null;
+  nextWaitingTradeIn?: boolean | null;
+  tradeInFilterActive?: boolean;
   /** Node center position (percent of board). */
   x: number;
   y: number;
@@ -32,6 +34,8 @@ export default function Desk({
   id,
   status,
   nextWaitingStt,
+  nextWaitingTradeIn = null,
+  tradeInFilterActive = false,
   x,
   y,
   selected = false,
@@ -84,7 +88,7 @@ export default function Desk({
           // xem `LayoutDashboard.tsx`).
           // Sits just outside the top-right edge — never on top of the label.
           style={{ right: 'calc(var(--dot) * -0.55)', top: 'calc(var(--dot) * -0.45)' }}
-          className="absolute flex h-[var(--dot)] min-w-[var(--dot)] items-center justify-center rounded-full bg-amber-500 px-[2px] text-[length:var(--dot-fs)] font-bold leading-none text-white shadow ring-1 ring-white"
+          className={`absolute flex h-[var(--dot)] min-w-[var(--dot)] items-center justify-center rounded-full px-[2px] text-[length:var(--dot-fs)] font-bold leading-none text-white shadow ring-1 ring-white ${tradeInFilterActive && nextWaitingTradeIn != null ? (nextWaitingTradeIn ? 'bg-red-600' : 'bg-neutral-400') : 'bg-amber-500'}`}
           title={`STT tiếp theo: ${nextWaitingStt}`}
         >
           {nextWaitingStt}

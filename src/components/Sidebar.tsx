@@ -7,6 +7,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import WaitingPopover from '@/components/WaitingPopover';
 import type { DashboardSummary, WaitingCustomer, WaitingZoneKey } from '@/types/desk';
+import { tradeInTone } from '@/utils/tradeInFilter';
 
 /** Số hàng chấm STT tối đa hiện trong thẻ, phần dư gom vào 1 chấm "+N". */
 const MAX_CHIP_ROWS = 4;
@@ -97,6 +98,7 @@ export default function Sidebar({
           onSelect={onSelectWaiting}
           onClose={onCloseWaiting}
           onDispatch={onDispatchWaiting}
+          tradeInFilterActive={tradeInFilter?.active ?? false}
         />
         <WaitingZoneCard
           label="Chờ điều phối"
@@ -106,6 +108,7 @@ export default function Sidebar({
           onSelect={onSelectWaiting}
           onClose={onCloseWaiting}
           onDispatch={onDispatchWaiting}
+          tradeInFilterActive={tradeInFilter?.active ?? false}
         />
 
       </div>
@@ -121,6 +124,7 @@ function WaitingZoneCard({
   onSelect,
   onClose,
   onDispatch,
+  tradeInFilterActive,
 }: {
   label: string;
   zone: WaitingZoneKey;
@@ -129,6 +133,7 @@ function WaitingZoneCard({
   onSelect?: (zone: WaitingZoneKey, index: number) => void;
   onClose?: () => void;
   onDispatch?: (customer: WaitingCustomer) => void;
+  tradeInFilterActive: boolean;
 }) {
   const selectedCustomer = selectedIndex == null ? null : items[selectedIndex] ?? null;
   const [showAll, setShowAll] = useState(false);
@@ -175,6 +180,7 @@ function WaitingZoneCard({
                 item={item}
                 index={index}
                 selected={selectedIndex === index}
+                tradeInFilterActive={tradeInFilterActive}
                 onClick={() => onSelect?.(zone, index)}
               />
             ))}
@@ -199,6 +205,7 @@ function WaitingZoneCard({
         <AllSttModal
           label={label}
           items={items}
+          tradeInFilterActive={tradeInFilterActive}
           selectedIndex={selectedIndex ?? null}
           onPick={openCustomer}
           onClose={() => setShowAll(false)}
@@ -224,6 +231,7 @@ function WaitingChip({
   selected,
   onClick,
   anchorable = true,
+  tradeInFilterActive = false,
 }: {
   item: WaitingCustomer;
   index: number;
@@ -235,6 +243,7 @@ function WaitingChip({
    * `WaitingPopover` có thể neo nhầm vào chấm trong popup.
    */
   anchorable?: boolean;
+  tradeInFilterActive?: boolean;
 }) {
   return (
     <button
@@ -244,7 +253,8 @@ function WaitingChip({
       title={`${item.stt ? `#${item.stt} · ` : ''}${item.name ?? ''}`}
       onClick={onClick}
       className={[
-        'flex h-7 min-w-7 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold leading-none text-white shadow ring-1 ring-white transition hover:scale-110',
+        'flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-xs font-bold leading-none text-white shadow ring-1 ring-white transition hover:scale-110',
+        tradeInFilterActive ? tradeInTone(true, item) : 'bg-amber-500',
         // This selected STT must remain above its popup if the popup
         // has to flip upward near the bottom of the viewport.
         selected ? 'relative z-[60] scale-110 ring-2 ring-blue-500 ring-offset-1' : '',
@@ -325,12 +335,14 @@ function AllSttModal({
   selectedIndex,
   onPick,
   onClose,
+  tradeInFilterActive,
 }: {
   label: string;
   items: WaitingCustomer[];
   selectedIndex: number | null;
   onPick: (index: number) => void;
   onClose: () => void;
+  tradeInFilterActive: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -372,6 +384,7 @@ function AllSttModal({
               selected={selectedIndex === index}
               onClick={() => onPick(index)}
               anchorable={false}
+              tradeInFilterActive={tradeInFilterActive}
             />
           ))}
         </div>
