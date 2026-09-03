@@ -15,7 +15,7 @@ export interface KhoHandoverHistoryItem {
   submittedBy: string | null;
   scanQr: string | null;
   time: number;
-  images: Array<{ fileToken: string; name: string | null; sourceRevision?: number }>;
+  images: Array<{ fileToken: string; name: string | null; sourceRecordId: string; sourceRevision?: number }>;
 }
 
 interface Result {
@@ -57,7 +57,7 @@ function mapHistory(rows: LarkRecord[], staffByDesk: Map<string, KhoStaffInfo>):
               const revision = extra ? JSON.parse(extra)?.bitablePerm?.rev : undefined;
               if (Number.isFinite(Number(revision))) sourceRevision = Number(revision);
             } catch { /* optional attachment metadata */ }
-            return [{ fileToken: part.file_token.trim(), name: typeof part.name === 'string' ? part.name : null, sourceRevision }];
+            return [{ fileToken: part.file_token.trim(), name: typeof part.name === 'string' ? part.name : null, sourceRecordId: row.record_id, sourceRevision }];
           })
         : [];
       return {

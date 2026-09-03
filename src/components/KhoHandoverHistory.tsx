@@ -3,8 +3,11 @@ import { guestMediaUrl } from '@/services/guestMedia';
 import type { KhoHandoverHistoryItem } from '@/hooks/useKhoHandoverHistory';
 import { useState } from 'react';
 
-function mediaUrl(token: string) {
-  return guestMediaUrl(token) ?? `${workerBaseUrl()}/media/${encodeURIComponent(token)}`;
+function mediaUrl(image: { fileToken: string; sourceRecordId: string; sourceRevision?: number }) {
+  const guestUrl = guestMediaUrl(image.fileToken);
+  if (guestUrl) return guestUrl;
+  const query = `?table=master&record_id=${encodeURIComponent(image.sourceRecordId)}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${image.sourceRevision ? `&rev=${image.sourceRevision}` : ''}`;
+  return `${workerBaseUrl()}/media/${encodeURIComponent(image.fileToken)}${query}`;
 }
 
 function formatTime(time: number) {
@@ -38,7 +41,7 @@ export default function KhoHandoverHistory({ items, loading, error }: { items: K
                 <span className="shrink-0">Ảnh: {item.images.length}/3</span>
               </div>
             </button>
-            {expandedId === item.id && item.images.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-100 pt-3">{item.images.map((image) => <img key={image.fileToken} src={mediaUrl(image.fileToken)} alt={image.name || 'Ảnh nghiệm thu'} className="max-h-64 w-full rounded-lg border border-neutral-200 object-contain" loading="lazy" />)}</div>}
+            {expandedId === item.id && item.images.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-100 pt-3">{item.images.map((image) => <img key={image.fileToken} src={mediaUrl(image)} alt={image.name || 'Ảnh nghiệm thu'} className="max-h-64 w-full rounded-lg border border-neutral-200 object-contain" loading="lazy" />)}</div>}
           </article>
         ))}
       </div>
