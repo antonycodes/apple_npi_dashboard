@@ -2207,7 +2207,12 @@ export default {
           const desks = account.workspaces.map((w) => w.desk);
           // Vai trò trong TOKEN chỉ để phân biệt với `admin` (quyền ghi cấu
           // hình); chỗ làm việc cụ thể do app chọn từ `workspaces`.
-          const tokenRole = account.workspaces[0].role;
+          // Một tài khoản có thể có nhiều workspace (S12196 có TV3, TC3,
+          // BK3, KHO3 và DP2). Token phải giữ quyền cao nhất mà tài khoản có,
+          // không phụ thuộc thứ tự dòng trong Master_DS, để DP vẫn gửi SMS.
+          const tokenRole = account.workspaces.some((workspace) => workspace.role === 'dieuphoi')
+            ? 'dieuphoi'
+            : account.workspaces[0].role;
           return json({
             code: 0,
             msg: 'success',

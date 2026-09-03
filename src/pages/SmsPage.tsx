@@ -196,6 +196,9 @@ function SmsBoard() {
 export default function SmsPage() {
   const session = useAdminInfo();
   if (!session) return <AppLogin title="NPI-CPS · Điều phối SMS" subtitle="Đăng nhập để xem hành trình khách hàng" />;
-  if (session.role !== 'dieuphoi' && session.role !== 'admin') return <AccessDenied />;
+  const hasDispatchAccess = session.role === 'admin'
+    || session.role === 'dieuphoi'
+    || session.workspaces.some((workspace) => workspace.role === 'dieuphoi');
+  if (!hasDispatchAccess) return <AccessDenied />;
   return <SmsBoard />;
 }

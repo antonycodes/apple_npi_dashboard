@@ -73,7 +73,10 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
       .then(setGuestQrDataUrl)
       .catch(() => setGuestQrDataUrl(null));
   }, [guestRoom?.joinUrl, showGuestQr]);
-  const canDispatch = (simulation || !readOnly) && (simulation || session?.role === 'admin' || session?.role === 'dieuphoi');
+  const hasDispatchAccess = session?.role === 'admin'
+    || session?.role === 'dieuphoi'
+    || session?.workspaces.some((workspace) => workspace.role === 'dieuphoi');
+  const canDispatch = (simulation || !readOnly) && (simulation || hasDispatchAccess);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
