@@ -86,6 +86,7 @@ export function defaultSettings(): LarkSettings {
         deskField: { ...DEFAULT_DISPATCH_FIELDS.deskField },
         backupDeskField: DEFAULT_DISPATCH_FIELDS.backupDeskField,
         name: DEFAULT_DISPATCH_FIELDS.name,
+        smsNoti: DEFAULT_DISPATCH_FIELDS.smsNoti,
       },
       dsMaster: { ...DEFAULT_DS_MASTER_FIELDS },
     },
@@ -118,6 +119,7 @@ function hydrate(raw: unknown): LarkSettings {
         deskField: { ...base.fields.dispatch.deskField, ...(p.fields?.dispatch?.deskField ?? {}) },
         backupDeskField: p.fields?.dispatch?.backupDeskField ?? base.fields.dispatch.backupDeskField,
         name: p.fields?.dispatch?.name ?? base.fields.dispatch.name,
+        smsNoti: p.fields?.dispatch?.smsNoti ?? base.fields.dispatch.smsNoti,
       },
       dsMaster: {
         ...base.fields.dsMaster,

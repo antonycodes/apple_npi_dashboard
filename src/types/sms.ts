@@ -22,5 +22,7 @@ export interface SmsJourney {
   endFlow: boolean;
   endFlowTime: string | null;
   smsRequested: boolean;
+  /** Kết quả thực tế từ Master_Điều phối.SMS_Noti; null khi workflow chưa trả. */
+  smsNotification: string | null;
   stages: Record<ClusterKey, SmsStageJourney>;
 }

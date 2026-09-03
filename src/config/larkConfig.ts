@@ -125,6 +125,8 @@ export interface DispatchFieldMap {
   deskField: Record<'tradein' | 'consult', string>;
   backupDeskField: string;
   name: string;
+  /** Kết quả workflow gửi SMS, trả về từ bảng Master_Điều phối. */
+  smsNoti: string;
 }
 
 /**
@@ -213,6 +215,7 @@ export const DEFAULT_DISPATCH_FIELDS: DispatchFieldMap = {
   deskField: { tradein: 'DS Thu cũ', consult: 'DS Tư vấn' },
   backupDeskField: 'DS Backup',
   name: 'Họ và tên',
+  smsNoti: 'SMS_Noti',
 };
 
 export const DEFAULT_DS_MASTER_FIELDS: DsMasterFieldMap = {

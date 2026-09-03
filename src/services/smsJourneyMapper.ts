@@ -148,6 +148,7 @@ export function mapSmsJourneys(
       endFlow: (cellToString(fieldValue(row.fields, fields.checkin.endFlow)) ?? '').trim().toLowerCase() === 'end flow',
       endFlowTime: cellToString(fieldValue(row.fields, fields.checkin.endFlowTime)),
       smsRequested: false,
+      smsNotification: null,
       stages: Object.fromEntries(
         STAGES.map(({ key, label }) => [key, emptyStage(key, label, false)]),
       ) as Record<ClusterKey, SmsStageJourney>,
@@ -208,6 +209,20 @@ export function mapSmsJourneys(
   }
 
   for (const row of tables.dispatch) {
+    const smsNotification = cellToString(fieldValue(row.fields, fields.dispatch.smsNoti));
+    if (smsNotification) {
+      const stt = canonicalStt(
+        cellToString(fieldValue(row.fields, 'STT Input Lookup'))
+          ?? cellToString(fieldValue(row.fields, 'STT input'))
+          ?? cellToString(fieldValue(row.fields, 'STT Input'))
+          ?? cellToString(fieldValue(row.fields, 'STT')),
+      );
+      const journey = stt ? byStt.get(stt) : null;
+      if (journey) {
+        journey.smsNotification = smsNotification;
+        journey.smsRequested = true;
+      }
+    }
     if (!cellToBool(fieldValue(row.fields, 'Đẩy SMS'))) continue;
     const stt = canonicalStt(
       cellToString(fieldValue(row.fields, 'STT input'))

@@ -64,6 +64,7 @@ export function useSharedSettingsSync(): void {
               ...current.fields.dispatch.deskField,
               ...(incomingFields.dispatch?.deskField ?? {}),
             },
+            smsNoti: incomingFields.dispatch?.smsNoti ?? current.fields.dispatch.smsNoti,
           },
           dsMaster: {
             ...current.fields.dsMaster,

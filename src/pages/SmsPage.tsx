@@ -160,17 +160,21 @@ function SmsBoard() {
             const stt = String(number);
             const journey = journeys.get(stt);
             const smsRequested = Boolean(journey?.smsRequested || requestedLocally.has(stt));
+            const smsNotification = journey?.smsNotification ?? null;
+            const smsSuccess = smsNotification ? /thành công|success|đã gửi|sent/i.test(smsNotification) : false;
+            const smsDotTone = smsNotification ? (smsSuccess ? 'bg-emerald-500' : 'bg-red-500') : 'bg-blue-700';
             return (
               <button
                 key={stt}
                 type="button"
                 disabled={!journey}
                 onClick={() => setSelected(stt)}
-                aria-label={`STT ${stt.padStart(2, '0')}${journey ? ' — mở hành trình' : ' — chưa check-in'}${smsRequested ? ' — đã yêu cầu SMS' : ''}`}
-                className={`relative aspect-square min-h-12 rounded-xl text-lg font-black shadow-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:cursor-not-allowed sm:min-h-14 sm:text-xl ${sttTone(journey, now, settings.leadtimeMinutes, onlyPendingConsult)} ${smsRequested ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}
+                aria-label={`STT ${stt.padStart(2, '0')}${journey ? ' — mở hành trình' : ' — chưa check-in'}${smsNotification ? ` — ${smsNotification}` : smsRequested ? ' — đã yêu cầu SMS' : ''}`}
+                title={smsNotification ?? (smsRequested ? 'Đã yêu cầu SMS, đang chờ kết quả từ Base' : undefined)}
+                className={`relative aspect-square min-h-12 rounded-xl text-lg font-black shadow-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:cursor-not-allowed sm:min-h-14 sm:text-xl ${sttTone(journey, now, settings.leadtimeMinutes, onlyPendingConsult)} ${smsNotification ? (smsSuccess ? 'ring-2 ring-emerald-500 ring-offset-1' : 'ring-2 ring-red-500 ring-offset-1') : smsRequested ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}
               >
                 {stt.padStart(2, '0')}
-                {smsRequested && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-blue-700" aria-hidden="true" />}
+                {smsRequested && <span className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ${smsDotTone}`} aria-hidden="true" />}
               </button>
             );
           })}
