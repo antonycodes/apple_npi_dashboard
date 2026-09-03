@@ -11,15 +11,19 @@ import { useState } from 'react';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import QueueBoard from '@/components/QueueBoard';
 import Sidebar from '@/components/Sidebar';
+import DispatchFormModal from '@/components/DispatchFormModal';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useQueueBoardData } from '@/hooks/useQueueBoardData';
 import { useLarkSettings } from '@/config/larkSettings';
+import { useAdminInfo } from '@/config/adminSession';
 import type { ClusterKey, DeskCustomer, WaitingZoneKey } from '@/types/desk';
 
 export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
   const {
     desks,
+    allDesks,
+    roster,
     summary,
     waitingCheckin,
     waitingDispatch,
@@ -34,6 +38,12 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
   const [onlyTradeIn, setOnlyTradeIn] = useState(false);
   const [selectedWaiting, setSelectedWaiting] = useState<{ zone: WaitingZoneKey; index: number } | null>(null);
+  const [dispatchStt, setDispatchStt] = useState('');
+  const [showDispatchForm, setShowDispatchForm] = useState(false);
+  const session = useAdminInfo();
+  const canDispatch = session?.role === 'admin'
+    || session?.role === 'dieuphoi'
+    || session?.workspaces.some((workspace) => workspace.role === 'dieuphoi');
 
   const hasTradeIn = (customer: DeskCustomer) => {
     const normalized = customer.oldDeviceCheck
@@ -56,6 +66,12 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
     setSelectedWaiting((current) =>
       current?.zone === zone && current.index === index ? null : { zone, index },
     );
+  };
+
+  const handleDispatchWaiting = (customer: { stt: string | null }) => {
+    setSelectedWaiting(null);
+    setDispatchStt(customer.stt ?? '');
+    setShowDispatchForm(true);
   };
 
   return (
@@ -109,10 +125,19 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
             selectedWaiting={selectedWaiting}
             onSelectWaiting={selectWaiting}
             onCloseWaiting={() => setSelectedWaiting(null)}
+            onDispatchWaiting={canDispatch ? handleDispatchWaiting : undefined}
             tradeInFilter={{ active: onlyTradeIn, onToggle: toggleTradeInFilter }}
           />
         </div>
       </main>
+      {canDispatch && showDispatchForm && (
+        <DispatchFormModal
+          desks={allDesks}
+          roster={roster}
+          initialStt={dispatchStt}
+          onClose={() => setShowDispatchForm(false)}
+        />
+      )}
       <SleepOverlay />
     </div>
   );

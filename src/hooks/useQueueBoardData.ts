@@ -23,6 +23,7 @@ import {
   type DashboardSummary,
   type DeskData,
   type WaitingCustomer,
+  type RosterEntry,
 } from '@/types/desk';
 
 interface QueueSidebarState {
@@ -40,6 +41,9 @@ const EMPTY_SIDEBAR: QueueSidebarState = {
 export interface UseQueueBoardDataResult {
   /** Chỉ các bàn thuộc `cluster` được yêu cầu, theo đúng thứ tự trong layoutConfig. */
   desks: DeskQueueState[];
+  /** Toàn bộ bàn + roster, dùng cho form Điều phối mở từ popup chờ. */
+  allDesks: DeskData[];
+  roster: RosterEntry[];
   summary: DashboardSummary;
   waitingCheckin: WaitingCustomer[];
   waitingDispatch: WaitingCustomer[];
@@ -61,6 +65,8 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
 
   const [statesById, setStatesById] = useState<Record<string, DeskQueueState>>({});
+  const [allDesks, setAllDesks] = useState<DeskData[]>([]);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [sidebar, setSidebar] = useState<QueueSidebarState>(EMPTY_SIDEBAR);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +85,8 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
         ...(mapped.statesById[position.id] ?? { hasData: false }),
       }));
       setStatesById(mapQueueStates(mockLarkTables, DEFAULT_FIELD_CONFIG, mapped));
+      setAllDesks(allDesks);
+      setRoster(mapped.roster);
       setSidebar({
         summary: computeSummary(allDesks, {
           totalRegistered: mapped.totalRegistered,
@@ -108,6 +116,8 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
           ...(mapped.statesById[position.id] ?? { hasData: false }),
         }));
         setStatesById(mapQueueStates(tables, settings.fields, mapped));
+        setAllDesks(allDesks);
+        setRoster(mapped.roster);
         setSidebar({
           summary: computeSummary(allDesks, {
             totalRegistered: mapped.totalRegistered,
@@ -144,6 +154,8 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
 
   return {
     desks,
+    allDesks,
+    roster,
     summary: sidebar.summary,
     waitingCheckin: sidebar.waitingCheckin,
     waitingDispatch: sidebar.waitingDispatch,

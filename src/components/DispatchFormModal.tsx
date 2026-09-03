@@ -84,6 +84,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const [loai, setLoai] = useState('');
   const [khachDoiY, setKhachDoiY] = useState('');
   const [deskId, setDeskId] = useState('');
+  const [daySms, setDaySms] = useState(false);
   const [busyDeskConfirmOpen, setBusyDeskConfirmOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmProgress, setConfirmProgress] = useState(0);
@@ -199,6 +200,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
         // Submit by là MSNV của tài khoản Điều phối đang đăng nhập.
         submitBy,
         ...(khachDoiY ? { khachDoiY } : {}),
+        ...(daySms && !khachDoiY ? { daySms: true } : {}),
       });
       setStatus({ kind: 'sent', confirmed: res.confirmed });
       // Giữ nguyên "Phân loại" để nhập liên tiếp nhiều khách cùng khâu.
@@ -327,6 +329,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
                   onChange={(e) => {
                     setLoai(e.target.value);
                     setDeskId(''); // bàn cũ không còn thuộc phân loại mới
+                    setDaySms(false);
                   }}
                   className={`${FIELD_BASE} border-neutral-300 bg-white focus:border-brand focus:outline-none`}
                 >
@@ -342,7 +345,10 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
               <Field label="Danh sách Nhân sự">
                 <select
                   value={deskId}
-                  onChange={(e) => setDeskId(e.target.value)}
+                  onChange={(e) => {
+                    setDeskId(e.target.value);
+                    setDaySms(false);
+                  }}
                   disabled={!loai}
                   className={`${FIELD_BASE} border-neutral-300 bg-white focus:border-brand focus:outline-none disabled:bg-neutral-100 disabled:text-neutral-400`}
                 >
@@ -357,6 +363,18 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
                   })}
                 </select>
               </Field>
+
+              {loai && deskId && (
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-700">
+                  <input
+                    type="checkbox"
+                    checked={daySms}
+                    onChange={(e) => setDaySms(e.target.checked)}
+                    className="h-5 w-5 rounded border-neutral-300 text-brand focus:ring-brand"
+                  />
+                  <span>Gửi SMS cho khách</span>
+                </label>
+              )}
             </>
           )}
 
