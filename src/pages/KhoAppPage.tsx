@@ -15,11 +15,13 @@ import { useState } from 'react';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import KhoOrderView from '@/components/KhoOrderView';
 import KhoHandoverForm, { type KhoHandoverValues } from '@/components/KhoHandoverForm';
+import KhoHandoverHistory from '@/components/KhoHandoverHistory';
 import { useAdminInfo } from '@/config/adminSession';
 import { useKhoBoardData } from '@/hooks/useKhoBoardData';
 import { useWarehouseOrderClaims } from '@/hooks/useWarehouseOrderClaims';
 import { useWarehouseOrders } from '@/hooks/useWarehouseOrders';
 import { useKhoHandoverData } from '@/hooks/useKhoHandoverData';
+import { useKhoHandoverHistory } from '@/hooks/useKhoHandoverHistory';
 import { staffActionWebhookUrl, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
 import { sendStaffAction } from '@/services/staffActionWebhook';
@@ -56,6 +58,7 @@ export default function KhoAppPage({
 
   const { staffByDesk, loading, error: dataError, lastUpdated, isMock, refresh } =
     useKhoHandoverData(guestMode);
+  const handoverHistory = useKhoHandoverHistory(staffByDesk, guestMode);
   // Bảng kanban chỉ tải khi thật sự mở tab đó — kho thường để máy ở tab Bàn
   // giao suốt buổi, không việc gì phải map lại 36 bàn mỗi 5 giây.
   const board = useKhoBoardData(undefined, tab === 'board', guestMode);
@@ -107,7 +110,6 @@ export default function KhoAppPage({
         }
       }
 
-      const staff = staffByDesk.get(values.deskCode);
       await sendStaffAction(webhookUrl, {
         action: 'ban_giao',
         trangThai: 'Bàn giao kho',
@@ -127,10 +129,9 @@ export default function KhoAppPage({
         scanQr: values.scanQr,
         ...(tokens.length ? { hinhNghiemThu: tokens } : {}),
       });
-      setOkMessage(
-        `Đã bàn giao cho ${values.deskCode}${staff?.name ? ` · ${staff.name}` : ''}.`,
-      );
+      setOkMessage(`Đã bàn giao cho ${values.deskCode}.`);
       refresh();
+      handoverHistory.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -221,14 +222,17 @@ export default function KhoAppPage({
 
       <main className="min-h-0 flex-1">
         {tab === 'handover' ? (
-          <KhoHandoverForm
-            staffByDesk={staffByDesk}
-            loading={loading}
-            busy={sending}
-            error={error}
-            okMessage={okMessage}
-            onSubmit={submit}
-          />
+          <>
+            <KhoHandoverForm
+              staffByDesk={staffByDesk}
+              loading={loading}
+              busy={sending}
+              error={error}
+              okMessage={okMessage}
+              onSubmit={submit}
+            />
+            <KhoHandoverHistory items={handoverHistory.items} loading={handoverHistory.loading} error={handoverHistory.error} />
+          </>
         ) : (
           <div className="px-2 py-2">
             <KhoOrderView
