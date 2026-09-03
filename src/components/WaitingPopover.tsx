@@ -133,7 +133,6 @@ export default function WaitingPopover({ zoneLabel, zone, customer, index, onDis
           <Row label="Khu vực" value={zoneLabel} />
           <Row label="Trạng thái" value={statusTextFor(zone, customer)} />
           <Row label="Ghi chú thanh toán" value={customer.paymentNote ?? null} />
-          <LinkRow label="Hyperlink Master" value={customer.hyperlink} />
           <Row
             label="Check thu máy cũ"
             value={customer.deviceAcceptedText}
@@ -171,17 +170,6 @@ function Row({
     <>
       <dt className="text-right leading-5 text-neutral-500">{label}</dt>
       <dd className={`min-w-0 break-words text-left leading-5 ${cls}`}>{value && value.trim() ? value : '—'}</dd>
-    </>
-  );
-}
-
-function LinkRow({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <>
-      <dt className="text-right leading-5 text-neutral-500">{label}</dt>
-      <dd className="min-w-0 truncate text-left font-medium leading-5 text-blue-600">
-        {value ? <a href={value} target="_blank" rel="noreferrer" className="underline">Mở liên kết</a> : '—'}
-      </dd>
     </>
   );
 }

@@ -286,7 +286,11 @@ function indexDeviceReceiptByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<st
   const result = new Map<string, { time: number; value: NonNullable<WaitingCustomer['deviceReceipt']> }>();
   for (const row of rows) {
     const stt = cellToString(row.fields[fm.sttInput]);
-    if (!stt) continue;
+    // Đồng bộ với lookup trong form Thu cũ/Backup: chỉ lấy dòng đã ghi
+    // thông tin thu máy. Dòng Master mới hơn nhưng không có `Thu lại máy`
+    // không được phép ghi đè receipt IMEI/QR/ảnh đã lưu trước đó.
+    const thuLaiMay = cellToString(row.fields[fm.thuLaiMay]);
+    if (!stt || !thuLaiMay) continue;
     const rawImages = row.fields[fm.hinhNghiemThu];
     const images = Array.isArray(rawImages)
       ? rawImages.flatMap((part) => {

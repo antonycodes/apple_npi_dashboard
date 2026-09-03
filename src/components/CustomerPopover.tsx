@@ -98,7 +98,6 @@ export default function CustomerPopover({ desk, customer, onClose }: CustomerPop
           <Row label="Nhân viên" value={staffName ?? null} />
           <ProductRow value={customer.productName ?? null} />
           <Row label="Ghi chú thanh toán" value={customer.paymentNote ?? null} />
-          <LinkRow label="Hyperlink Master" value={customer.hyperlink} />
           <Row
             label="Check thu máy cũ"
             value={customer.deviceAcceptedText}
@@ -142,15 +141,4 @@ function Row({
 
 function ProductRow({ value }: { value: string | null | undefined }) {
   return <><dt className="text-right leading-5 text-neutral-500">Tên sản phẩm</dt><dd className="min-w-0 break-words text-left font-medium leading-5 text-neutral-800"><ProductList value={value} /></dd></>;
-}
-
-function LinkRow({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <>
-      <dt className="text-right leading-5 text-neutral-500">{label}</dt>
-      <dd className="min-w-0 truncate text-left font-medium leading-5 text-blue-600">
-        {value ? <a href={value} target="_blank" rel="noreferrer" className="underline">Mở liên kết</a> : '—'}
-      </dd>
-    </>
-  );
 }

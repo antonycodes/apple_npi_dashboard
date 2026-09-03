@@ -7,6 +7,7 @@
  * "End Flow" (đã hoàn tất toàn bộ) is a separate table view, not a board zone.
  */
 import { deskUiStatus, type DeskData } from '@/types/desk';
+import { createPortal } from 'react-dom';
 import Desk from './Desk';
 
 interface LayoutDashboardProps {
@@ -144,8 +145,11 @@ export default function LayoutDashboard({
         })}
       </div>
 
-      {/* ── Overlay (popover) — outside the clipped layer above ────── */}
-      {overlay}
+      {/* Render popovers at the document root. The dashboard column scrolls
+          vertically, which also clips horizontal overflow in CSS. A portal
+          keeps wide cards visible while their placement still follows the
+          measured desk node. */}
+      {overlay && typeof document !== 'undefined' ? createPortal(overlay, document.body) : overlay}
     </div>
   );
 }
