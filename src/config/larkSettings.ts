@@ -184,8 +184,8 @@ export function toRuntimeConfig(s: LarkSettings = settings): LarkRuntimeConfig {
   return {
     // Mock là một route riêng (`/mock`), không còn là cờ cấu hình dùng chung.
     useMock: typeof window !== 'undefined' && (
-      window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase() === 'mock'
-      || window.location.hash.replace(/^#\/?/, '').split('?')[0].toLowerCase() === 'mock'
+    window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase() === 'mock'
+    || window.location.hash.replace(/^#\/?/, '').split('?')[0].toLowerCase() === 'mock'
     ),
     apiUrl: str(s.apiUrl),
     host: str(s.host) ?? ENV_DEFAULTS.host,
@@ -246,6 +246,7 @@ export const DEFAULT_FIELD_CONFIG: FieldConfig = {
 export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
   stt: 'STT khách',
   name: 'Họ và tên',
+  phone: 'Số điện thoại khách (SMS)',
   product: 'Tên sản phẩm (SP 1)',
   note: 'Ghi chú thanh toán',
   deviceAccepted: 'Check nghiệm thu (đã thu máy cũ)',

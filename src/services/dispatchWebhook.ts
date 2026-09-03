@@ -45,11 +45,15 @@ export interface DispatchFormPayload {
   submitBy: string;
   /** Lựa chọn khi khách thay đổi nhu cầu sau check-in. */
   khachDoiY?: string;
+  /** Tick cột "Đẩy SMS" để Lark Automation xử lý yêu cầu gửi. */
+  daySms?: boolean;
 }
 
 export interface DispatchSendResult {
   /** true = đọc được HTTP status 2xx; false = đã gửi nhưng response opaque (CORS). */
   confirmed: boolean;
+  /** Các cột Worker xác nhận đã ghi. Chỉ có khi gọi route trực tiếp. */
+  written?: string[];
 }
 
 /** Điều phối phải ghi thẳng vào bảng dispatch để không mất record khi burst. */
@@ -101,7 +105,16 @@ export async function sendDispatchForm(
       }
       throw new Error(`Webhook trả về HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
     }
-    return { confirmed: true };
+    let written: string[] | undefined;
+    try {
+      const parsed = await res.json() as { data?: { written?: unknown } };
+      if (Array.isArray(parsed.data?.written)) {
+        written = parsed.data.written.filter((value): value is string => typeof value === 'string');
+      }
+    } catch {
+      // Webhook cũ có thể trả text hoặc body rỗng.
+    }
+    return { confirmed: true, written };
   } catch (err) {
     // Chỉ `TypeError` mới là "fetch không đi được" (CORS/mạng); lỗi HTTP ở
     // trên là Error thường → ném tiếp, không gửi lặp lần 2.
@@ -115,4 +128,26 @@ export async function sendDispatchForm(
     });
     return { confirmed: false };
   }
+}
+
+/** Tạo yêu cầu SMS trong Master_Điều phối; trình duyệt không gọi nhà mạng. */
+export async function sendSmsDispatchRecord(url: string, stt: string): Promise<DispatchSendResult> {
+  const session = adminSessionStore.getInfo();
+  const result = await sendDispatchForm(url, {
+    stt: stt.trim(),
+    phanLoai: '',
+    maBan: '',
+    nhanSu: '',
+    msnv: session?.msnv ?? '',
+    thoiGian: new Date().toISOString(),
+    dieuPhoiId: session?.username ?? '',
+    dieuPhoiTen: session?.name ?? '',
+    dieuPhoiViTri: session?.desk ?? '',
+    submitBy: session?.msnv ?? '',
+    daySms: true,
+  });
+  if (result.confirmed && result.written && !result.written.includes('Đẩy SMS')) {
+    throw new Error('Worker chưa ghi được cột Đẩy SMS. Kiểm tra schema Master_Điều phối.');
+  }
+  return result;
 }

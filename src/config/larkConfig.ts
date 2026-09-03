@@ -34,6 +34,8 @@ export const DEFAULT_HOST =
 export interface CheckinFieldMap {
   stt: string;
   name: string;
+  /** Số điện thoại khách, dùng để Điều phối xác nhận trước khi gửi SMS. */
+  phone: string;
   product: string;
   note: string;
   deviceAccepted: string;
@@ -176,6 +178,7 @@ export interface FieldConfig {
 export const DEFAULT_CHECKIN_FIELDS: CheckinFieldMap = {
   stt: 'STT',
   name: 'Họ và tên',
+  phone: 'Số điện thoại',
   product: 'SP 1',
   note: 'Check UD Thanh toán',
   deviceAccepted: 'Check nghiệm thu',

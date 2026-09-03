@@ -1,6 +1,6 @@
 import { useAdminInfo } from '@/config/adminSession';
 
-export type AppView = 'main' | 'dash' | 'checkin' | 'tuvan' | 'tradein' | 'backup' | 'kho';
+export type AppView = 'main' | 'dash' | 'checkin' | 'sms' | 'tuvan' | 'tradein' | 'backup' | 'kho';
 
 const OPERATION_VIEWS: Array<{ key: AppView; label: string; href: string }> = [
   { key: 'tuvan', label: 'Tư vấn', href: '/tuvanview' },
@@ -13,16 +13,19 @@ export default function ViewSwitcher({ active }: { active: AppView }) {
   const session = useAdminInfo();
   const isAdmin = session?.role === 'admin';
   const canOpenCheckin = isAdmin || session?.role === 'checkin';
+  const canOpenSms = isAdmin || session?.role === 'dieuphoi';
   const views = isAdmin
     ? [
         { key: 'main' as const, label: 'Main', href: '/app' },
         { key: 'dash' as const, label: 'Dash', href: '/dashboard' },
         ...(canOpenCheckin ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }] : []),
+        ...(canOpenSms ? [{ key: 'sms' as const, label: 'SMS', href: '/sms' }] : []),
         ...OPERATION_VIEWS,
       ]
     : [
         { key: 'dash' as const, label: 'Dash', href: '/dashboard' },
         ...(canOpenCheckin ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }] : []),
+        ...(canOpenSms ? [{ key: 'sms' as const, label: 'SMS', href: '/sms' }] : []),
         ...OPERATION_VIEWS,
       ];
 

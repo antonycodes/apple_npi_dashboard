@@ -739,6 +739,7 @@ const DISPATCH_FIELD_MAP = {
   phanLoai: 'Phân loại',
   submitBy: 'Submit by',
   khachDoiY: 'Khách đổi ý',
+  daySms: 'Đẩy SMS',
 };
 
 /**
@@ -2601,6 +2602,18 @@ export default {
         payload = await request.json();
       } catch {
         return json({ code: -1, msg: 'Body không phải JSON' }, 400);
+      }
+
+      // Yêu cầu SMS có thể phát sinh chi phí. Khóa mọi payload có key daySms
+      // trước khi coercion kiểu dữ liệu biến chuỗi "true" thành checkbox thật.
+      if (payload && typeof payload === 'object' && Object.prototype.hasOwnProperty.call(payload, 'daySms')) {
+        const session = await verifyToken(env, bearer(request));
+        if (!session || !['admin', 'dieuphoi'].includes(session.role)) {
+          return json({ code: -1, msg: 'Phiên điều phối không hợp lệ hoặc đã hết hạn' }, 401);
+        }
+        if (payload.daySms !== true) {
+          return json({ code: -1, msg: 'Đẩy SMS chỉ chấp nhận giá trị boolean true' }, 400);
+        }
       }
 
       try {

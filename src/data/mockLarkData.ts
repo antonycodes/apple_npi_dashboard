@@ -37,11 +37,11 @@ const HOAN_TAT = 'Hoàn tất';
 // "Thời gian" là mốc check-in (ms) — dùng để sắp khách trước/sau khi 1 NV
 // phục vụ nhiều người cùng lúc. Khách checkin trước phải hiện trước.
 const checkin: LarkRecord[] = [
-  { record_id: 'ci_1', fields: { STT: 1, 'Họ và tên': 'Nguyễn Minh Long', 'SP 1': 'iPhone 17 Pro 512GB | Bạc', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'Backup check': KHONG_BACKUP, 'End flow': IN_FLOW, 'Thời gian': 1000 } },
+  { record_id: 'ci_1', fields: { STT: 1, 'Họ và tên': 'Nguyễn Minh Long', 'Số điện thoại': '0901234567', 'SP 1': 'iPhone 17 Pro 512GB | Bạc', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'Backup check': KHONG_BACKUP, 'End flow': IN_FLOW, 'Thời gian': 1000 } },
   // Kịch bản màn hình nhân viên TV1 (2026-08-12, yêu cầu user): STT2 đang được
   // TV1 tiếp nhận (xem `ma_3`), STT4 là "STT tiếp theo" của TV1 (xem `dsm_7`) —
   // mở `#/tv1` để diễn đúng luồng "Hoàn tất khách 02 → Tiếp nhận khách 04".
-  { record_id: 'ci_2', fields: { STT: 2, 'Họ và tên': 'Huỳnh Ngọc Linh', 'SP 1': 'iPhone 17 Pro Max 256GB | Cam', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'Backup check': CO_BACKUP, 'End flow': IN_FLOW, 'Thời gian': 2000 } },
+  { record_id: 'ci_2', fields: { STT: 2, 'Họ và tên': 'Huỳnh Ngọc Linh', 'Số điện thoại': '0912345678', 'SP 1': 'iPhone 17 Pro Max 256GB | Cam', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'Backup check': CO_BACKUP, 'End flow': IN_FLOW, 'Thời gian': 2000 } },
   { record_id: 'ci_3', fields: { STT: 3, 'Họ và tên': 'Phạm Đức Dũng', 'SP 1': 'iPhone 17 Pro 512GB | Xanh Đậm', 'Note UDTT': 'VIB 1254', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'Thu cũ check': KHONG_THU_CU, 'Backup check': KHONG_BACKUP, 'End flow': IN_FLOW, 'Thời gian': 3000 } },
   // STT4 = khách kế tiếp của TV1 (đã điều phối vào TV1 ở `dp_8`, chưa có dòng
   // "Tiếp nhận" nào trong `master`) — nút Tiếp nhận ở `#/tv1` sẽ mở form recheck

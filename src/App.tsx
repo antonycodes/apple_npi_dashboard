@@ -29,6 +29,7 @@ import KhoBoardPage from './pages/KhoBoardPage';
 import StaffPage from './pages/StaffPage';
 import GuestPage from './pages/GuestPage';
 import CheckinPage from './pages/CheckinPage';
+import SmsPage from './pages/SmsPage';
 
 type Route =
   | {
@@ -41,6 +42,7 @@ type Route =
         | 'backupview'
         | 'khoview'
         | 'checkin'
+        | 'sms'
         | 'staff'
         | 'app';
     }
@@ -70,6 +72,7 @@ function useAppRoute(): Route {
   if (path.startsWith('admin')) return { kind: 'app' };
   if (path === 'guest' || path.startsWith('guest/')) return { kind: 'guest' };
   if (path === 'check-in' || path.startsWith('check-in/')) return { kind: 'checkin' };
+  if (path === 'sms' || path.startsWith('sms/')) return { kind: 'sms' };
   if (path.startsWith('settings')) return { kind: 'settings' };
   if (path === 'mock') return { kind: 'dashboard' };
   if (path.startsWith('tuvanview')) return { kind: 'tuvanview' };
@@ -100,6 +103,7 @@ export default function App() {
   if (route.kind === 'settings') return <SettingsPage />;
   if (route.kind === 'guest') return <GuestPage />;
   if (route.kind === 'checkin') return <CheckinPage />;
+  if (route.kind === 'sms') return <SmsPage />;
   if (route.kind === 'tuvanview') return <QueueBoardPage cluster="consult" />;
   if (route.kind === 'thucuview') return <QueueBoardPage cluster="tradein" />;
   if (route.kind === 'backupview') return <QueueBoardPage cluster="backup" />;

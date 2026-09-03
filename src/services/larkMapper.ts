@@ -120,7 +120,7 @@ function repairMojibake(value: string): string {
   }
 }
 
-function fieldValue(fields: Record<string, LarkCellValue>, fieldName: string): LarkCellValue {
+export function fieldValue(fields: Record<string, LarkCellValue>, fieldName: string): LarkCellValue {
   if (Object.prototype.hasOwnProperty.call(fields, fieldName)) return fields[fieldName];
   const wanted = fieldName.trim().toLocaleLowerCase();
   const found = Object.keys(fields).find(
