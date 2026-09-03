@@ -11,6 +11,8 @@ import type { SmsJourney } from '@/types/sms';
 
 const TOTAL_STTS = 160;
 const PAGE_SIZE = 80;
+const PENDING_CONSULT_FILTER_ACTIVE_CLASS = 'border-emerald-600 bg-emerald-600 text-white';
+const PENDING_CONSULT_FILTER_IDLE_CLASS = 'border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50';
 
 function activeStage(journey: SmsJourney) {
   let latest: SmsJourney['stages'][ClusterKey] | undefined;
@@ -22,7 +24,17 @@ function activeStage(journey: SmsJourney) {
   return latest;
 }
 
-function sttTone(journey: SmsJourney | undefined, now: number, leadtimeMinutes: Record<ClusterKey, number>) {
+function sttTone(
+  journey: SmsJourney | undefined,
+  now: number,
+  leadtimeMinutes: Record<ClusterKey, number>,
+  onlyPendingConsult: boolean,
+) {
+  if (onlyPendingConsult) {
+    return journey?.stages.consult.status === 'pending'
+      ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+      : 'bg-neutral-300 text-black hover:bg-neutral-400';
+  }
   if (!journey) return 'bg-neutral-300 text-black';
   const stage = activeStage(journey);
   if (journey.endFlow) return 'bg-violet-500 text-white hover:bg-violet-600';
@@ -51,6 +63,7 @@ function SmsBoard() {
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [requestedLocally, setRequestedLocally] = useState<Set<string>>(() => new Set());
+  const [onlyPendingConsult, setOnlyPendingConsult] = useState(false);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -65,6 +78,10 @@ function SmsBoard() {
     () => new Set([...requestedLocally, ...[...journeys.values()].filter((item) => item.smsRequested).map((item) => item.stt)]).size,
     [journeys, requestedLocally],
   );
+  const pendingConsultCount = useMemo(
+    () => [...journeys.values()].filter((item) => item.stages.consult.status === 'pending').length,
+    [journeys],
+  );
 
   return (
     <div className="min-h-full bg-[#f5f5f7] text-neutral-800">
@@ -74,7 +91,6 @@ function SmsBoard() {
             <img src="/cellphones-logo.png" alt="CellphoneS" className="h-7 w-auto md:h-8" />
             <div className="min-w-0">
               <h1 className="truncate text-lg font-black md:text-xl">NPI-CPS · Điều phối SMS</h1>
-              <p className="text-xs font-semibold text-neutral-500">Xem hành trình và leadtime trước khi gửi</p>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs">
@@ -96,20 +112,43 @@ function SmsBoard() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 text-sm shadow-sm">
           <span className="text-neutral-500">{loading ? 'Đang tải dữ liệu…' : lastUpdated ? `Cập nhật ${lastUpdated.toLocaleTimeString('vi-VN')}` : 'Chưa có dữ liệu'}</span>
           <div className="flex flex-wrap gap-3 text-xs font-bold text-neutral-600" aria-label="Chú thích màu">
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-neutral-400" aria-hidden="true" />Chưa check-in</span>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-blue-500" aria-hidden="true" />Đã check-in / đang chờ</span>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden="true" />Đang phục vụ</span>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-400" aria-hidden="true" />Gần leadtime</span>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />Quá leadtime</span>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-violet-500" aria-hidden="true" />End Flow</span>
-            <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-blue-800" aria-hidden="true" />Đã yêu cầu SMS</span>
+            {onlyPendingConsult ? (
+              <>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden="true" />Chưa tiếp nhận Tư vấn</span>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-neutral-400" aria-hidden="true" />Còn lại</span>
+              </>
+            ) : (
+              <>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-neutral-400" aria-hidden="true" />Chưa check-in</span>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-blue-500" aria-hidden="true" />Đã check-in / đang chờ</span>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden="true" />Đang phục vụ</span>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-400" aria-hidden="true" />Gần leadtime</span>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />Quá leadtime</span>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-violet-500" aria-hidden="true" />End Flow</span>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-blue-800" aria-hidden="true" />Đã yêu cầu SMS</span>
+              </>
+            )}
           </div>
-          <div className="flex gap-1 rounded-lg bg-neutral-100 p-1" role="tablist" aria-label="Trang STT">
-            {[0, 1].map((value) => (
-              <button key={value} type="button" role="tab" aria-selected={page === value} onClick={() => setPage(value)} className={`min-h-9 rounded-md px-4 text-xs font-black ${page === value ? 'bg-white text-brand shadow-sm' : 'text-neutral-500'}`}>
-                {value === 0 ? '01–80' : '81–160'}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-pressed={onlyPendingConsult}
+              aria-label={`Lọc ${pendingConsultCount} STT chưa tiếp nhận Tư vấn`}
+              title={`Lọc STT chưa tiếp nhận Tư vấn (${pendingConsultCount})`}
+              onClick={() => setOnlyPendingConsult((current) => !current)}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 ${onlyPendingConsult ? PENDING_CONSULT_FILTER_ACTIVE_CLASS : PENDING_CONSULT_FILTER_IDLE_CLASS}`}
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 5h16l-6.5 7.2v5.3l-3 1.5v-6.8L4 5Z" />
+              </svg>
+            </button>
+            <div className="flex gap-1 rounded-lg bg-neutral-100 p-1" role="tablist" aria-label="Trang STT">
+              {[0, 1].map((value) => (
+                <button key={value} type="button" role="tab" aria-selected={page === value} onClick={() => setPage(value)} className={`min-h-9 rounded-md px-4 text-xs font-black ${page === value ? 'bg-white text-brand shadow-sm' : 'text-neutral-500'}`}>
+                  {value === 0 ? '01–80' : '81–160'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -127,10 +166,10 @@ function SmsBoard() {
                 disabled={!journey}
                 onClick={() => setSelected(stt)}
                 aria-label={`STT ${stt.padStart(2, '0')}${journey ? ' — mở hành trình' : ' — chưa check-in'}${smsRequested ? ' — đã yêu cầu SMS' : ''}`}
-                className={`relative aspect-square min-h-12 rounded-xl text-lg font-black shadow-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:cursor-not-allowed sm:min-h-14 sm:text-xl ${sttTone(journey, now, settings.leadtimeMinutes)} ${smsRequested ? 'ring-4 ring-blue-400 ring-offset-1' : ''}`}
+                className={`relative aspect-square min-h-12 rounded-xl text-lg font-black shadow-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:cursor-not-allowed sm:min-h-14 sm:text-xl ${sttTone(journey, now, settings.leadtimeMinutes, onlyPendingConsult)} ${smsRequested && !onlyPendingConsult ? 'ring-4 ring-blue-400 ring-offset-1' : ''}`}
               >
                 {stt.padStart(2, '0')}
-                {smsRequested && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-blue-700" aria-hidden="true" />}
+                {smsRequested && !onlyPendingConsult && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-blue-700" aria-hidden="true" />}
               </button>
             );
           })}
