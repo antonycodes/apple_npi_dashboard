@@ -116,6 +116,7 @@ function SmsBoard() {
               <>
                 <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden="true" />Chưa tiếp nhận Tư vấn</span>
                 <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-neutral-400" aria-hidden="true" />Còn lại</span>
+                <span className="flex items-center gap-1.5"><i className="h-3 w-3 rounded-sm border-2 border-blue-400" aria-hidden="true" />Đã yêu cầu SMS</span>
               </>
             ) : (
               <>
@@ -166,10 +167,10 @@ function SmsBoard() {
                 disabled={!journey}
                 onClick={() => setSelected(stt)}
                 aria-label={`STT ${stt.padStart(2, '0')}${journey ? ' — mở hành trình' : ' — chưa check-in'}${smsRequested ? ' — đã yêu cầu SMS' : ''}`}
-                className={`relative aspect-square min-h-12 rounded-xl text-lg font-black shadow-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:cursor-not-allowed sm:min-h-14 sm:text-xl ${sttTone(journey, now, settings.leadtimeMinutes, onlyPendingConsult)} ${smsRequested && !onlyPendingConsult ? 'ring-4 ring-blue-400 ring-offset-1' : ''}`}
+                className={`relative aspect-square min-h-12 rounded-xl text-lg font-black shadow-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:cursor-not-allowed sm:min-h-14 sm:text-xl ${sttTone(journey, now, settings.leadtimeMinutes, onlyPendingConsult)} ${smsRequested ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}
               >
                 {stt.padStart(2, '0')}
-                {smsRequested && !onlyPendingConsult && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-blue-700" aria-hidden="true" />}
+                {smsRequested && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-blue-700" aria-hidden="true" />}
               </button>
             );
           })}
