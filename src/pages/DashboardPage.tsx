@@ -14,7 +14,7 @@ import Sidebar from '@/components/Sidebar';
 import StatusLegend from '@/components/StatusLegend';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
-import { useAdminInfo } from '@/config/adminSession';
+import { canSendSms, useAdminInfo } from '@/config/adminSession';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
@@ -368,6 +368,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
           initialStt={dispatchStt}
           onClose={() => setShowDispatchForm(false)}
           simulation={simulation}
+          canSendSms={canSendSms(session)}
         />
       )}
       <SleepOverlay />

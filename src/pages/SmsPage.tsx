@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import AppLogin from '@/components/AppLogin';
 import SmsJourneyModal from '@/components/SmsJourneyModal';
 import ViewSwitcher from '@/components/ViewSwitcher';
-import { adminSessionStore, useAdminInfo } from '@/config/adminSession';
+import { canSendSms, useAdminInfo } from '@/config/adminSession';
 import { dispatchWebhookUrl } from '@/config/larkSettings';
 import { useSmsData } from '@/hooks/useSmsData';
 import { sendSmsDispatchRecord } from '@/services/dispatchWebhook';
@@ -46,19 +46,7 @@ function sttTone(
   return 'bg-emerald-500 text-white hover:bg-emerald-600';
 }
 
-function AccessDenied() {
-  return (
-    <div className="flex min-h-full items-center justify-center bg-[#f5f5f7] p-5">
-      <div className="w-full max-w-[430px] rounded-2xl bg-white p-6 text-center shadow-sm">
-        <h1 className="text-xl font-black text-neutral-950">Không có quyền gửi SMS</h1>
-        <p className="mt-2 text-sm text-neutral-500">Hãy đăng nhập bằng tài khoản Điều phối hoặc Admin.</p>
-        <button type="button" onClick={() => adminSessionStore.clear()} className="mt-5 min-h-11 rounded-xl bg-neutral-950 px-5 text-sm font-bold text-white">Đăng xuất</button>
-      </div>
-    </div>
-  );
-}
-
-function SmsBoard() {
+function SmsBoard({ allowSmsSend }: { allowSmsSend: boolean }) {
   const { journeys, loading, error, lastUpdated, refresh, settings } = useSmsData();
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -184,6 +172,7 @@ function SmsBoard() {
         <SmsJourneyModal
           journey={{ ...selectedJourney, smsRequested: selectedJourney.smsRequested || requestedLocally.has(selectedJourney.stt) }}
           leadtimeMinutes={settings.leadtimeMinutes}
+          canSendSms={allowSmsSend}
           onClose={() => setSelected(null)}
           onConfirm={() => sendSmsDispatchRecord(dispatchWebhookUrl(settings), selectedJourney.stt)}
           onRequested={() => {
@@ -199,9 +188,5 @@ function SmsBoard() {
 export default function SmsPage() {
   const session = useAdminInfo();
   if (!session) return <AppLogin title="NPI-CPS · Điều phối SMS" subtitle="Đăng nhập để xem hành trình khách hàng" />;
-  const hasDispatchAccess = session.role === 'admin'
-    || session.role === 'dieuphoi'
-    || session.workspaces.some((workspace) => workspace.role === 'dieuphoi');
-  if (!hasDispatchAccess) return <AccessDenied />;
-  return <SmsBoard />;
+  return <SmsBoard allowSmsSend={canSendSms(session)} />;
 }

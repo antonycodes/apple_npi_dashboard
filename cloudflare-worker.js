@@ -84,6 +84,36 @@ const TABLE_ENV = {
   dsMaster: 'TB_DS_MASTER',
 };
 
+// Một Worker phục vụ nhiều khu vực. Bot credentials dùng chung; Base và
+// webhook chọn theo hostname để HN không thể ghi nhầm sang HCM.
+const SITE_TABLE_PREFIX = { hcm: 'HCM', hn: 'HN' };
+
+function siteFromHostname(hostname) {
+  return String(hostname || '').toLowerCase().startsWith('api-hn.') ? 'hn' : 'hcm';
+}
+
+function siteSecret(env, site, name, { hcmFallback = true } = {}) {
+  const prefixed = env[`${SITE_TABLE_PREFIX[site]}_${name}`];
+  if (prefixed) return prefixed;
+  return site === 'hcm' && hcmFallback ? env[name] : undefined;
+}
+
+function scopedSiteEnv(env, site) {
+  const scoped = { ...env, NPI_SITE: site };
+  scoped.LARK_APP_TOKEN = siteSecret(env, site, 'LARK_APP_TOKEN', { hcmFallback: true });
+  for (const envName of Object.values(TABLE_ENV)) {
+    scoped[envName] = siteSecret(env, site, envName, { hcmFallback: true });
+  }
+  for (const name of ['LARK_WEBHOOK_URL', 'LARK_WEBHOOK_URL2', 'LARK_WAREHOUSE_ORDER_WEBHOOK_URL', 'LARK_EVENT_VERIFICATION_TOKEN']) {
+    scoped[name] = siteSecret(env, site, name, { hcmFallback: true });
+  }
+  return scoped;
+}
+
+function siteKvKey(site, key) {
+  return `${site}:${key}`;
+}
+
 /**
  * Hạn giờ cho MỘT lượt gọi Lark (2026-08-19).
  *
@@ -153,11 +183,11 @@ async function getToken(env, host) {
   return cachedToken;
 }
 
-let cachedAppToken = null;
+const cachedAppTokens = new Map();
 
 /** `LARK_APP_TOKEN` có thể là wiki node token — dò và đổi sang app_token thật của Bitable nếu đúng vậy. */
 async function resolveAppToken(env, host, token) {
-  if (cachedAppToken) return cachedAppToken;
+  if (cachedAppTokens.has(token)) return cachedAppTokens.get(token);
   try {
     const bearer = await getToken(env, host);
     const r = await fetchAuthCoHanGio(
@@ -166,14 +196,14 @@ async function resolveAppToken(env, host, token) {
     );
     const j = await r.json();
     if (j.code === 0 && j.data?.node?.obj_type === 'bitable' && j.data.node.obj_token) {
-      cachedAppToken = j.data.node.obj_token;
-      return cachedAppToken;
+      cachedAppTokens.set(token, j.data.node.obj_token);
+      return j.data.node.obj_token;
     }
   } catch {
     /* không phải wiki node (hoặc lỗi mạng) — dùng thẳng token gốc bên dưới */
   }
-  cachedAppToken = token;
-  return cachedAppToken;
+  cachedAppTokens.set(token, token);
+  return token;
 }
 
 const CORS = {
@@ -241,20 +271,33 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
-async function issueToken(env, role = 'admin', desk = '') {
+async function issueToken(env, role = 'admin', desk = '', subject = '') {
   const exp = Date.now() + SESSION_TTL_MS;
-  const payload = `${role}:${desk}:${exp}`;
+  const payload = `${role}:${desk}:${String(subject || '').replace(/[:.]/g, '')}:${exp}`;
   return `${payload}.${await hmacHex(env.ADMIN_SESSION_SECRET, payload)}`;
 }
 
 async function verifyToken(env, token) {
   const [payload, sig] = String(token || '').split('.');
-  const [role, desk, exp] = String(payload || '').split(':');
-  const signedPayload = `${role}:${desk}:${exp}`;
+  const parts = String(payload || '').split(':');
+  // Chấp nhận token cũ trong thời gian chuyển phiên; token mới có thêm MSNV.
+  const [role, desk, subject, expValue] = parts.length >= 4
+    ? parts
+    : [parts[0], parts[1], '', parts[2]];
+  const exp = expValue;
+  const signedPayload = parts.length >= 4 ? `${role}:${desk}:${subject}:${exp}` : `${role}:${desk}:${exp}`;
   if (!role || !sig || !/^\d+$/.test(exp) || Number(exp) < Date.now()) return null;
   if ((role === 'staff' || role === 'dieuphoi') && !desk) return null;
   if (!safeEqual(sig, await hmacHex(env.ADMIN_SESSION_SECRET, signedPayload))) return null;
-  return { role, desk };
+  return { role, desk, subject };
+}
+
+const SMS_SENDER_IDS = new Set(['S12196', 'S02791']);
+
+function canSendSms(session) {
+  if (!session) return false;
+  if (session.role === 'admin') return true;
+  return SMS_SENDER_IDS.has(String(session.subject || '').trim().toUpperCase());
 }
 
 function isStaffDesk(username) {
@@ -369,7 +412,7 @@ function pickField(fields, wanted) {
 }
 
 const ROSTER_TTL_MS = 60 * 1000;
-let rosterCache = null;
+const rosterCache = new Map();
 
 /**
  * Danh sách tài khoản từ `Master_DS`, cache 60 giây.
@@ -379,7 +422,9 @@ let rosterCache = null;
  * hiệu lực — đúng như đã hứa trong bản kế hoạch.
  */
 async function readRoster(env, host) {
-  if (rosterCache && Date.now() < rosterCache.expiresAt) return rosterCache.rows;
+  const cacheKey = `${env.NPI_SITE || 'hcm'}:${env.LARK_APP_TOKEN}:${env.TB_DS_MASTER}`;
+  const cached = rosterCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) return cached.rows;
 
   const token = await getToken(env, host);
   const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
@@ -400,7 +445,7 @@ async function readRoster(env, host) {
       name: cellText(pickField(f, ROSTER_FIELDS.name)),
     });
   }
-  rosterCache = { rows, expiresAt: Date.now() + ROSTER_TTL_MS };
+  rosterCache.set(cacheKey, { rows, expiresAt: Date.now() + ROSTER_TTL_MS });
   return rows;
 }
 
@@ -539,7 +584,9 @@ function resolveOptionRefs(records, fieldMaps) {
 
 const DASHBOARD_TABLES = ['checkin', 'orders', 'master', 'dispatch', 'dsMaster'];
 const DASHBOARD_SNAPSHOT_FRESH_MS = 8000;
-const DASHBOARD_SNAPSHOT_OBJECT_NAME = 'npi-cps-event';
+function dashboardSnapshotObjectName(env) {
+  return `npi-cps-event-${env.NPI_SITE || 'hcm'}`;
+}
 
 /**
  * Xoá cột bí mật khỏi các record sắp trả về máy khách.
@@ -618,26 +665,27 @@ function snapshotResponse(request, payload, cacheState, ageMs = 0) {
 
 async function getSharedDashboardSnapshotResponse(request, env) {
   if (!env.DASHBOARD_SNAPSHOT) throw new Error('Thiếu Durable Object binding "DASHBOARD_SNAPSHOT"');
-  const coordinator = env.DASHBOARD_SNAPSHOT.getByName(DASHBOARD_SNAPSHOT_OBJECT_NAME);
+  const coordinator = env.DASHBOARD_SNAPSHOT.getByName(dashboardSnapshotObjectName(env));
+  await coordinator.setSite(env.NPI_SITE);
   const payload = await coordinator.getSnapshot();
   return snapshotResponse(request, payload, payload.cache ?? 'shared', payload.ageMs ?? 0);
 }
 
 function invalidateDashboardSnapshot(env, ctx) {
   if (!env.DASHBOARD_SNAPSHOT) return;
-  const coordinator = env.DASHBOARD_SNAPSHOT.getByName(DASHBOARD_SNAPSHOT_OBJECT_NAME);
-  ctx.waitUntil(coordinator.invalidate().catch(() => undefined));
+  const coordinator = env.DASHBOARD_SNAPSHOT.getByName(dashboardSnapshotObjectName(env));
+  ctx.waitUntil(coordinator.setSite(env.NPI_SITE).then(() => coordinator.invalidate()).catch(() => undefined));
 }
 
 function refreshDashboardSnapshotNow(env, ctx) {
   if (!env.DASHBOARD_SNAPSHOT) return;
-  const coordinator = env.DASHBOARD_SNAPSHOT.getByName(DASHBOARD_SNAPSHOT_OBJECT_NAME);
-  ctx.waitUntil(coordinator.refreshAndBroadcast().catch(() => undefined));
+  const coordinator = env.DASHBOARD_SNAPSHOT.getByName(dashboardSnapshotObjectName(env));
+  ctx.waitUntil(coordinator.setSite(env.NPI_SITE).then(() => coordinator.refreshAndBroadcast()).catch(() => undefined));
 }
 
 function dashboardSnapshotCoordinator(env) {
   if (!env.DASHBOARD_SNAPSHOT) throw new Error('Thiếu Durable Object binding "DASHBOARD_SNAPSHOT"');
-  return env.DASHBOARD_SNAPSHOT.getByName(DASHBOARD_SNAPSHOT_OBJECT_NAME);
+  return env.DASHBOARD_SNAPSHOT.getByName(dashboardSnapshotObjectName(env));
 }
 
 async function handleLarkEvent(request, env, ctx) {
@@ -1140,13 +1188,16 @@ export class DashboardSnapshotCoordinator extends DurableObject {
     this.lastWarnings = [];
     this.webSockets = new Set();
     this.activeAlerts = new Map();
+    this.site = 'hcm';
     this.ready = ctx.blockConcurrencyWhile(async () => {
       const values = await ctx.storage.get([
         ...DASHBOARD_TABLES.map((key) => `table:${key}`),
         'dirty',
         'warnings',
         'desk-alerts',
+        'site',
       ]);
+      this.site = values.get('site') || 'hcm';
       for (const key of DASHBOARD_TABLES) {
         const saved = values.get(`table:${key}`);
         if (saved?.items && Number.isFinite(saved.updatedAt)) this.tableState.set(key, saved);
@@ -1210,9 +1261,11 @@ export class DashboardSnapshotCoordinator extends DurableObject {
 
   async fetch(request) {
     await this.ready;
+    const requestedSite = request.headers.get('X-NPI-Site');
+    if (requestedSite) await this.setSite(requestedSite);
     const path = new URL(request.url).pathname.replace(/^\//, '');
     if (request.method === 'POST' && path === 'checkin-record') {
-      const run = this.checkinWriteQueue.then(() => handleCheckinRecord(request, this.env, this.ctx));
+      const run = this.checkinWriteQueue.then(() => handleCheckinRecord(request, scopedSiteEnv(this.env, this.site), this.ctx));
       this.checkinWriteQueue = run.then(() => undefined, () => undefined);
       return run;
     }
@@ -1328,13 +1381,14 @@ export class DashboardSnapshotCoordinator extends DurableObject {
   async refresh() {
     const refreshVersion = this.invalidateVersion;
     this.lastAttemptAt = Date.now();
-    const host = this.env.LARK_HOST || 'https://open.larksuite.com';
-    const token = await getToken(this.env, host);
-    const appToken = await resolveAppToken(this.env, host, this.env.LARK_APP_TOKEN);
+    const siteEnv = scopedSiteEnv(this.env, this.site);
+    const host = siteEnv.LARK_HOST || 'https://open.larksuite.com';
+    const token = await getToken(siteEnv, host);
+    const appToken = await resolveAppToken(siteEnv, host, siteEnv.LARK_APP_TOKEN);
     const refreshedAt = Date.now();
     const results = await Promise.all(DASHBOARD_TABLES.map(async (key) => {
       try {
-        const items = await readTableRecords(this.env, host, key, token, appToken);
+        const items = await readTableRecords(siteEnv, host, key, token, appToken);
         return { key, value: { items, updatedAt: refreshedAt }, warning: null };
       } catch (error) {
         return { key, value: null, warning: `${key}: ${String(error?.message || error)}` };
@@ -1358,6 +1412,13 @@ export class DashboardSnapshotCoordinator extends DurableObject {
     this.dirty = warnings.length > 0 || this.invalidateVersion !== refreshVersion;
     await this.ctx.storage.put({ dirty: this.dirty, warnings });
     return this.buildPayload(warnings, warnings.length ? 'shared-stale' : 'shared-refresh');
+  }
+
+  async setSite(site) {
+    const next = site === 'hn' ? 'hn' : 'hcm';
+    if (this.site === next) return;
+    this.site = next;
+    await this.ctx.storage.put('site', next);
   }
 
   buildPayload(warnings, cache) {
@@ -1804,14 +1865,22 @@ export class WarehouseOrderClaims extends DurableObject {
     super(ctx, env);
     this.ctx = ctx;
     this.env = env;
+    this.site = 'hcm';
     this.state = null;
     this.ready = ctx.blockConcurrencyWhile(async () => {
-      this.state = await ctx.storage.get('claims') || {};
+      const values = await ctx.storage.get(['claims', 'site']);
+      this.site = values.get('site') || 'hcm';
+      this.state = values.get('claims') || {};
     });
   }
 
   async fetch(request) {
     await this.ready;
+    const requestedSite = request.headers.get('X-NPI-Site');
+    if (requestedSite === 'hn' || requestedSite === 'hcm') {
+      this.site = requestedSite;
+      await this.ctx.storage.put('site', this.site);
+    }
     if (request.method === 'GET') {
       return json({ code: 0, msg: 'success', data: { claims: this.state } });
     }
@@ -1873,7 +1942,7 @@ export class WarehouseOrderClaims extends DurableObject {
     };
     this.state[key] = claim;
     await this.ctx.storage.put('claims', this.state);
-    const webhookErrors = await notifyWarehouseOrderClaims(this.env, [claim]);
+    const webhookErrors = await notifyWarehouseOrderClaims(scopedSiteEnv(this.env, this.site), [claim]);
     return json({ code: 0, msg: 'success', data: { claim, claims: this.state, webhookErrors } });
   }
 }
@@ -1884,13 +1953,21 @@ export class WarehouseOrderInbox extends DurableObject {
     super(ctx, env);
     this.ctx = ctx;
     this.orders = [];
+    this.site = 'hcm';
     this.ready = ctx.blockConcurrencyWhile(async () => {
-      this.orders = await ctx.storage.get('orders') || [];
+      const values = await ctx.storage.get(['orders', 'site']);
+      this.site = values.get('site') || 'hcm';
+      this.orders = values.get('orders') || [];
     });
   }
 
   async fetch(request) {
     await this.ready;
+    const requestedSite = request.headers.get('X-NPI-Site');
+    if (requestedSite === 'hn' || requestedSite === 'hcm') {
+      this.site = requestedSite;
+      await this.ctx.storage.put('site', this.site);
+    }
     if (request.method === 'GET') {
       const visible = this.orders.filter((order) => !order.deletedAt);
       if (new URL(request.url).pathname.endsWith('/log')) {
@@ -1952,7 +2029,7 @@ export class WarehouseOrderInbox extends DurableObject {
     };
     this.orders = [...this.orders, order].slice(-200);
     await this.ctx.storage.put('orders', this.orders);
-    const webhookErrors = await notifyWarehouseInboxOrder(this.env, order);
+    const webhookErrors = await notifyWarehouseInboxOrder(scopedSiteEnv(this.env, this.site), order);
     return json({ code: 0, msg: 'success', data: { order, orders: this.orders, webhookErrors } });
   }
 }
@@ -1961,7 +2038,10 @@ export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
-    const segments = new URL(request.url).pathname.split('/').filter(Boolean);
+    const requestUrl = new URL(request.url);
+    const site = siteFromHostname(requestUrl.hostname);
+    env = scopedSiteEnv(env, site);
+    const segments = requestUrl.pathname.split('/').filter(Boolean);
     const table = segments[segments.length - 1];
     // Khớp theo 2 segment CUỐI, không phải full path: "API URL" người dùng cấu
     // hình có thể là `https://worker` hoặc `https://worker/api/lark` — cùng cơ
@@ -1998,7 +2078,11 @@ export default {
         // Tách khóa theo hostname để HCM/HN không khóa nhầm cùng mã order.
         const scope = new URL(request.url).hostname.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
         const stub = env.WAREHOUSE_ORDER_CLAIMS.getByName(`npi-cps-warehouse-orders-${scope}`);
-        return await stub.fetch(new Request('https://warehouse-order-claims', request));
+        return await stub.fetch(new Request('https://warehouse-order-claims', {
+          method: request.method,
+          headers: { ...Object.fromEntries(request.headers), 'X-NPI-Site': env.NPI_SITE },
+          body: request.body,
+        }));
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);
       }
@@ -2019,8 +2103,12 @@ export default {
             body: JSON.stringify({ ...body, deletedBy: admin.username || admin.msnv || 'admin' }),
           }));
         }
-        if (new URL(request.url).pathname.endsWith('/log')) return await stub.fetch(new Request('https://warehouse-orders/log', request));
-        return await stub.fetch(new Request('https://warehouse-orders', request));
+        const targetPath = new URL(request.url).pathname.endsWith('/log') ? 'https://warehouse-orders/log' : 'https://warehouse-orders';
+        return await stub.fetch(new Request(targetPath, {
+          method: request.method,
+          headers: { ...Object.fromEntries(request.headers), 'X-NPI-Site': env.NPI_SITE },
+          body: request.body,
+        }));
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);
       }
@@ -2036,7 +2124,9 @@ export default {
 
     if (request.method === 'GET' && (route === 'realtime' || route === 'ws')) {
       try {
-        return await dashboardSnapshotCoordinator(env).fetch(request);
+        const coordinator = dashboardSnapshotCoordinator(env);
+        await coordinator.setSite(env.NPI_SITE);
+        return await coordinator.fetch(new Request(request, { headers: { ...Object.fromEntries(request.headers), 'X-NPI-Site': env.NPI_SITE } }));
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);
       }
@@ -2045,9 +2135,13 @@ export default {
     // Ghi Check-in đi qua Durable Object để mọi máy dùng chung một hàng đợi.
     if (request.method === 'POST' && table === 'checkin-record') {
       try {
-        return await dashboardSnapshotCoordinator(env).fetch(
-          new Request('https://dashboard-snapshot/checkin-record', request),
-        );
+        const coordinator = dashboardSnapshotCoordinator(env);
+        await coordinator.setSite(env.NPI_SITE);
+        return await coordinator.fetch(new Request('https://dashboard-snapshot/checkin-record', {
+          method: request.method,
+          headers: { ...Object.fromEntries(request.headers), 'X-NPI-Site': env.NPI_SITE },
+          body: request.body,
+        }));
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);
       }
@@ -2170,7 +2264,7 @@ export default {
           code: 0,
           msg: 'success',
           data: {
-            token: await issueToken(env, 'checkin'),
+            token: await issueToken(env, 'checkin', '', 'checkin'),
             ttlMs: SESSION_TTL_MS,
             role: 'checkin',
             desk: '',
@@ -2217,7 +2311,7 @@ export default {
             code: 0,
             msg: 'success',
             data: {
-              token: await issueToken(env, tokenRole, desks.join(',')),
+              token: await issueToken(env, tokenRole, desks.join(','), account.msnv || account.username),
               ttlMs: SESSION_TTL_MS,
               role: tokenRole,
               // `desk` + `role` giữ tên cũ (chỗ đầu tiên) để bản web cũ còn
@@ -2266,7 +2360,7 @@ export default {
         code: 0,
         msg: 'success',
         data: {
-          token: await issueToken(env, role, desk),
+          token: await issueToken(env, role, desk, username),
           ttlMs: SESSION_TTL_MS,
           role,
           desk,
@@ -2286,7 +2380,7 @@ export default {
         // ĐỌC CÔNG KHAI: máy điều phối cần đọc danh sách này lúc khởi động mà
         // không phải đăng nhập admin. Nội dung chỉ là tên/vị trí NV, không có
         // gì bí mật; mọi thao tác GHI vẫn phải có token admin bên dưới.
-        const raw = await env.CONFIG.get(KV_COORDINATORS);
+        const raw = await env.CONFIG.get(siteKvKey(env.NPI_SITE, KV_COORDINATORS));
         return json({ code: 0, msg: 'success', data: raw ? JSON.parse(raw) : { coordinators: [], updatedAt: null } });
       }
 
@@ -2312,7 +2406,7 @@ export default {
           position: String(c?.position ?? '').trim(),
         }));
         const payload = { coordinators, updatedAt: new Date().toISOString() };
-        await env.CONFIG.put(KV_COORDINATORS, JSON.stringify(payload));
+        await env.CONFIG.put(siteKvKey(env.NPI_SITE, KV_COORDINATORS), JSON.stringify(payload));
         return json({ code: 0, msg: 'success', data: payload });
       }
     }
@@ -2324,7 +2418,7 @@ export default {
       if (!env.CONFIG) return json({ code: -1, msg: 'Thiếu KV binding "CONFIG"' }, 500);
 
       if (request.method === 'GET') {
-        const raw = await env.CONFIG.get(KV_APP_SETTINGS);
+        const raw = await env.CONFIG.get(siteKvKey(env.NPI_SITE, KV_APP_SETTINGS));
         const parsed = raw ? JSON.parse(raw) : { settings: null, updatedAt: null };
         if (new URL(request.url).searchParams.get('mode') === 'sleep') {
           return json({
@@ -2357,7 +2451,7 @@ export default {
           settings: normalizeAppSettings(body.settings),
           updatedAt: new Date().toISOString(),
         };
-        await env.CONFIG.put(KV_APP_SETTINGS, JSON.stringify(payload));
+        await env.CONFIG.put(siteKvKey(env.NPI_SITE, KV_APP_SETTINGS), JSON.stringify(payload));
         return json({ code: 0, msg: 'success', data: payload });
       }
     }
@@ -2613,7 +2707,7 @@ export default {
       // trước khi coercion kiểu dữ liệu biến chuỗi "true" thành checkbox thật.
       if (payload && typeof payload === 'object' && Object.prototype.hasOwnProperty.call(payload, 'daySms')) {
         const session = await verifyToken(env, bearer(request));
-        if (!session || !['admin', 'dieuphoi'].includes(session.role)) {
+        if (!canSendSms(session)) {
           return json({ code: -1, msg: 'Phiên điều phối không hợp lệ hoặc đã hết hạn' }, 401);
         }
         if (payload.daySms !== true) {

@@ -108,12 +108,14 @@ export default function SmsJourneyModal({
   onConfirm,
   onClose,
   onRequested,
+  canSendSms,
 }: {
   journey: SmsJourney;
   leadtimeMinutes: Record<ClusterKey, number>;
   onConfirm: () => Promise<DispatchSendResult>;
   onClose: () => void;
   onRequested: () => void;
+  canSendSms: boolean;
 }) {
   const [now, setNow] = useState(Date.now());
   const [confirming, setConfirming] = useState(false);
@@ -212,7 +214,12 @@ export default function SmsJourneyModal({
         </div>
 
         <footer className="border-t border-neutral-200 bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-b-3xl sm:px-5">
-          {!validPhone && (
+          {!canSendSms && (
+            <p className="mt-4 rounded-xl bg-neutral-100 px-4 py-3 text-sm font-bold text-neutral-600">
+              Tài khoản này chỉ được xem dữ liệu SMS, không có quyền gửi.
+            </p>
+          )}
+          {canSendSms && !validPhone && (
             <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
               Không thể gửi: chưa có số điện thoại Việt Nam hợp lệ.
             </p>
@@ -226,7 +233,7 @@ export default function SmsJourneyModal({
           {status === 'sent' && <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">Đã tạo yêu cầu gửi SMS trong Lark.</p>}
           {status === 'unverified' && <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">Yêu cầu đã gửi nhưng không đọc được phản hồi. Kiểm tra Lark trước khi gửi lại.</p>}
 
-          {confirming && status !== 'sent' && status !== 'unverified' ? (
+          {canSendSms && confirming && status !== 'sent' && status !== 'unverified' ? (
             <section className="mt-4 rounded-2xl border-2 border-brand/30 bg-white p-4">
               <h3 className="font-black text-neutral-950">Xác nhận tạo yêu cầu SMS</h3>
               {journey.smsRequested && <p className="mt-2 text-sm font-bold text-red-600">Đây là yêu cầu gửi lại cho STT {journey.stt.padStart(2, '0')}.</p>}
@@ -237,11 +244,11 @@ export default function SmsJourneyModal({
                 <button type="button" onClick={() => void send()} disabled={status === 'sending'} className="min-h-12 flex-1 rounded-xl bg-brand font-bold text-white disabled:opacity-40">{status === 'sending' ? 'Đang tạo yêu cầu…' : 'Xác nhận tạo yêu cầu'}</button>
               </div>
             </section>
-          ) : (
+          ) : canSendSms ? (
             <button type="button" onClick={() => setConfirming(true)} disabled={!validPhone || status === 'sent' || status === 'unverified'} className="mt-4 min-h-12 w-full rounded-xl bg-brand text-base font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40">
               {journey.smsRequested ? 'Tạo lại yêu cầu SMS' : 'Tạo yêu cầu SMS'}
             </button>
-          )}
+          ) : null}
         </footer>
       </div>
     </div>

@@ -20,6 +20,8 @@ const LS_KEY = 'npievent-admin-token-v1';
 
 export type SessionRole = 'admin' | 'staff' | 'kho' | 'dieuphoi' | 'checkin';
 
+const SMS_SENDER_IDS = new Set(['S12196', 'S02791']);
+
 /**
  * Một CHỖ LÀM VIỆC của tài khoản — mỗi dòng roster trong `Master_DS` là một
  * chỗ. Cùng một MSNV có thể vừa đứng bàn TV4, vừa có dòng Kho (roster thật:
@@ -57,6 +59,13 @@ export interface StoredSession {
   msnv: string;
   /** Tên nhân sự, hiện trên thanh tiêu đề. */
   name: string;
+}
+
+/** Chỉ admin và hai MSNV được phép tạo yêu cầu SMS. */
+export function canSendSms(session: StoredSession | null): boolean {
+  if (!session) return false;
+  if (session.role === 'admin') return true;
+  return SMS_SENDER_IDS.has(String(session.msnv || session.username || '').trim().toUpperCase());
 }
 
 /** Tên cũ, giữ cho code đang import. */
