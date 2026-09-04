@@ -86,11 +86,16 @@ const TABLE_ENV = {
 };
 
 // Một Worker phục vụ nhiều khu vực. Bot credentials dùng chung; Base và
-// webhook chọn theo hostname để HN không thể ghi nhầm sang HCM.
+// webhook chọn theo hostname. Hostname không được khai báo phải bị chặn,
+// không được mặc định rơi vào HCM.
 const SITE_TABLE_PREFIX = { hcm: 'HCM', hn: 'HN' };
+const SITE_BY_HOSTNAME = {
+  'api-hn.vhws.online': 'hn',
+  'api-hcm.vhws.online': 'hcm',
+};
 
 function siteFromHostname(hostname) {
-  return String(hostname || '').toLowerCase().startsWith('api-hn.') ? 'hn' : 'hcm';
+  return SITE_BY_HOSTNAME[String(hostname || '').trim().toLowerCase()] ?? null;
 }
 
 function siteSecret(env, site, name, { hcmFallback = true } = {}) {
@@ -2042,6 +2047,9 @@ export default {
 
     const requestUrl = new URL(request.url);
     const site = siteFromHostname(requestUrl.hostname);
+    if (!site) {
+      return json({ code: -1, msg: 'Hostname không được cấu hình cho khu vực này' }, 421);
+    }
     env = scopedSiteEnv(env, site);
     const segments = requestUrl.pathname.split('/').filter(Boolean);
     const table = segments[segments.length - 1];
