@@ -53,6 +53,10 @@ function getOrderCode(record: LarkRecord): string {
   return fieldText(record, ORDER_SELECTION_FIELD, 'Mã đơn hàng');
 }
 
+function getOrderPhone(record: LarkRecord): string {
+  return fieldText(record, 'Số điện thoại_ĐH', 'Số điện thoại_DH', 'SDT');
+}
+
 function getCheckinPhone(record: LarkRecord): string {
   return normalizePhone(fieldText(record, 'Số điện thoại', 'SDT', 'Số điện thoại_ĐH'));
 }
@@ -218,7 +222,17 @@ function CheckinForm({
                 <button
                   key={value}
                   type="button"
-                  onClick={() => { setOrderCode(value); setOrderSearch(value); setServerDuplicateField(null); setPhone(''); setOrderMenuOpen(false); }}
+                  onClick={() => {
+                    const orderPhone = orders
+                      .filter((row) => getOrderCode(row) === value)
+                      .map(getOrderPhone)
+                      .find(Boolean) ?? '';
+                    setOrderCode(value);
+                    setOrderSearch(value);
+                    setServerDuplicateField(null);
+                    setPhone(orderPhone);
+                    setOrderMenuOpen(false);
+                  }}
                   className="block min-h-11 w-full rounded-lg px-3 text-left text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
                   role="option"
                 >
