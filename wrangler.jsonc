@@ -86,14 +86,7 @@
     "required": [
       "LARK_APP_ID",
       "LARK_APP_SECRET",
-      "LARK_APP_TOKEN",
-      "TB_CHECKIN",
-      "TB_ORDERS",
-      "TB_MASTER",
-      "TB_DISPATCH",
-      "TB_DS_MASTER",
       "ADMIN_PASSWORD",
-      "STAFF_PASSWORD",
       "CHECKIN_PASSWORD",
       "HN_LARK_APP_TOKEN",
       "HN_TB_CHECKIN",
@@ -107,7 +100,8 @@
       "HCM_TB_ORDERS",
       "HCM_TB_MASTER",
       "HCM_TB_DISPATCH",
-      "HCM_TB_DS_MASTER"
+      "HCM_TB_DS_MASTER",
+      "HCM_LARK_WAREHOUSE_ORDER_WEBHOOK_URL"
     ]
   }
 }

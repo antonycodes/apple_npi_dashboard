@@ -20,8 +20,9 @@ import { DurableObject } from 'cloudflare:workers';
  * App trỏ ô "Webhook Tiếp nhận / Hoàn tất" vào `https://<worker>/webhook2`.
  * `CHECKIN_PASSWORD` = mật khẩu cho tài khoản cố định `checkin` tại `/check-in`.
  * Secret này không được đưa vào bundle frontend.
- * `LARK_WAREHOUSE_ORDER_WEBHOOK_URL` = webhook Workflow nhận sự kiện Kho khóa
- * một mã đơn hàng. Secret này không được đưa vào bundle frontend.
+ * `HN_LARK_WAREHOUSE_ORDER_WEBHOOK_URL` / `HCM_LARK_WAREHOUSE_ORDER_WEBHOOK_URL`
+ * = webhook Workflow nhận sự kiện Kho khóa một mã đơn hàng theo từng miền.
+ * Secret này không được đưa vào bundle frontend.
  *
  * `POST /upload` (2026-08-12, tiếp) — ảnh nghiệm thu ở form Hoàn tất khâu Thu
  * cũ/Backup: nhận multipart `file`, upload lên Lark bằng tenant token của
@@ -104,9 +105,10 @@ function scopedSiteEnv(env, site) {
   for (const envName of Object.values(TABLE_ENV)) {
     scoped[envName] = siteSecret(env, site, envName, { hcmFallback: true });
   }
-  for (const name of ['LARK_WEBHOOK_URL', 'LARK_WEBHOOK_URL2', 'LARK_WAREHOUSE_ORDER_WEBHOOK_URL', 'LARK_EVENT_VERIFICATION_TOKEN']) {
+  for (const name of ['LARK_WEBHOOK_URL', 'LARK_WEBHOOK_URL2', 'LARK_EVENT_VERIFICATION_TOKEN']) {
     scoped[name] = siteSecret(env, site, name, { hcmFallback: true });
   }
+  scoped.LARK_WAREHOUSE_ORDER_WEBHOOK_URL = siteSecret(env, site, 'LARK_WAREHOUSE_ORDER_WEBHOOK_URL', { hcmFallback: false });
   return scoped;
 }
 
