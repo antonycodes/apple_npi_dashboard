@@ -15,6 +15,10 @@
     {
       "pattern": "api.vhws.online",
       "custom_domain": true
+    },
+    {
+      "pattern": "api-hn.vhws.online",
+      "custom_domain": true
     }
   ],
   // Biến plaintext PHẢI khai ở đây: `wrangler deploy` đẩy lên đúng danh sách
@@ -90,7 +94,20 @@
       "TB_DS_MASTER",
       "ADMIN_PASSWORD",
       "STAFF_PASSWORD",
-      "CHECKIN_PASSWORD"
+      "CHECKIN_PASSWORD",
+      "HN_LARK_APP_TOKEN",
+      "HN_TB_CHECKIN",
+      "HN_TB_ORDERS",
+      "HN_TB_MASTER",
+      "HN_TB_DISPATCH",
+      "HN_TB_DS_MASTER",
+      "HN_LARK_WAREHOUSE_ORDER_WEBHOOK_URL",
+      "HCM_LARK_APP_TOKEN",
+      "HCM_TB_CHECKIN",
+      "HCM_TB_ORDERS",
+      "HCM_TB_MASTER",
+      "HCM_TB_DISPATCH",
+      "HCM_TB_DS_MASTER"
     ]
   }
 }

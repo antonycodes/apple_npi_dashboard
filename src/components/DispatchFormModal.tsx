@@ -37,6 +37,7 @@ interface DispatchFormModalProps {
   initialStt?: string;
   onClose: () => void;
   simulation?: boolean;
+  canSendSms?: boolean;
 }
 
 /**
@@ -70,7 +71,7 @@ type Status =
   | { kind: 'sent'; confirmed: boolean }
   | { kind: 'error'; msg: string };
 
-export default function DispatchFormModal({ desks, roster, initialStt = '', onClose, simulation = false }: DispatchFormModalProps) {
+export default function DispatchFormModal({ desks, roster, initialStt = '', onClose, simulation = false, canSendSms = false }: DispatchFormModalProps) {
   const settings = useLarkSettings();
   const webhook = dispatchWebhookUrl(settings);
   // Danh tính lấy trực tiếp từ tài khoản đăng nhập; không còn gán theo máy.
@@ -364,7 +365,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
                 </select>
               </Field>
 
-              {loai && deskId && (
+              {canSendSms && loai && deskId && (
                 <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-3 text-sm font-bold text-neutral-700">
                   <input
                     type="checkbox"

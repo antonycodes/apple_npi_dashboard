@@ -16,7 +16,7 @@ import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useQueueBoardData } from '@/hooks/useQueueBoardData';
 import { useLarkSettings } from '@/config/larkSettings';
-import { useAdminInfo } from '@/config/adminSession';
+import { canSendSms, useAdminInfo } from '@/config/adminSession';
 import type { ClusterKey, WaitingZoneKey } from '@/types/desk';
 
 export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
@@ -124,6 +124,7 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
           roster={roster}
           initialStt={dispatchStt}
           onClose={() => setShowDispatchForm(false)}
+          canSendSms={canSendSms(session)}
         />
       )}
       <SleepOverlay />
