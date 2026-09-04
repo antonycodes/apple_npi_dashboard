@@ -37,7 +37,11 @@ function parseTime(value: unknown): number {
   return 0;
 }
 
-function mapHistory(rows: LarkRecord[], staffByDesk: Map<string, KhoStaffInfo>): KhoHandoverHistoryItem[] {
+function mapHistory(
+  rows: LarkRecord[],
+  staffByDesk: Map<string, KhoStaffInfo>,
+  submittedByFilter: string | null,
+): KhoHandoverHistoryItem[] {
   const fm = toFieldConfig().master;
   return rows
     .filter((row) => cellToString(fieldValue(row.fields, fm.status))?.trim() === 'Bàn giao kho')
@@ -70,10 +74,20 @@ function mapHistory(rows: LarkRecord[], staffByDesk: Map<string, KhoStaffInfo>):
         images,
       };
     })
+    .filter((item) => {
+      // App KHO chỉ được xem lịch sử do đúng tài khoản KHO này thực hiện.
+      // `null` giữ chế độ khách/mô phỏng không bị phụ thuộc phiên đăng nhập.
+      if (submittedByFilter === null) return true;
+      return item.submittedBy?.trim().toUpperCase() === submittedByFilter;
+    })
     .sort((a, b) => b.time - a.time);
 }
 
-export function useKhoHandoverHistory(staffByDesk: Map<string, KhoStaffInfo>, guestMode = false): Result {
+export function useKhoHandoverHistory(
+  staffByDesk: Map<string, KhoStaffInfo>,
+  guestMode = false,
+  submittedBy?: string,
+): Result {
   const settings = useLarkSettings();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
@@ -83,12 +97,16 @@ export function useKhoHandoverHistory(staffByDesk: Map<string, KhoStaffInfo>, gu
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [nonce, setNonce] = useState(0);
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
+  const submittedByFilter = useMemo(
+    () => (guestMode ? null : String(submittedBy || '').trim().toUpperCase()),
+    [guestMode, submittedBy],
+  );
 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
     if (guestMode || cfg.useMock) {
-      setItems(mapHistory(mockLarkTables.master, staffByDesk));
+      setItems(mapHistory(mockLarkTables.master, staffByDesk, submittedByFilter));
       setLoading(false);
       setError(null);
       setLastUpdated(new Date());
@@ -100,7 +118,7 @@ export function useKhoHandoverHistory(staffByDesk: Map<string, KhoStaffInfo>, gu
       try {
         const rows = await fetchTableRecords(cfg, 'master', req.signal);
         if (cancelled) return;
-        setItems(mapHistory(rows, staffByDesk));
+        setItems(mapHistory(rows, staffByDesk, submittedByFilter));
         setError(null);
         setLastUpdated(new Date());
       } catch (err) {
@@ -113,7 +131,7 @@ export function useKhoHandoverHistory(staffByDesk: Map<string, KhoStaffInfo>, gu
     }
     const stop = startSerializedPolling(load, cfg.pollMs, () => cancelled);
     return () => { cancelled = true; controller.abort(); stop(); };
-  }, [cfg, guestMode, sig, nonce, staffByDesk]);
+  }, [cfg, guestMode, sig, nonce, staffByDesk, submittedByFilter]);
 
   return { items, loading, error, lastUpdated, refresh };
 }

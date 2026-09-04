@@ -58,7 +58,11 @@ export default function KhoAppPage({
 
   const { staffByDesk, loading, error: dataError, lastUpdated, isMock, refresh } =
     useKhoHandoverData(guestMode);
-  const handoverHistory = useKhoHandoverHistory(staffByDesk, guestMode);
+  const handoverHistory = useKhoHandoverHistory(
+    staffByDesk,
+    guestMode,
+    session?.msnv || session?.username || '',
+  );
   // Bảng kanban chỉ tải khi thật sự mở tab đó — kho thường để máy ở tab Bàn
   // giao suốt buổi, không việc gì phải map lại 36 bàn mỗi 5 giây.
   const board = useKhoBoardData(undefined, tab === 'board', guestMode);
