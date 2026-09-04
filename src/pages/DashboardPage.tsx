@@ -24,6 +24,7 @@ import type { WaitingZoneKey } from '@/types/desk';
 import { isTradeInCustomer } from '@/utils/tradeInFilter';
 import { clearDeskAlert, subscribeDeskAlerts } from '@/services/dashboardRealtime';
 import type { DeskAlert } from '@/services/deskAlerts';
+import { SITE_BRAND } from '@/config/siteBrand';
 
 export default function DashboardPage({ readOnly = false, simulation = false, onGuestBack }: { readOnly?: boolean; simulation?: boolean; onGuestBack?: () => void } = {}) {
   const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, pendingDevice, loading, error, lastUpdated, isMock, refresh } =
@@ -169,7 +170,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
               alt="CellphoneS"
               className="h-7 w-auto shrink-0 md:h-8"
             />
-            <h1 className="text-lg font-bold md:text-xl">NPI-CPS · Coordinator Dashboard</h1>
+            <h1 className="text-lg font-bold md:text-xl">{SITE_BRAND} · Coordinator Dashboard</h1>
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">

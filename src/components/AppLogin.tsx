@@ -10,6 +10,7 @@
  * không có mật khẩu hay hash nào trong bundle web.
  */
 import { useState } from 'react';
+import { SITE_BRAND } from '@/config/siteBrand';
 import { login } from '@/services/adminApi';
 
 /** MSNV lần trước — tiện cho máy dùng riêng, không phải bí mật gì. */
@@ -26,7 +27,7 @@ function loadLastUser(): string {
 export default function AppLogin({
   onGuest,
   fixedUsername,
-  title = 'NPI-CPS',
+  title = SITE_BRAND,
   subtitle,
 }: {
   onGuest?: () => void;
