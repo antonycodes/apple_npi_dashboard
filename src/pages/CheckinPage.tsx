@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppLogin from '@/components/AppLogin';
 import { adminSessionStore, useAdminInfo } from '@/config/adminSession';
+import { SITE_BRAND } from '@/config/siteBrand';
 import { cellToString } from '@/services/larkMapper';
 import type { LarkRecord } from '@/services/larkTypes';
 import { submitCheckinRecord } from '@/services/checkinApi';
@@ -337,7 +338,7 @@ function CheckinBoard() {
           <div className="flex min-w-0 items-center gap-3">
             <img src="/cellphones-logo.png" alt="CellphoneS" className="h-7 w-auto md:h-8" />
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-black md:text-xl">NPI-CPS · Check-in</h1>
+              <h1 className="truncate text-lg font-black md:text-xl">{SITE_BRAND} · Check-in</h1>
               <p className="text-xs font-semibold text-neutral-500">Chọn STT để mở form khách hàng</p>
             </div>
           </div>
@@ -401,7 +402,7 @@ function CheckinBoard() {
 
 export default function CheckinPage() {
   const session = useAdminInfo();
-  if (!session) return <AppLogin fixedUsername="checkin" title="NPI-CPS · Check-in" subtitle="Đăng nhập khu vực tiếp nhận khách" />;
+  if (!session) return <AppLogin fixedUsername="checkin" title={`${SITE_BRAND} · Check-in`} subtitle="Đăng nhập khu vực tiếp nhận khách" />;
   if (session.role !== 'checkin' && session.role !== 'admin') return <AccessDenied />;
   return <CheckinBoard />;
 }

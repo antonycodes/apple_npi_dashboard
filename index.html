@@ -10,17 +10,18 @@
     <link id="site-favicon-large" rel="icon" type="image/png" sizes="192x192" />
     <link id="site-apple-touch-icon" rel="apple-touch-icon" sizes="180x180" />
     <meta id="site-theme-color" name="theme-color" />
+    <title>NPI-CPS-HN</title>
     <script>
       (() => {
         const isHcm = /(^|\.)hcm\./i.test(window.location.hostname);
         const region = isHcm ? 'hcm' : 'hn';
+        document.title = `NPI-CPS-${region.toUpperCase()}`;
         document.getElementById('site-favicon').href = `/favicons/${region}-32.png`;
         document.getElementById('site-favicon-large').href = `/favicons/${region}-192.png`;
         document.getElementById('site-apple-touch-icon').href = `/favicons/${region}-apple-touch-icon.png`;
         document.getElementById('site-theme-color').content = isHcm ? '#39a353' : '#f00000';
       })();
     </script>
-    <title>NPI-CPS</title>
   </head>
   <body>
     <div id="root"></div>

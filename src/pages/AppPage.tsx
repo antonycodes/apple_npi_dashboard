@@ -23,6 +23,7 @@ import StaffPage from '@/pages/StaffPage';
 import CheckinPage from '@/pages/CheckinPage';
 import { adminSessionStore, useAdminInfo, type Workspace } from '@/config/adminSession';
 import { useLarkSettings } from '@/config/larkSettings';
+import { SITE_BRAND } from '@/config/siteBrand';
 
 /** Khung chung: nền sáng, cột hẹp canh giữa, chừa safe area trên cùng. */
 function Shell({ children }: { children: React.ReactNode }) {
@@ -192,7 +193,7 @@ function AdminHome({ name }: { name: string }) {
       <div className="mx-auto w-full max-w-[430px] px-4 py-8">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl font-black text-neutral-900">NPI-CPS</h1>
+            <h1 className="text-2xl font-black text-neutral-900">{SITE_BRAND}</h1>
             <p className="mt-1 text-sm text-neutral-500">{name || 'Quản trị'} · toàn quyền</p>
           </div>
           <button
@@ -294,7 +295,7 @@ export default function AppPage() {
     return (
       <Shell>
         <div className="mx-auto w-full max-w-[430px] px-4 py-8">
-          <h1 className="text-2xl font-black text-neutral-900">NPI-CPS</h1>
+          <h1 className="text-2xl font-black text-neutral-900">{SITE_BRAND}</h1>
           <p className="mt-1 text-sm text-neutral-500">All in One</p>
           <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5">
             <p className="text-sm font-semibold text-amber-800">

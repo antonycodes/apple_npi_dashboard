@@ -34,6 +34,7 @@ import { applyLinkConfigFromHash, deskLinkFor } from '@/config/staffLink';
 import { staffDeskStore, useStaffDeskId } from '@/config/staffDeskIdentity';
 import { useStaffDeskData } from '@/hooks/useStaffDeskData';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
+import { SITE_BRAND } from '@/config/siteBrand';
 
 /** Khung chung: nền sáng, cột hẹp canh giữa, chừa safe area trên cùng. */
 function Shell({ children }: { children: React.ReactNode }) {
@@ -120,7 +121,7 @@ export default function StaffPage({
     return (
       <Shell>
         <div className="mx-auto w-full max-w-[430px] px-4 py-8">
-          <h1 className="text-2xl font-black text-neutral-900">NPI Event</h1>
+          <h1 className="text-2xl font-black text-neutral-900">{SITE_BRAND}</h1>
           <p className="mt-1 text-sm text-neutral-500">
             {locked ? `Màn hình bàn ${deskId}` : 'Màn hình nhân viên · Tư vấn / Thu cũ / Backup'}
           </p>

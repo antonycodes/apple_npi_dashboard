@@ -3,6 +3,7 @@ import AppLogin from '@/components/AppLogin';
 import SmsJourneyModal from '@/components/SmsJourneyModal';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import { canSendSms, useAdminInfo } from '@/config/adminSession';
+import { SITE_BRAND } from '@/config/siteBrand';
 import { dispatchWebhookUrl } from '@/config/larkSettings';
 import { useSmsData } from '@/hooks/useSmsData';
 import { sendSmsDispatchRecord } from '@/services/dispatchWebhook';
@@ -78,7 +79,7 @@ function SmsBoard({ allowSmsSend }: { allowSmsSend: boolean }) {
           <div className="flex min-w-0 items-center gap-3">
             <img src="/cellphones-logo.png" alt="CellphoneS" className="h-7 w-auto md:h-8" />
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-black md:text-xl">NPI-CPS · Điều phối SMS</h1>
+              <h1 className="truncate text-lg font-black md:text-xl">{SITE_BRAND} · Điều phối SMS</h1>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs">
@@ -187,6 +188,6 @@ function SmsBoard({ allowSmsSend }: { allowSmsSend: boolean }) {
 
 export default function SmsPage() {
   const session = useAdminInfo();
-  if (!session) return <AppLogin title="NPI-CPS · Điều phối SMS" subtitle="Đăng nhập để xem hành trình khách hàng" />;
+  if (!session) return <AppLogin title={`${SITE_BRAND} · Điều phối SMS`} subtitle="Đăng nhập để xem hành trình khách hàng" />;
   return <SmsBoard allowSmsSend={canSendSms(session)} />;
 }
