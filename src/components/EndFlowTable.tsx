@@ -43,7 +43,7 @@ function DeviceReceiptModal({ customer, onClose }: { customer: WaitingCustomer; 
           <button type="button" onClick={onClose} aria-label="Đóng" className="text-2xl leading-none text-neutral-400">×</button>
         </div>
         <div className="mt-4 grid gap-2 rounded-xl bg-neutral-50 p-4 text-sm sm:grid-cols-2">
-          <div><span className="text-neutral-500">IMEI</span><p className="font-semibold text-neutral-800">{receipt?.imei || '—'}</p></div>
+          <div><span className="text-neutral-500">Serial Number</span><p className="font-semibold text-neutral-800">{receipt?.imei || '—'}</p></div>
           <div><span className="text-neutral-500">QR máy cũ</span><p className="font-semibold text-neutral-800">{receipt?.scanQr || '—'}</p></div>
         </div>
         <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">Ảnh nghiệm thu</p>

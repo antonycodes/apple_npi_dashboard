@@ -155,7 +155,7 @@ export default function PendingDeviceTable({
                 <tr>
                   <th className="w-1/5 whitespace-nowrap py-2 pr-3">STT</th>
                   <th className="w-1/5 whitespace-nowrap py-2 pr-3">Họ và tên</th>
-                  <th className="w-1/5 whitespace-nowrap py-2 pr-3">IMEI</th>
+                  <th className="w-1/5 whitespace-nowrap py-2 pr-3">Serial Number</th>
                   <th className="w-1/5 whitespace-nowrap py-2 pr-3">QR máy cũ</th>
                   <th className="w-1/5 whitespace-nowrap py-2 text-center">Ảnh nghiệm thu</th>
                 </tr>
