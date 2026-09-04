@@ -1,4 +1,4 @@
-import { useAdminInfo, adminSessionStore } from '@/config/adminSession';
+import { useAdminInfo, logoutToApp } from '@/config/adminSession';
 import { ArrowLeftIcon } from './AppShellIcons';
 
 /** Phiên đăng nhập dùng chung cho các route độc lập ngoài `/app`. */
@@ -26,7 +26,7 @@ export default function GlobalSessionBar() {
       )}
       <button
         type="button"
-        onClick={() => adminSessionStore.clear()}
+        onClick={logoutToApp}
         className="min-h-8 shrink-0 rounded-full bg-neutral-800 px-3 text-xs font-semibold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:scale-[0.98]"
       >
         Đăng xuất

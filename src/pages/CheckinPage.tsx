@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppLogin from '@/components/AppLogin';
-import { adminSessionStore, useAdminInfo } from '@/config/adminSession';
+import { logoutToApp, useAdminInfo } from '@/config/adminSession';
 import { SITE_BRAND } from '@/config/siteBrand';
 import { cellToString } from '@/services/larkMapper';
 import type { LarkRecord } from '@/services/larkTypes';
@@ -314,7 +314,7 @@ function AccessDenied() {
       <div className="w-full max-w-[430px] rounded-2xl bg-white p-6 text-center shadow-sm">
         <h1 className="text-xl font-black text-neutral-950">Không có quyền Check-in</h1>
         <p className="mt-2 text-sm text-neutral-500">Hãy đăng xuất và dùng tài khoản checkin.</p>
-        <button type="button" onClick={() => adminSessionStore.clear()} className="mt-5 min-h-11 rounded-xl bg-neutral-950 px-5 text-sm font-bold text-white">Đăng xuất</button>
+        <button type="button" onClick={logoutToApp} className="mt-5 min-h-11 rounded-xl bg-neutral-950 px-5 text-sm font-bold text-white">Đăng xuất</button>
       </div>
     </div>
   );
@@ -363,7 +363,7 @@ function CheckinBoard() {
           </div>
           <div className="flex items-center gap-2 text-xs">
             <ViewSwitcher active="checkin" />
-            <button type="button" onClick={() => adminSessionStore.clear()} className="min-h-9 rounded-lg border border-red-200 px-3 py-2 font-bold text-red-600 hover:bg-red-50">Đăng xuất</button>
+            <button type="button" onClick={logoutToApp} className="min-h-9 rounded-lg border border-red-200 px-3 py-2 font-bold text-red-600 hover:bg-red-50">Đăng xuất</button>
           </div>
         </div>
       </header>

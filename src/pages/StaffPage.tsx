@@ -27,7 +27,7 @@ import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import StaffDeskPicker from '@/components/StaffDeskPicker';
 import StaffDeskScreen from '@/components/StaffDeskScreen';
 import SleepOverlay from '@/components/SleepOverlay';
-import { adminSessionStore, useAdminInfo, useAdminToken } from '@/config/adminSession';
+import { logoutToApp, useAdminInfo, useAdminToken } from '@/config/adminSession';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import { useLarkSettings } from '@/config/larkSettings';
 import { applyLinkConfigFromHash, deskLinkFor } from '@/config/staffLink';
@@ -224,7 +224,7 @@ export default function StaffPage({
             {token && (!locked || onLogout) && (
               <button
                 type="button"
-                onClick={() => (onLogout ? onLogout() : adminSessionStore.clear())}
+                onClick={onLogout ?? logoutToApp}
                 className="min-h-8 rounded-lg px-2 font-semibold text-neutral-400"
               >
                 Đăng xuất

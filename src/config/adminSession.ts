@@ -218,6 +218,12 @@ export const adminSessionStore = {
   },
 };
 
+/** Xóa phiên chủ động rồi đưa người dùng về cổng `/app`. */
+export function logoutToApp() {
+  adminSessionStore.clear();
+  window.location.href = '/app';
+}
+
 /** React hook: token hiện tại ('' nếu chưa đăng nhập). */
 export function useAdminToken(): string {
   return useSyncExternalStore(

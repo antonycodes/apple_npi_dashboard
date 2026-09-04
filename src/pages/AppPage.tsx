@@ -21,7 +21,7 @@ import DashboardPage from '@/pages/DashboardPage';
 import KhoAppPage from '@/pages/KhoAppPage';
 import StaffPage from '@/pages/StaffPage';
 import CheckinPage from '@/pages/CheckinPage';
-import { adminSessionStore, useAdminInfo, type Workspace } from '@/config/adminSession';
+import { adminSessionStore, logoutToApp, useAdminInfo, type Workspace } from '@/config/adminSession';
 import { useLarkSettings } from '@/config/larkSettings';
 import { SITE_BRAND } from '@/config/siteBrand';
 
@@ -127,7 +127,7 @@ function DeskChoice({
           )}
           <button
             type="button"
-            onClick={() => adminSessionStore.clear()}
+            onClick={logoutToApp}
             className="mt-3 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl px-4 text-base font-bold text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 active:bg-red-100"
           >
             <LogOutIcon />
@@ -198,7 +198,7 @@ function AdminHome({ name }: { name: string }) {
           </div>
           <button
             type="button"
-            onClick={() => adminSessionStore.clear()}
+            onClick={logoutToApp}
             className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-white px-3 text-sm font-bold text-red-600 shadow-[0_6px_18px_rgba(17,24,39,0.06)] transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 active:bg-red-100"
           >
             <LogOutIcon className="h-4 w-4" />
@@ -260,7 +260,7 @@ export default function AppPage() {
     const doiCho = session.workspaces.length > 1 ? () => setPicking(true) : undefined;
 
     if (session.role === 'kho') {
-      return <KhoAppPage onChangeDesk={doiCho} onLogout={() => adminSessionStore.clear()} />;
+      return <KhoAppPage onChangeDesk={doiCho} onLogout={logoutToApp} />;
     }
 
     // Điều phối (DP1–DP4): mở thẳng dashboard điều phối — đúng màn hình họ vẫn
@@ -272,7 +272,7 @@ export default function AppPage() {
           <SessionBar
             label={`${session.desk} · ${session.name || session.username}`}
             onChangeDesk={doiCho}
-            onLogout={() => adminSessionStore.clear()}
+            onLogout={logoutToApp}
           />
         </>
       );
@@ -282,7 +282,7 @@ export default function AppPage() {
       <StaffPage
         lockedDeskId={session.desk}
         onChangeDesk={doiCho}
-        onLogout={() => adminSessionStore.clear()}
+        onLogout={logoutToApp}
       />
     );
   }
