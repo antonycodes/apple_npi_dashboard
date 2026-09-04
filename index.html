@@ -5,12 +5,21 @@
     <!-- viewport-fit=cover: màn hình nhân viên (#/nv) tự chừa Dynamic Island và
          thanh home của iPhone bằng env(safe-area-inset-*). -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <!-- Favicon SVG: nét sắc ở mọi cỡ và tự đúng trên màn Retina. PNG 180px
-         dành cho iPhone khi NV thêm link bàn vào màn hình chính (iOS không
-         dùng được favicon SVG cho biểu tượng đó). -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#e30613" />
+    <!-- Chọn logo theo miền: hcm.vhws.online dùng HCM, miền còn lại dùng HN. -->
+    <link id="site-favicon" rel="icon" type="image/png" sizes="32x32" />
+    <link id="site-favicon-large" rel="icon" type="image/png" sizes="192x192" />
+    <link id="site-apple-touch-icon" rel="apple-touch-icon" sizes="180x180" />
+    <meta id="site-theme-color" name="theme-color" />
+    <script>
+      (() => {
+        const isHcm = /(^|\.)hcm\./i.test(window.location.hostname);
+        const region = isHcm ? 'hcm' : 'hn';
+        document.getElementById('site-favicon').href = `/favicons/${region}-32.png`;
+        document.getElementById('site-favicon-large').href = `/favicons/${region}-192.png`;
+        document.getElementById('site-apple-touch-icon').href = `/favicons/${region}-apple-touch-icon.png`;
+        document.getElementById('site-theme-color').content = isHcm ? '#39a353' : '#f00000';
+      })();
+    </script>
     <title>NPI-CPS</title>
   </head>
   <body>
