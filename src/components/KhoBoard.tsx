@@ -4,7 +4,7 @@
  * Mỗi CỘT = 1 bàn; mỗi THẺ = 1 khách với STT · trạng thái · sản phẩm.
  *
  * Khách đang "Tiếp nhận" luôn hiện dạng thẻ đầy đủ. Khách đã "Hoàn tất" (lịch
- * sử phục vụ tại bàn đó trong ngày) hiện dạng DÒNG RÚT GỌN (STT · IMEI hoặc
+ * sử phục vụ tại bàn đó trong ngày) hiện dạng DÒNG RÚT GỌN (STT · Serial Number hoặc
  * sản phẩm · ảnh nhỏ), bấm vào mới bung chi tiết ngay tại chỗ — cột chứa được
  * nhiều khách mà không thành ống cuộn. Cột chỉ giữ `MAX_COMPLETED_INLINE` dòng
  * gần nhất; dư ra thì có nút "Xem tất cả (n)" mở popup đầy đủ.
@@ -75,7 +75,7 @@ function OrderStatusBlock({ orders, compact = false, onInspect }: { orders: Ware
 
 /**
  * Khối thu cũ — CHỈ hiện ở bàn Thu cũ / Backup: trạng thái thu máy, check
- * nghiệm thu, IMEI, QR máy cũ và ảnh nghiệm thu (bấm ảnh để xem cỡ lớn).
+ * nghiệm thu, Serial Number, QR máy cũ và ảnh nghiệm thu (bấm ảnh để xem cỡ lớn).
  */
 function TradeInBlock({ customer, onZoom }: { customer: KhoCustomer; onZoom: (url: string) => void }) {
   const d = customer.device;
@@ -99,7 +99,7 @@ function TradeInBlock({ customer, onZoom }: { customer: KhoCustomer; onZoom: (ur
       )}
       {thuCuCheck && <Field label="Thu cũ" value={thuCuCheck} />}
       {nghiemThu && <Field label="Nghiệm thu" value={nghiemThu} />}
-      {d?.imei && <Field label="IMEI" value={d.imei} />}
+      {d?.imei && <Field label="Serial Number" value={d.imei} />}
       {d?.scanQr && <Field label="QR" value={d.scanQr} />}
       {images.length > 0 && (
         <div className="flex flex-wrap gap-1 pt-0.5">

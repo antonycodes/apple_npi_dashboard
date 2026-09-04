@@ -12,6 +12,7 @@
  */
 import { useEffect, useState } from 'react';
 import QrScanButton from '@/components/QrScanButton';
+import SerialScanButton from '@/components/SerialScanButton';
 import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
 import type { PrevImage, StaffCustomer } from '@/services/staffMapper';
@@ -236,19 +237,15 @@ export default function ThuMayModal({
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-neutral-500">IMEI máy</span>
+            <span className="text-xs font-semibold text-neutral-500">Serial Number</span>
             <div className="mt-1 flex items-center gap-2">
               <input
                 value={values.imei}
                 onChange={(e) => set('imei', e.target.value)}
-                inputMode="numeric"
+                inputMode="text"
                 className="min-h-11 flex-1 rounded-xl border border-neutral-300 px-3 text-base"
               />
-              <QrScanButton
-                onScan={(v) => set('imei', v.trim())}
-                formats={['code_128', 'code_39', 'ean_13', 'itf']}
-                label="Quét barcode IMEI"
-              />
+              <SerialScanButton onScan={(v) => set('imei', v.trim())} />
             </div>
           </div>
 

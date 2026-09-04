@@ -16,6 +16,7 @@
  */
 import { useEffect, useState } from 'react';
 import QrScanButton from '@/components/QrScanButton';
+import SerialScanButton from '@/components/SerialScanButton';
 import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
 import type { PrevImage, StaffCustomer } from '@/services/staffMapper';
@@ -267,23 +268,16 @@ export default function StaffReceiveFormModal({
               </div>
 
               <div>
-                <span className="text-xs font-semibold text-neutral-500">IMEI máy</span>
+                <span className="text-xs font-semibold text-neutral-500">Serial Number</span>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     value={values.imei}
                     onChange={(e) => set('imei', e.target.value)}
-                    inputMode="numeric"
-                    placeholder="Quét mã hoặc gõ tay"
+                    inputMode="text"
+                    placeholder="Quét Serial Number hoặc gõ tay"
                     className="min-h-11 w-full rounded-xl border border-neutral-300 px-3 text-base"
                   />
-                  {/* Tem IMEI trên hộp máy hay là mã vạch 1D, không phải QR —
-                      mở thêm các định dạng đó cho trình duyệt nào hỗ trợ. */}
-                  <QrScanButton
-                    onScan={(v) => set('imei', v)}
-                    formats={['qr_code', 'code_128', 'code_39', 'ean_13', 'itf']}
-                    label="Quét IMEI"
-                    barcodeFrame
-                  />
+                  <SerialScanButton onScan={(v) => set('imei', v)} />
                 </div>
               </div>
             </div>
