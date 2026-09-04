@@ -20,6 +20,7 @@ import { useMemo, useState } from 'react';
 import QrScanButton from '@/components/QrScanButton';
 import { normalizeDeskCode } from '@/services/larkMapper';
 import type { KhoStaffInfo } from '@/services/khoMapper';
+import PhotoSlotPicker from '@/components/PhotoSlotPicker';
 
 export interface KhoHandoverValues {
   /** Mã bàn nhận máy, đã chuẩn hoá (vd "TV4"). */
@@ -137,21 +138,15 @@ export default function KhoHandoverForm({
         <Label>Ảnh nghiệm thu (bắt buộc · tối đa {MAX_ANH} ảnh)</Label>
         {/* KHÔNG đặt `capture` cùng `multiple`: trên iOS `capture` ép mở thẳng
             camera và chỉ nhận đúng 1 ảnh. */}
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []).slice(0, MAX_ANH);
-            setAnh(files);
-            setAnhError(files.length > 0 ? null : 'Vui lòng thêm ít nhất 1 ảnh nghiệm thu.');
-            e.currentTarget.value = '';
+        <PhotoSlotPicker
+          slots={anh.map((file) => ({ kind: 'new' as const, file }))}
+          onPick={(_, file) => {
+            setAnh((current) => [...current, file].slice(0, MAX_ANH));
+            setAnhError(null);
           }}
-          className="mt-1 block w-full text-sm text-neutral-600 file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-neutral-700 file:px-4 file:text-sm file:font-bold file:text-white"
+          onRemove={(slot) => setAnh((current) => current.filter((_, index) => index !== slot))}
         />
-        {anh.length > 0 && (
-          <p className="mt-1 text-xs font-semibold text-emerald-700">Đã chọn {anh.length} ảnh</p>
-        )}
+        <p className="mt-1 text-xs font-semibold text-neutral-500">Đã có {anh.length}/{MAX_ANH} ảnh</p>
         {anhError && <p className="mt-1 text-sm font-semibold text-red-600">✗ {anhError}</p>}
       </div>
 

@@ -21,6 +21,7 @@ import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
 import type { PrevImage, StaffCustomer } from '@/services/staffMapper';
 import type { ClusterKey } from '@/types/desk';
+import PhotoSlotPicker, { type PhotoSlot } from '@/components/PhotoSlotPicker';
 
 export interface ReceiveFormValues {
   stt: string;
@@ -95,6 +96,10 @@ export default function StaffReceiveFormModal({
   const showThuLaiMay = action === 'hoan_tat' && (cluster === 'tradein' || cluster === 'backup');
   // 3 field chỉ bung ra sau khi chọn 1 trong 2 option (yêu cầu user).
   const showDeviceFields = showThuLaiMay && values.thuLaiMay.length > 0;
+  const photoSlots: PhotoSlot[] = [
+    ...values.anhGiuLai.map((image) => ({ kind: 'existing' as const, image })),
+    ...values.hinhNghiemThu.map((file) => ({ kind: 'new' as const, file })),
+  ];
   // Check Backup VẪN bắt buộc (quyết định 2026-08-12, giờ áp cho mọi khâu);
   // riêng "Thu lại máy" + 3 field máy thu cũ thì KHÔNG bắt buộc (yêu cầu user).
   const canSubmit =
@@ -189,69 +194,15 @@ export default function StaffReceiveFormModal({
               <div>
                 <span className="text-xs font-semibold text-neutral-500">Ảnh nghiệm thu sản phẩm (tối đa 3 ảnh)</span>
 
-                {/* Ảnh đã ghi ở lần "Thu máy sau" trước đó. Thumbnail lấy qua
-                    `GET /media/<token>` của worker — token KHÔNG phải URL, và
-                    link `url`/`tmp_url` Lark trả về thì đòi Bearer nên thẻ
-                    <img> không hiển thị thẳng được. */}
-                {values.anhGiuLai.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {values.anhGiuLai.map((img) => (
-                      <div key={img.fileToken} className="relative">
-                        <img
-                          src={guestMediaUrl(img.fileToken) ?? `${workerBaseUrl()}/media/${encodeURIComponent(img.fileToken)}?table=master&record_id=${encodeURIComponent(img.sourceRecordId ?? '')}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${img.sourceRevision ? `&rev=${img.sourceRevision}` : ''}`}
-                          alt={img.name ?? 'Ảnh nghiệm thu'}
-                          className="h-20 w-20 rounded-xl border border-neutral-300 object-cover"
-                        />
-                        <button
-                          type="button"
-                          aria-label="Bỏ ảnh này"
-                          onClick={() =>
-                            set(
-                              'anhGiuLai',
-                              values.anhGiuLai.filter((x) => x.fileToken !== img.fileToken),
-                            )
-                          }
-                          className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-800 text-sm leading-none text-white"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {/* `multiple` = chọn/chụp nhiều ảnh 1 lần (tối đa 3 ảnh cả ảnh cũ giữ lại).
-                    KHÔNG đặt `capture` cùng `multiple`: trên iOS `capture` ép mở
-                    thẳng camera và chỉ nhận ĐÚNG 1 ảnh, mất luôn khả năng chọn
-                    nhiều. Bỏ đi thì iOS hiện bảng chọn "Chụp ảnh / Thư viện" —
-                    vẫn chụp được, mà chọn nhiều cũng được. */}
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => {
-                    const remaining = Math.max(0, 3 - values.anhGiuLai.length);
-                    const selected = Array.from(e.target.files ?? []).slice(0, remaining);
-                    set('hinhNghiemThu', selected);
-                    e.currentTarget.value = '';
-                  }}
-                  className="mt-1 block w-full text-sm text-neutral-600 file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-neutral-700 file:px-4 file:text-sm file:font-bold file:text-white"
-                  disabled={values.anhGiuLai.length >= 3}
+                <PhotoSlotPicker
+                  slots={photoSlots}
+                  mediaUrl={(image) => guestMediaUrl(image.fileToken) ?? `${workerBaseUrl()}/media/${encodeURIComponent(image.fileToken)}?table=master&record_id=${encodeURIComponent(image.sourceRecordId ?? '')}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${image.sourceRevision ? `&rev=${image.sourceRevision}` : ''}`}
+                  onPick={(_, file) => set('hinhNghiemThu', [...values.hinhNghiemThu, file].slice(0, Math.max(0, 3 - values.anhGiuLai.length)))}
+                  onRemove={(slot) => slot < values.anhGiuLai.length
+                    ? set('anhGiuLai', values.anhGiuLai.filter((_, index) => index !== slot))
+                    : set('hinhNghiemThu', values.hinhNghiemThu.filter((_, index) => index !== slot - values.anhGiuLai.length))}
                 />
-                {values.anhGiuLai.length >= 3 && (
-                  <p className="mt-1 text-xs font-semibold text-amber-700">Đã đủ 3 ảnh nghiệm thu.</p>
-                )}
-                {values.hinhNghiemThu.length > 0 && (
-                  <div className="mt-1 space-y-0.5">
-                    <p className="text-xs font-semibold text-emerald-700">
-                      Đã chọn {values.hinhNghiemThu.length + values.anhGiuLai.length}/3 ảnh
-                    </p>
-                    {values.hinhNghiemThu.map((f, i) => (
-                      <p key={`${f.name}-${i}`} className="truncate text-[11px] text-neutral-500">
-                        {f.name}
-                      </p>
-                    ))}
-                  </div>
-                )}
+                <p className="mt-1 text-xs font-semibold text-neutral-500">Đã có {photoSlots.length}/3 ảnh</p>
               </div>
 
               <div>

@@ -16,6 +16,7 @@ import SerialScanButton from '@/components/SerialScanButton';
 import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
 import type { PrevImage, StaffCustomer } from '@/services/staffMapper';
+import PhotoSlotPicker, { type PhotoSlot } from '@/components/PhotoSlotPicker';
 
 export interface ThuMayValues {
   /** Ảnh đã ghi lần trước mà NV giữ lại cho record mới. */
@@ -104,6 +105,10 @@ export default function ThuMayModal({
   }, [busy, onClose, previewImage]);
 
   const conTrong = Math.max(0, MAX_ANH - values.anhGiuLai.length);
+  const photoSlots: PhotoSlot[] = [
+    ...values.anhGiuLai.map((image) => ({ kind: 'existing' as const, image })),
+    ...values.anhMoi.map((file) => ({ kind: 'new' as const, file })),
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" role="dialog" aria-modal="true">
@@ -171,57 +176,16 @@ export default function ThuMayModal({
             <span className="text-xs font-semibold text-neutral-500">
               Ảnh nghiệm thu (tối đa {MAX_ANH} ảnh)
             </span>
-            {values.anhGiuLai.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-2">
-                {values.anhGiuLai.map((img) => (
-                  <div key={img.fileToken} className="relative">
-                    {/* Token KHÔNG phải URL — phải đi qua `/media/<token>` của
-                        worker, vì link Lark trả về đòi Bearer nên thẻ <img>
-                        không tự tải được. */}
-                    <button
-                        type="button"
-                        onClick={() => setPreviewImage(img)}
-                        aria-label={`Xem ảnh lớn ${img.name ?? 'ảnh nghiệm thu'}`}
-                        className="block h-20 w-20 overflow-hidden rounded-xl border border-neutral-300 bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      >
-                        <img
-                          src={mediaUrl(img)}
-                          alt={img.name ?? 'Ảnh nghiệm thu'}
-                          className="h-full w-full object-cover transition-transform hover:scale-105"
-                        />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Bỏ ảnh này"
-                      onClick={() =>
-                        set('anhGiuLai', values.anhGiuLai.filter((x) => x.fileToken !== img.fileToken))
-                      }
-                      className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-800 text-sm leading-none text-white"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* KHÔNG đặt `capture` cùng `multiple`: trên iOS `capture` ép mở
-                thẳng camera và chỉ nhận đúng 1 ảnh. */}
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              disabled={conTrong === 0}
-              onChange={(e) => {
-                set('anhMoi', Array.from(e.target.files ?? []).slice(0, conTrong));
-                e.currentTarget.value = '';
-              }}
-              className="mt-1 block w-full text-sm text-neutral-600 file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-neutral-700 file:px-4 file:text-sm file:font-bold file:text-white"
+            <PhotoSlotPicker
+              slots={photoSlots}
+              mediaUrl={mediaUrl}
+              onPreview={(image) => setPreviewImage(image)}
+              onPick={(_, file) => set('anhMoi', [...values.anhMoi, file].slice(0, conTrong))}
+              onRemove={(slot) => slot < values.anhGiuLai.length
+                ? set('anhGiuLai', values.anhGiuLai.filter((_, index) => index !== slot))
+                : set('anhMoi', values.anhMoi.filter((_, index) => index !== slot - values.anhGiuLai.length))}
             />
-            {values.anhMoi.length > 0 && (
-              <p className="mt-1 text-xs font-semibold text-emerald-700">
-                Đã chọn thêm {values.anhMoi.length} ảnh
-              </p>
-            )}
+            <p className="mt-1 text-xs font-semibold text-neutral-500">Đã có {photoSlots.length}/3 ảnh</p>
           </div>
 
           <div>
