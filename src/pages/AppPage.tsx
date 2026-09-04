@@ -224,7 +224,10 @@ function AdminHome({ name }: { name: string }) {
 export default function AppPage() {
   const session = useAdminInfo();
   const settings = useLarkSettings();
-  const [picking, setPicking] = useState(false);
+  const [picking, setPicking] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('choose') === '1';
+  });
   // Có phiên thì rẽ nhánh NGAY, trước cả kiểm tra cấu hình: phiên "chế độ thử"
   // bên dưới cũng đi qua đúng đường này, nên giao diện xem trước là giao diện
   // thật chứ không phải một bản mô phỏng riêng.

@@ -95,7 +95,6 @@ function SmsBoard() {
           </div>
           <div className="flex items-center gap-2 text-xs">
             <ViewSwitcher active="sms" />
-            <button type="button" onClick={() => adminSessionStore.clear()} className="min-h-9 rounded-lg border border-red-200 px-3 py-2 font-bold text-red-600 hover:bg-red-50">Đăng xuất</button>
           </div>
         </div>
       </header>

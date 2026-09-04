@@ -30,6 +30,7 @@ import StaffPage from './pages/StaffPage';
 import GuestPage from './pages/GuestPage';
 import CheckinPage from './pages/CheckinPage';
 import SmsPage from './pages/SmsPage';
+import GlobalSessionBar from './components/GlobalSessionBar';
 
 type Route =
   | {
@@ -47,6 +48,15 @@ type Route =
         | 'app';
     }
   | { kind: 'desk'; deskId: string };
+
+const ROUTES_WITH_GLOBAL_SESSION_BAR = new Set<Route['kind']>([
+  'dashboard',
+  'sms',
+  'tuvanview',
+  'thucuview',
+  'backupview',
+  'khoview',
+]);
 
 /** `/tv4`, `/tc10`, `/kt2`, `/bk7` — mã bàn đứng 1 mình. */
 const DESK_ROUTE = /^(tv|tc|kt|bk)\d+$/i;
@@ -100,16 +110,26 @@ export default function App() {
   // Kéo cấu hình Lark dùng chung từ worker (admin đổi 1 lần, mọi máy theo) —
   // đặt ở đây để MỌI màn hình đều được áp, kể cả điện thoại nhân viên.
   useSharedSettingsSync();
-  if (route.kind === 'settings') return <SettingsPage />;
-  if (route.kind === 'guest') return <GuestPage />;
-  if (route.kind === 'checkin') return <CheckinPage />;
-  if (route.kind === 'sms') return <SmsPage />;
-  if (route.kind === 'tuvanview') return <QueueBoardPage cluster="consult" />;
-  if (route.kind === 'thucuview') return <QueueBoardPage cluster="tradein" />;
-  if (route.kind === 'backupview') return <QueueBoardPage cluster="backup" />;
-  if (route.kind === 'khoview') return <KhoBoardPage />;
-  if (route.kind === 'app') return <AppPage />;
-  if (route.kind === 'staff') return <StaffPage />;
-  if (route.kind === 'desk') return <StaffPage lockedDeskId={route.deskId} />;
-  return <DashboardPage />;
+  let page: React.ReactNode;
+  if (route.kind === 'settings') page = <SettingsPage />;
+  else if (route.kind === 'guest') page = <GuestPage />;
+  else if (route.kind === 'checkin') page = <CheckinPage />;
+  else if (route.kind === 'sms') page = <SmsPage />;
+  else if (route.kind === 'tuvanview') page = <QueueBoardPage cluster="consult" />;
+  else if (route.kind === 'thucuview') page = <QueueBoardPage cluster="tradein" />;
+  else if (route.kind === 'backupview') page = <QueueBoardPage cluster="backup" />;
+  else if (route.kind === 'khoview') page = <KhoBoardPage />;
+  else if (route.kind === 'app') page = <AppPage />;
+  else if (route.kind === 'staff') page = <StaffPage />;
+  else if (route.kind === 'desk') page = <StaffPage lockedDeskId={route.deskId} />;
+  else page = <DashboardPage />;
+
+  // `/app` đã có thanh phiên riêng trong từng màn hình. Các route độc lập
+  // cần dùng thanh chung để không mất thao tác đăng xuất khi đổi tab.
+  return (
+    <>
+      {page}
+      {ROUTES_WITH_GLOBAL_SESSION_BAR.has(route.kind) && <GlobalSessionBar />}
+    </>
+  );
 }
