@@ -107,7 +107,8 @@
       "HCM_TB_ORDERS",
       "HCM_TB_MASTER",
       "HCM_TB_DISPATCH",
-      "HCM_TB_DS_MASTER"
+      "HCM_TB_DS_MASTER",
+      "HCM_LARK_WAREHOUSE_ORDER_WEBHOOK_URL"
     ]
   }
 }
