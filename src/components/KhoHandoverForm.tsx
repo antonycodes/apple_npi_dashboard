@@ -55,6 +55,7 @@ export default function KhoHandoverForm({
 }) {
   const [scanQr, setScanQr] = useState('');
   const [anh, setAnh] = useState<File[]>([]);
+  const [anhError, setAnhError] = useState<string | null>(null);
 
   const deskCode = useMemo(() => normalizeDeskCode(scanQr.trim()) ?? '', [scanQr]);
   const staff = deskCode ? staffByDesk.get(deskCode) ?? null : null;
@@ -84,6 +85,7 @@ export default function KhoHandoverForm({
   const reset = () => {
     setScanQr('');
     setAnh([]);
+    setAnhError(null);
   };
 
   const submit = () => {
@@ -132,7 +134,7 @@ export default function KhoHandoverForm({
 
       {/* ── 2. Ảnh nghiệm thu ────────────────────────────────────────── */}
       <div className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-        <Label>Ảnh nghiệm thu (tối đa {MAX_ANH} ảnh)</Label>
+        <Label>Ảnh nghiệm thu (bắt buộc · tối đa {MAX_ANH} ảnh)</Label>
         {/* KHÔNG đặt `capture` cùng `multiple`: trên iOS `capture` ép mở thẳng
             camera và chỉ nhận đúng 1 ảnh. */}
         <input
@@ -140,7 +142,9 @@ export default function KhoHandoverForm({
           accept="image/*"
           multiple
           onChange={(e) => {
-            setAnh(Array.from(e.target.files ?? []).slice(0, MAX_ANH));
+            const files = Array.from(e.target.files ?? []).slice(0, MAX_ANH);
+            setAnh(files);
+            setAnhError(files.length > 0 ? null : 'Vui lòng thêm ít nhất 1 ảnh nghiệm thu.');
             e.currentTarget.value = '';
           }}
           className="mt-1 block w-full text-sm text-neutral-600 file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-neutral-700 file:px-4 file:text-sm file:font-bold file:text-white"
@@ -148,13 +152,20 @@ export default function KhoHandoverForm({
         {anh.length > 0 && (
           <p className="mt-1 text-xs font-semibold text-emerald-700">Đã chọn {anh.length} ảnh</p>
         )}
+        {anhError && <p className="mt-1 text-sm font-semibold text-red-600">✗ {anhError}</p>}
       </div>
 
       {error && <p className="text-sm font-semibold text-red-600">✗ {error}</p>}
 
       <button
         type="button"
-        onClick={submit}
+        onClick={() => {
+          if (anh.length === 0) {
+            setAnhError('Vui lòng thêm ít nhất 1 ảnh nghiệm thu.');
+            return;
+          }
+          submit();
+        }}
         disabled={!sanSang}
         className="min-h-14 w-full rounded-2xl bg-emerald-600 text-base font-bold text-white disabled:opacity-40"
       >
