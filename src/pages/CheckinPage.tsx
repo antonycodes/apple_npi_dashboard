@@ -119,6 +119,7 @@ function CheckinForm({
   onSubmitted: (stt: string) => void;
 }) {
   const [phone, setPhone] = useState('');
+  const [orderPhonePreview, setOrderPhonePreview] = useState('');
   const [orderCode, setOrderCode] = useState('');
   const [orderSearch, setOrderSearch] = useState('');
   const [orderMenuOpen, setOrderMenuOpen] = useState(false);
@@ -190,15 +191,18 @@ function CheckinForm({
         <label className="block">
           <span className="text-sm font-bold text-neutral-700">Số điện thoại</span>
           <input
-            value={phone}
-            onChange={(event) => { setPhone(event.target.value); setServerDuplicateField(null); setOrderCode(''); setOrderSearch(''); }}
+            value={orderCode ? orderPhonePreview : phone}
+            onChange={(event) => { setPhone(event.target.value); setOrderPhonePreview(''); setServerDuplicateField(null); setOrderCode(''); setOrderSearch(''); }}
             onFocus={() => setOrderMenuOpen(false)}
+            readOnly={Boolean(orderCode)}
             inputMode="tel"
             autoComplete="tel"
             placeholder="Ưu tiên nhập SĐT"
             aria-invalid={duplicatePhone}
-            className={`mt-1 min-h-12 w-full rounded-xl border px-3 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 ${duplicatePhone ? 'border-red-500 shadow-[0_0_0_3px_rgba(239,68,68,0.18),0_0_18px_rgba(239,68,68,0.3)]' : 'border-neutral-300'}`}
+            aria-readonly={Boolean(orderCode)}
+            className={`mt-1 min-h-12 w-full rounded-xl border px-3 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 ${orderCode ? 'cursor-default bg-neutral-50 text-neutral-400' : ''} ${duplicatePhone ? 'border-red-500 shadow-[0_0_0_3px_rgba(239,68,68,0.18),0_0_18px_rgba(239,68,68,0.3)]' : 'border-neutral-300'}`}
           />
+          {orderCode && <span className="mt-1 block text-xs text-neutral-400">SĐT từ mã đơn — chỉ để đối chiếu</span>}
         </label>
 
         <div className="relative">
@@ -230,7 +234,8 @@ function CheckinForm({
                     setOrderCode(value);
                     setOrderSearch(value);
                     setServerDuplicateField(null);
-                    setPhone(orderPhone);
+                    setPhone('');
+                    setOrderPhonePreview(orderPhone);
                     setOrderMenuOpen(false);
                   }}
                   className="block min-h-11 w-full rounded-lg px-3 text-left text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
