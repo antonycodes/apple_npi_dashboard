@@ -84,7 +84,7 @@ export default function SerialScanButton({ onScan, label = 'Quét Serial Number'
     let cancelled = false;
     const start = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
-        setError('Thiết bị không hỗ trợ camera. Hãy chọn ảnh hoặc nhập tay.');
+        setError('Thiết bị không hỗ trợ camera. Hãy nhập Serial Number bằng tay.');
         return;
       }
       try {
@@ -102,7 +102,7 @@ export default function SerialScanButton({ onScan, label = 'Quét Serial Number'
         if (!cancelled) {
           setError(exception instanceof Error && exception.name === 'NotAllowedError'
             ? 'Bạn cần cho phép quyền camera để nhận diện.'
-            : 'Không mở được camera. Hãy chọn ảnh hoặc nhập tay.');
+            : 'Không mở được camera. Hãy nhập Serial Number bằng tay.');
         }
       }
     };
@@ -139,11 +139,7 @@ export default function SerialScanButton({ onScan, label = 'Quét Serial Number'
             <canvas ref={canvasRef} className="hidden" />
             {error && <p className="mt-2 text-sm font-semibold text-red-600">{error}</p>}
             {busy && <p className="mt-2 text-sm font-semibold text-neutral-700" aria-live="polite">Đang nhận diện. Lần đầu có thể mất vài giây.</p>}
-            <button type="button" onClick={() => void capture()} disabled={busy} className="mt-3 min-h-11 w-full rounded-lg bg-neutral-800 px-3 text-sm font-bold text-white transition hover:bg-neutral-700 disabled:opacity-50">{busy ? 'Đang nhận diện…' : 'Chụp và nhận diện'}</button>
-            <label className="mt-2 flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-neutral-300 px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-50">
-              Chọn ảnh màn hình
-              <input type="file" accept="image/*" className="hidden" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void readImage(file); event.currentTarget.value = ''; }} />
-            </label>
+            <button type="button" onClick={() => void capture()} disabled={busy} className="mt-3 min-h-11 w-full rounded-lg bg-neutral-800 px-3 text-sm font-bold text-white transition hover:bg-neutral-700 disabled:opacity-50">{busy ? 'Đang nhận diện…' : 'Chụp và nhận diện S/N'}</button>
           </div>
         </div>
       )}
