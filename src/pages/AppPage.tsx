@@ -287,9 +287,8 @@ export default function AppPage() {
     );
   }
 
-  // Chưa cấu hình worker (hoặc đang chạy dữ liệu mẫu) thì `/admin/login` không
-  // tồn tại — bắt đăng nhập ở đó chỉ khiến máy bị khoá cứng với một lỗi mạng
-  // khó hiểu. Nói thẳng nguyên nhân và mở đường sang Cài đặt.
+  // Chưa cấu hình worker (hoặc đang chạy dữ liệu mẫu) thì không thể đăng nhập
+  // qua Worker. Cài đặt đã yêu cầu Admin nên không tạo link công khai tại đây.
   const loginPossible = Boolean(settings.apiUrl.trim());
   if (!loginPossible) {
     return (
@@ -301,12 +300,6 @@ export default function AppPage() {
             <p className="text-sm font-semibold text-amber-800">
               Máy này chưa có API URL của worker nên chưa đăng nhập được.
             </p>
-            <a
-              href="/settings"
-              className="mt-4 block min-h-14 rounded-2xl bg-brand pt-4 text-center text-base font-bold text-white"
-            >
-              Mở Cài đặt
-            </a>
             <button
               type="button"
               onClick={() => { window.location.href = '/guest'; }}
@@ -316,20 +309,6 @@ export default function AppPage() {
             </button>
           </div>
 
-          <div className="mt-4 space-y-2">
-            <a
-              href="/khoview"
-              className="block rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-semibold text-neutral-600"
-            >
-              Xem bảng kho (không cần đăng nhập)
-            </a>
-            <a
-              href="/dashboard"
-              className="block rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-semibold text-neutral-600"
-            >
-              Về dashboard điều phối
-            </a>
-          </div>
         </div>
       </Shell>
     );

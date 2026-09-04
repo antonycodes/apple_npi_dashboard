@@ -31,6 +31,7 @@ import GuestPage from './pages/GuestPage';
 import CheckinPage from './pages/CheckinPage';
 import SmsPage from './pages/SmsPage';
 import GlobalSessionBar from './components/GlobalSessionBar';
+import { useAdminToken } from './config/adminSession';
 
 type Route =
   | {
@@ -56,6 +57,20 @@ const ROUTES_WITH_GLOBAL_SESSION_BAR = new Set<Route['kind']>([
   'thucuview',
   'backupview',
   'khoview',
+]);
+
+/** Các màn hình vận hành không được mở khi chưa có phiên đăng nhập. */
+const PROTECTED_ROUTE_KINDS = new Set<Route['kind']>([
+  'dashboard',
+  'tuvanview',
+  'thucuview',
+  'backupview',
+  'khoview',
+  'checkin',
+  'sms',
+  'settings',
+  'staff',
+  'desk',
 ]);
 
 /** `/tv4`, `/tc10`, `/kt2`, `/bk7` — mã bàn đứng 1 mình. */
@@ -107,11 +122,15 @@ export default function App() {
   // Nếu không, máy NV mới mở link sẽ chưa biết URL Worker để gọi /config/app.
   applyLinkConfigFromHash();
   const route = useAppRoute();
+  const adminToken = useAdminToken();
   // Kéo cấu hình Lark dùng chung từ worker (admin đổi 1 lần, mọi máy theo) —
   // đặt ở đây để MỌI màn hình đều được áp, kể cả điện thoại nhân viên.
   useSharedSettingsSync();
   let page: React.ReactNode;
-  if (route.kind === 'settings') page = <SettingsPage />;
+  // `/app` là cổng đăng nhập dùng chung. Các route vận hành dùng cùng cổng
+  // này để không lộ dữ liệu trước khi phiên được xác thực.
+  if (PROTECTED_ROUTE_KINDS.has(route.kind) && !adminToken) page = <AppPage />;
+  else if (route.kind === 'settings') page = <SettingsPage />;
   else if (route.kind === 'guest') page = <GuestPage />;
   else if (route.kind === 'checkin') page = <CheckinPage />;
   else if (route.kind === 'sms') page = <SmsPage />;
