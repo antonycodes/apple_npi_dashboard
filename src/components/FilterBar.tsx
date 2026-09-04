@@ -27,9 +27,7 @@ interface FilterBarProps {
 export interface OvertimeDesk {
   id: string;
   label: string;
-  stt: string | null;
-  elapsed: string;
-  overdue: boolean;
+  overdue: string;
 }
 
 export default function FilterBar({
@@ -66,7 +64,7 @@ export default function FilterBar({
         {overtimeOpen && (
           <div className="absolute left-0 top-full z-30 mt-2 min-w-64 rounded-xl border border-neutral-200 bg-white p-2 shadow-lg">
             <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
-              BÀN GẦN VƯỢT LEADTIME
+              BÀN VƯỢT LEADTIME
             </p>
             {overtimeDesks.length > 0 ? (
               overtimeDesks.map((desk) => (
@@ -79,12 +77,8 @@ export default function FilterBar({
                   }}
                   className="flex w-full items-center justify-between gap-4 rounded-lg px-2 py-2 text-left text-sm hover:bg-neutral-50"
                 >
-                  <span className="font-bold text-neutral-800">
-                    {desk.label}{desk.stt ? ` · STT ${desk.stt}` : ''}
-                  </span>
-                  <span className={desk.overdue ? 'font-mono font-bold text-red-700' : 'font-mono font-bold text-amber-700'}>
-                    {desk.elapsed}
-                  </span>
+                  <span className="font-bold text-neutral-800">{desk.label}</span>
+                  <span className="font-mono font-bold text-red-700">Vượt quá {desk.overdue}</span>
                 </button>
               ))
             ) : (

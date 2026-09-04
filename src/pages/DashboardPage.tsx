@@ -18,7 +18,7 @@ import { canSendSms, useAdminInfo } from '@/config/adminSession';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
-import { LEADTIME_WARNING_MINUTES, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
+import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { formatElapsed } from '@/config/staffTimers';
 import type { WaitingZoneKey } from '@/types/desk';
 import { isTradeInCustomer } from '@/utils/tradeInFilter';
@@ -146,15 +146,12 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
 
       const elapsedMs = Math.max(0, now - startedAt);
       const leadtimeMs = Math.max(1, settings.leadtimeMinutes[desk.cluster]) * 60_000;
-      const warningMs = Math.max(0, settings.leadtimeMinutes[desk.cluster] - LEADTIME_WARNING_MINUTES) * 60_000;
-      if (elapsedMs < warningMs) return [];
+      if (elapsedMs < leadtimeMs) return [];
 
       return [{
         id: desk.id,
         label: desk.label,
-        stt: customer.stt,
-        elapsed: formatElapsed(elapsedMs),
-        overdue: elapsedMs >= leadtimeMs,
+        overdue: formatElapsed(elapsedMs - leadtimeMs),
       }];
     });
   }, [desks, now, settings.leadtimeMinutes]);
