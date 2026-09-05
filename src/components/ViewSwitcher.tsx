@@ -14,7 +14,9 @@ export default function ViewSwitcher({ active }: { active: AppView }) {
   const isAdmin = session?.role === 'admin';
   const canOpenCheckin = isAdmin || session?.role === 'checkin';
   const canOpenSms = isAdmin || session?.role === 'dieuphoi' || session?.workspaces.some((workspace) => workspace.role === 'dieuphoi');
-  const views = isAdmin
+  const views = session?.role === 'checkin'
+    ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }]
+    : isAdmin
     ? [
         { key: 'main' as const, label: 'Main', href: '/app' },
         { key: 'dash' as const, label: 'Dash', href: '/dashboard' },

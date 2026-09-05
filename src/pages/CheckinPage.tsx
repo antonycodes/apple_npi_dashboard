@@ -145,10 +145,11 @@ function CheckinForm({
   const preview = useMemo(() => orderPreview(matchingRows), [matchingRows]);
   const hasIdentifier = Boolean(phone.trim() || orderCode);
   const validQuantity = /^\d+$/.test(oldDeviceQuantity.trim());
+  const resolvedPhone = orderCode ? orderPhonePreview : phone;
   const duplicatePhoneFromData = useMemo(() => {
-    const normalized = normalizePhone(phone);
+    const normalized = normalizePhone(resolvedPhone);
     return Boolean(normalized) && checkin.some((record) => getCheckinPhone(record) === normalized);
-  }, [checkin, phone]);
+  }, [checkin, resolvedPhone]);
   const duplicateOrderFromData = useMemo(() => {
     const candidate = (orderCode || orderSearch).trim();
     return Boolean(candidate) && checkin.some((record) => getCheckinOrderCode(record) === candidate);
@@ -166,7 +167,7 @@ function CheckinForm({
     try {
       await submitCheckinRecord({
         stt,
-        ...(phone.trim() ? { phone: phone.trim() } : {}),
+        ...(resolvedPhone.trim() ? { phone: resolvedPhone.trim() } : {}),
         ...(orderCode ? { orderCode } : {}),
         ...(paymentConfirmation.trim() ? { paymentConfirmation: paymentConfirmation.trim() } : {}),
         oldDeviceQuantity: Number(oldDeviceQuantity),

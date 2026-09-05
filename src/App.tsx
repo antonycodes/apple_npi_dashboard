@@ -31,7 +31,7 @@ import GuestPage from './pages/GuestPage';
 import CheckinPage from './pages/CheckinPage';
 import SmsPage from './pages/SmsPage';
 import GlobalSessionBar from './components/GlobalSessionBar';
-import { useAdminToken } from './config/adminSession';
+import { useAdminInfo, useAdminToken } from './config/adminSession';
 
 type Route =
   | {
@@ -123,13 +123,16 @@ export default function App() {
   applyLinkConfigFromHash();
   const route = useAppRoute();
   const adminToken = useAdminToken();
+  const adminSession = useAdminInfo();
   // Kéo cấu hình Lark dùng chung từ worker (admin đổi 1 lần, mọi máy theo) —
   // đặt ở đây để MỌI màn hình đều được áp, kể cả điện thoại nhân viên.
   useSharedSettingsSync();
   let page: React.ReactNode;
   // `/app` là cổng đăng nhập dùng chung. Các route vận hành dùng cùng cổng
   // này để không lộ dữ liệu trước khi phiên được xác thực.
-  if (PROTECTED_ROUTE_KINDS.has(route.kind) && !adminToken) page = <AppPage />;
+  const checkinOnlyRoute = adminSession?.role === 'checkin' && route.kind !== 'checkin' && route.kind !== 'app';
+  if (checkinOnlyRoute) page = <CheckinPage />;
+  else if (PROTECTED_ROUTE_KINDS.has(route.kind) && !adminToken) page = route.kind === 'checkin' ? <CheckinPage /> : <AppPage />;
   else if (route.kind === 'settings') page = <SettingsPage />;
   else if (route.kind === 'guest') page = <GuestPage />;
   else if (route.kind === 'checkin') page = <CheckinPage />;

@@ -1042,7 +1042,8 @@ async function handleCheckinRecord(request, env, ctx) {
     return json({ code: -1, msg: 'STT phải là số từ 1 đến 160' }, 400);
   }
   if (!phone && !orderCode) return json({ code: -1, msg: 'Cần nhập SĐT hoặc chọn mã đơn hàng' }, 400);
-  if (phone && orderCode) return json({ code: -1, msg: 'Chỉ nhập SĐT hoặc mã đơn hàng' }, 400);
+  // Khi chọn mã đơn, frontend gửi thêm SĐT đã tra được. Nhờ vậy API có thể
+  // chống trùng theo cả SĐT và mã đơn, kể cả lần trước khách check-in bằng SĐT.
   if (!/^\d+$/.test(quantityText) || !Number.isInteger(quantity) || quantity < 0) {
     return json({ code: -1, msg: 'Số lượng thu cũ phải là số nguyên từ 0 trở lên' }, 400);
   }
