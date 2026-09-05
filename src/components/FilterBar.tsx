@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 /**
  * FilterBar — compact shortcut controls for the coordinator.
@@ -44,11 +44,37 @@ export default function FilterBar({
   onTogglePendingDevice,
 }: FilterBarProps) {
   const [overtimeOpen, setOvertimeOpen] = useState(false);
+  const overtimeButtonRef = useRef<HTMLButtonElement>(null);
+  const [overtimePosition, setOvertimePosition] = useState({ top: 0, left: 8 });
+
+  useLayoutEffect(() => {
+    if (!overtimeOpen) return;
+
+    const updatePosition = () => {
+      const button = overtimeButtonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const popupWidth = Math.min(416, window.innerWidth - 16);
+      setOvertimePosition({
+        top: rect.bottom + 8,
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - popupWidth - 8)),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [overtimeOpen]);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative">
         <button
+          ref={overtimeButtonRef}
           type="button"
           onClick={() => setOvertimeOpen((open) => !open)}
           aria-expanded={overtimeOpen}
@@ -62,7 +88,10 @@ export default function FilterBar({
           Overtime ({overtimeDesks.length})
         </button>
         {overtimeOpen && (
-          <div className="absolute left-0 top-full z-30 mt-2 min-w-64 rounded-xl border border-neutral-200 bg-white p-2 shadow-lg">
+          <div
+            className="fixed z-[70] w-[min(26rem,calc(100vw-1rem))] rounded-xl border border-neutral-200 bg-white p-2 shadow-lg"
+            style={overtimePosition}
+          >
             <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
               BÀN VƯỢT LEADTIME
             </p>
