@@ -7,7 +7,7 @@ import { DurableObject } from 'cloudflare:workers';
  * Biến bí mật đặt bằng `wrangler secret put <NAME>` hoặc trong dashboard Workers:
  *   LARK_APP_ID, LARK_APP_SECRET, LARK_HOST, LARK_APP_TOKEN,
  *   TB_CHECKIN, TB_ORDERS, TB_MASTER, TB_DISPATCH, TB_DS_MASTER,
- *   CHECKIN_PASSWORD
+ *   CHECKIN_PASSWORD, HCM_CHECKIN_PASSWORD, HN_CHECKIN_PASSWORD
  *
  * Tuỳ chọn (2 nút Tiếp nhận/Hoàn tất ở màn hình nhân viên, 2026-08-12):
  * `LARK_WEBHOOK_URL2` = URL webhook của workflow Lark tạo record SS_Master.
@@ -19,6 +19,8 @@ import { DurableObject } from 'cloudflare:workers';
  * tự đổi mật khẩu trong Base không cần deploy. Xoá secret này là tắt hẳn đường cũ.
  * App trỏ ô "Webhook Tiếp nhận / Hoàn tất" vào `https://<worker>/webhook2`.
  * `CHECKIN_PASSWORD` = mật khẩu cho tài khoản cố định `checkin` tại `/check-in`.
+ * `HCM_CHECKIN_PASSWORD` và `HN_CHECKIN_PASSWORD` là mật khẩu riêng theo miền.
+ * HCM dùng fallback `CHECKIN_PASSWORD` để tương thích cấu hình cũ.
  * Secret này không được đưa vào bundle frontend.
  * `HN_LARK_WAREHOUSE_ORDER_WEBHOOK_URL` / `HCM_LARK_WAREHOUSE_ORDER_WEBHOOK_URL`
  * = webhook Workflow nhận sự kiện Kho khóa một mã đơn hàng theo từng miền.
@@ -113,6 +115,7 @@ function scopedSiteEnv(env, site) {
   for (const name of ['LARK_WEBHOOK_URL', 'LARK_WEBHOOK_URL2', 'LARK_EVENT_VERIFICATION_TOKEN']) {
     scoped[name] = siteSecret(env, site, name, { hcmFallback: true });
   }
+  scoped.CHECKIN_PASSWORD = siteSecret(env, site, 'CHECKIN_PASSWORD', { hcmFallback: true });
   scoped.LARK_WAREHOUSE_ORDER_WEBHOOK_URL = siteSecret(env, site, 'LARK_WAREHOUSE_ORDER_WEBHOOK_URL', { hcmFallback: false });
   return scoped;
 }
