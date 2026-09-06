@@ -78,7 +78,12 @@ export function placeOutside(
   // Mọi phương án đều kẹp trong vùng ĐANG NHÌN THẤY, kể cả khi node bị cuộn ra
   // ngoài màn hình (sidebar xuống dưới bảng ở tablet dọc) — card luôn hiện đủ.
   const visibleTop = VIEWPORT_INSET;
-  const visibleBottom = window.innerHeight - VIEWPORT_INSET;
+  const sessionBar = document.querySelector<HTMLElement>('[data-global-session-bar]');
+  const sessionBarTop = sessionBar?.getBoundingClientRect().top;
+  const visibleBottom = Math.min(
+    window.innerHeight - VIEWPORT_INSET,
+    typeof sessionBarTop === 'number' ? sessionBarTop - ANCHOR_GAP : window.innerHeight - VIEWPORT_INSET,
+  );
   const fullHeight = Math.max(visibleBottom - visibleTop, 0);
 
   // Canh ngang cho 2 phương án trên/dưới, kẹp lại trong viewport.

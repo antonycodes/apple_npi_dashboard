@@ -10,7 +10,7 @@ export default function GlobalSessionBar() {
   const canChangeDesk = session.workspaces.length > 1;
 
   return (
-    <div className="fixed bottom-3 left-3 z-[60] flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border border-neutral-300 bg-white/95 px-3 py-1.5 shadow-[0_8px_24px_rgba(17,24,39,0.12)] backdrop-blur">
+    <div data-global-session-bar className="fixed bottom-3 left-3 z-[30] flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border border-neutral-300 bg-white/95 px-3 py-1.5 shadow-[0_8px_24px_rgba(17,24,39,0.12)] backdrop-blur">
       <span className="max-w-[42vw] truncate text-xs font-semibold text-neutral-600" title={label}>
         {label || 'Đã đăng nhập'}
       </span>

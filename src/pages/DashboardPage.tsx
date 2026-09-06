@@ -160,22 +160,22 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   return (
     <div className="min-h-full bg-neutral-100 text-neutral-800 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
       <header className="border-b border-neutral-200 bg-white px-4 py-3 md:px-6 md:py-4 lg:sticky lg:top-0 lg:z-40 lg:shrink-0">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <img
               src="/cellphones-logo.png"
               alt="CellphoneS"
               className="h-7 w-auto shrink-0 md:h-8"
             />
-            <h1 className="text-lg font-bold md:text-xl">{SITE_BRAND} · Coordinator Dashboard</h1>
+            <h1 className="min-w-0 text-lg font-bold md:text-xl">{SITE_BRAND} · Coordinator Dashboard</h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs">
             <ViewSwitcher active="dash" />
             {session?.role === 'admin' && (
               <a
                 href="/settings"
-                className="flex min-h-8 items-center rounded border border-brand px-3 font-semibold text-brand hover:bg-brand hover:text-white"
+                className="flex min-h-8 items-center rounded border border-brand px-3 font-semibold text-brand transition-colors hover:bg-brand hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
               >
                 Cài đặt
               </a>
@@ -204,7 +204,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
             <button
               type="button"
               onClick={refresh}
-              className="min-h-8 rounded border border-neutral-300 px-3 font-medium text-neutral-600 hover:bg-neutral-50"
+              className="min-h-8 rounded border border-neutral-300 px-3 font-medium text-neutral-600 transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
             >
               Làm mới
             </button>
@@ -213,7 +213,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
                 type="button"
                 onClick={() => setShowGuestQr(true)}
                 title={guestRoom.joinUrl ?? undefined}
-                className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"
+                className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 transition-colors hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
               >
                 {guestRoom.roomCode}
               </button>
@@ -224,7 +224,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
                 onClick={onGuestBack}
                 aria-label="Quay lại chọn màn hình khách"
                 title="Quay lại chọn màn hình khách"
-                className="flex h-8 w-8 items-center justify-center rounded border border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                className="flex h-8 w-8 items-center justify-center rounded border border-neutral-300 text-neutral-600 transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
               >
                 <ArrowLeftIcon className="h-4 w-4" />
               </button>
@@ -255,7 +255,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
 
       {simulation && showGuestQr && guestRoom?.joinUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Mã QR phòng mô phỏng" onClick={() => setShowGuestQr(false)}>
-          <div className="w-full max-w-xs rounded-2xl bg-white p-5 text-center shadow-xl" onClick={(event) => event.stopPropagation()}>
+          <div className="w-full max-w-xs rounded-xl bg-white p-5 text-center shadow-xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-black text-neutral-900">Phòng {guestRoom.roomCode}</h2>
               <button type="button" onClick={() => setShowGuestQr(false)} aria-label="Đóng" className="text-2xl leading-none text-neutral-400 hover:text-neutral-700">×</button>

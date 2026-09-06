@@ -87,7 +87,7 @@ export default function CustomerPopover({ desk, customer, onClose }: CustomerPop
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="flex h-7 w-7 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+            className="flex h-7 w-7 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
           >
             ×
           </button>

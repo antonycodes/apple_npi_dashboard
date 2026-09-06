@@ -40,7 +40,7 @@ function DeviceReceiptModal({ customer, onClose }: { customer: WaitingCustomer; 
             <h3 className="text-lg font-bold text-neutral-900">Thông tin máy đã nghiệm thu</h3>
             <p className="text-sm text-neutral-500">STT {customer.stt ?? '—'} · {customer.name ?? '—'}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Đóng" className="text-2xl leading-none text-neutral-400">×</button>
+          <button type="button" onClick={onClose} aria-label="Đóng" className="rounded px-2 py-1 text-2xl leading-none text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">×</button>
         </div>
         <div className="mt-4 grid gap-2 rounded-xl bg-neutral-50 p-4 text-sm sm:grid-cols-2">
           <div><span className="text-neutral-500">Serial Number</span><p className="font-semibold text-neutral-800">{receipt?.imei || '—'}</p></div>
@@ -89,7 +89,7 @@ export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) 
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
           >
             ×
           </button>

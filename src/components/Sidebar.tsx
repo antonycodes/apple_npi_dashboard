@@ -51,7 +51,7 @@ export default function Sidebar({
           kéo cao bằng khu kia, để lại một mảng vàng trống hoác. */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:h-full lg:grid-cols-1 lg:grid-rows-[auto_auto_auto] lg:content-start lg:gap-4">
         {/* Customer funnel */}
-        <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm xl:p-4">
+        <div className="rounded-xl border border-neutral-200 bg-white p-3 xl:p-4">
           <div className="text-xs font-medium uppercase tracking-wide text-neutral-400">
             Khách đã Check-in
           </div>
@@ -162,7 +162,7 @@ function WaitingZoneCard({
   }
 
   return (
-    <div className="relative min-h-28 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-3 text-center shadow-sm lg:min-h-0 xl:p-4">
+    <div className="relative min-h-28 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-3 text-center lg:min-h-0 xl:p-4">
       <div className="flex items-center justify-center gap-1 text-sm font-semibold uppercase tracking-wide text-amber-700">
         <span>{label}</span>
         {items.length > 0 && (
@@ -195,7 +195,7 @@ function WaitingZoneCard({
           type="button"
           onClick={() => setShowAll(true)}
           title={`Xem tất cả ${items.length} STT`}
-          className="mx-auto mt-2 flex h-8 items-center justify-center rounded-full border border-amber-300 bg-amber-200/90 px-5 text-sm font-bold leading-none text-amber-900 shadow-sm transition hover:bg-amber-300"
+          className="mx-auto mt-2 flex h-8 items-center justify-center rounded-full border border-amber-300 bg-amber-200/90 px-5 text-sm font-bold leading-none text-amber-900 transition hover:bg-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
         >
           +{hiddenCount}
         </button>
@@ -253,7 +253,7 @@ function WaitingChip({
       title={`${item.stt ? `#${item.stt} · ` : ''}${item.name ?? ''}`}
       onClick={onClick}
       className={[
-        'flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-xs font-bold leading-none text-white shadow ring-1 ring-white transition hover:scale-110',
+        'flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-xs font-bold leading-none text-white shadow ring-1 ring-white transition hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2',
         tradeInFilterActive ? tradeInTone(true, item) : 'bg-amber-500',
         // This selected STT must remain above its popup if the popup
         // has to flip upward near the bottom of the viewport.
@@ -369,7 +369,7 @@ function AllSttModal({
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="rounded px-2 py-1 text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+            className="rounded px-2 py-1 text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
           >
             ×
           </button>

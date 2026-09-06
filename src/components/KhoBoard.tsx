@@ -755,7 +755,7 @@ export default function KhoBoard({
   return (
     <>
       {unlockSuccess && (
-        <div role="status" className="fixed left-1/2 top-4 z-[60] -translate-x-1/2 rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-700 shadow-lg">
+        <div role="status" className="fixed left-1/2 top-4 z-[30] -translate-x-1/2 rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-700 shadow-lg">
           Mở khóa thành công
         </div>
       )}

@@ -156,7 +156,7 @@ function SessionBar({
   onLogout: () => void;
 }) {
   return (
-    <div className="fixed bottom-3 left-3 z-50 flex items-center gap-2 rounded-full border border-neutral-300 bg-white/95 px-3 py-1.5 shadow-lg backdrop-blur">
+    <div data-global-session-bar className="fixed bottom-3 left-3 z-[30] flex items-center gap-2 rounded-full border border-neutral-300 bg-white/95 px-3 py-1.5 shadow-lg backdrop-blur">
       <span className="max-w-[40vw] truncate text-xs font-semibold text-neutral-600">{label}</span>
       {onChangeDesk && (
         <button

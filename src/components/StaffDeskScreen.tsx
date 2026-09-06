@@ -297,10 +297,10 @@ function ActionButton({
   onOpen?: () => void;
 }) {
   const base =
-    'flex min-h-[56px] flex-1 flex-col items-center justify-center rounded-2xl px-3 py-2 text-center text-base font-bold shadow-sm transition-transform active:scale-[0.98]';
+    'flex min-h-[56px] flex-1 flex-col items-center justify-center rounded-2xl px-3 py-2 text-center text-base font-bold shadow-sm transition-[transform,background-color,box-shadow] active:translate-y-px active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2';
   const enabled = variant === 'receive' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white';
   const off = 'cursor-not-allowed bg-neutral-200 text-neutral-500 shadow-none';
-  const lockedCls = 'cursor-not-allowed bg-black text-white shadow-none';
+  const lockedCls = 'cursor-not-allowed bg-neutral-800 text-white shadow-none';
 
   if (onPress) {
     return (
@@ -952,7 +952,7 @@ export default function StaffDeskScreen({
         </section>
 
         {view.cluster === 'consult' && (
-          <section className="rounded-3xl border-2 border-sky-200 bg-white p-4 shadow-sm">
+          <section className="rounded-2xl border border-sky-200 bg-white p-4 shadow-sm">
             <button
               type="button"
               onClick={() => setOrderOpen((open) => !open)}
@@ -986,7 +986,7 @@ export default function StaffDeskScreen({
                         setSelectedOrderStt(event.target.value);
                         setOrderMessage(null);
                       }}
-                      className="mt-1 min-h-12 w-full rounded-2xl border-2 border-neutral-200 bg-white px-3 text-sm font-bold text-neutral-800 outline-none focus:border-sky-400"
+                      className="mt-1 min-h-12 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm font-bold text-neutral-800 outline-none transition-colors focus:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2"
                       disabled={orderSending}
                     >
                       <option value="">— Chọn theo STT —</option>
@@ -1007,7 +1007,7 @@ export default function StaffDeskScreen({
                   }}
                   rows={4}
                   placeholder="Paste nội dung order vào đây…"
-                  className="mt-3 w-full resize-y rounded-2xl border-2 border-neutral-200 px-3 py-3 text-sm text-neutral-800 outline-none focus:border-sky-400"
+                  className="mt-3 w-full resize-y rounded-xl border border-neutral-300 px-3 py-3 text-sm text-neutral-800 outline-none transition-colors focus:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2"
                   disabled={!orderCustomer?.stt || orderSending}
                 />
                 <div className="mt-2 flex gap-2">
@@ -1015,7 +1015,7 @@ export default function StaffDeskScreen({
                     type="button"
                     onClick={() => void pasteOrder()}
                     disabled={!orderCustomer?.stt || orderSending}
-                    className="min-h-12 rounded-2xl border-2 border-sky-200 bg-sky-50 px-4 text-sm font-bold text-sky-700 active:bg-sky-100 disabled:opacity-40"
+                    className="min-h-12 rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-bold text-sky-700 transition-colors active:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:opacity-40"
                   >
                     Dán
                   </button>
@@ -1023,7 +1023,7 @@ export default function StaffDeskScreen({
                     type="button"
                     onClick={() => void sendOrderToWarehouse()}
                     disabled={!orderCustomer?.stt || !orderText.trim() || orderSending}
-                    className="min-h-12 flex-1 rounded-2xl bg-sky-600 px-4 text-sm font-bold text-white active:bg-sky-700 disabled:bg-neutral-200 disabled:text-neutral-500"
+                    className="min-h-12 flex-1 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white transition-colors active:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:bg-neutral-200 disabled:text-neutral-500"
                   >
                     {orderSending ? 'Đang gửi…' : 'Gửi'}
                   </button>

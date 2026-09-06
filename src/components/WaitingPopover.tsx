@@ -113,7 +113,7 @@ export default function WaitingPopover({ zoneLabel, zone, customer, index, onDis
                   onDispatch();
                 }}
                 title={`Điều phối khách STT ${customer.stt ?? ''}`}
-                className="rounded-lg bg-brand px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:opacity-90"
+                className="rounded-lg bg-brand px-2.5 py-1 text-xs font-bold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
               >
                 Điều phối
               </button>
@@ -122,7 +122,7 @@ export default function WaitingPopover({ zoneLabel, zone, customer, index, onDis
               type="button"
               onClick={onClose}
               aria-label="Đóng"
-              className="flex h-7 w-7 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+              className="flex h-7 w-7 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
             >
               ×
             </button>

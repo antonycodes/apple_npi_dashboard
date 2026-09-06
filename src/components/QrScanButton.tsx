@@ -239,7 +239,7 @@ export default function QrScanButton({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Quét mã QR">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Quét mã QR">
           <div className="w-full max-w-sm rounded-xl bg-white p-4 shadow-xl">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-bold text-neutral-800">{label}</h3>

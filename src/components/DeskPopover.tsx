@@ -81,7 +81,7 @@ export default function DeskPopover({ desk, onClose, onAcknowledgeAlert }: DeskP
               type="button"
               onClick={onClose}
               aria-label="Đóng"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
             >
               ×
             </button>
@@ -98,7 +98,7 @@ export default function DeskPopover({ desk, onClose, onAcknowledgeAlert }: DeskP
                 event.stopPropagation();
                 onAcknowledgeAlert();
               }}
-              className="mt-2 w-full rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-white hover:bg-amber-600"
+              className="mt-2 w-full rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               Đã tiếp nhận hỗ trợ
             </button>
@@ -158,7 +158,7 @@ export default function DeskPopover({ desk, onClose, onAcknowledgeAlert }: DeskP
                     setShowNext((v) => !v);
                   }}
                   title={showNext ? 'Bấm để xem lại số lượng' : 'Bấm để xem STT tiếp theo'}
-                  className="font-medium text-amber-600 underline decoration-dotted underline-offset-2 hover:text-amber-700"
+                  className="font-medium text-amber-600 underline decoration-dotted underline-offset-2 hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                 >
                   {showNext ? (desk.nextWaitingStt ?? '—') : desk.waiting}
                 </button>
