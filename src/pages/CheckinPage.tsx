@@ -353,7 +353,7 @@ function CheckinBoard() {
 
   return (
     <div className="min-h-full bg-[#f5f5f7] text-neutral-800">
-      <header className="border-b border-neutral-200 bg-white px-4 py-3 md:px-6 md:py-4">
+      <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur md:px-6 md:py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <img src="/cellphones-logo.png" alt="CellphoneS" className="h-7 w-auto md:h-8" />

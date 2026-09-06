@@ -306,7 +306,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-full bg-neutral-100 text-neutral-800">
-      <header className="border-b border-neutral-200 bg-white px-6 py-4">
+      <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 px-6 py-4 backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">Cài đặt</h1>
@@ -518,7 +518,7 @@ export default function SettingsPage() {
 function SettingsAccessGate() {
   return (
     <div className="min-h-full bg-neutral-100 text-neutral-800">
-      <header className="border-b border-neutral-200 bg-white px-6 py-4">
+      <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 px-6 py-4 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <h1 className="text-xl font-bold">Cài đặt</h1>
           <a

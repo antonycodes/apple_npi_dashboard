@@ -64,7 +64,7 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
 
   return (
     <div className="min-h-full bg-neutral-100 text-neutral-800 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
-      <header className="border-b border-neutral-200 bg-white px-4 py-3 md:px-6 md:py-4 lg:sticky lg:top-0 lg:z-40 lg:shrink-0">
+      <header className="sticky top-0 z-40 shrink-0 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur md:px-6 md:py-4">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div>
             <h1 className="text-lg font-bold md:text-xl">Màn hình STT · Khu vực {title}</h1>

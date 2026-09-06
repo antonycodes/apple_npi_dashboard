@@ -124,7 +124,7 @@ export default function KhoBoardPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-neutral-100 text-neutral-800">
-      <header className="shrink-0 border-b border-neutral-200 bg-white px-4 py-2 md:px-6 md:py-3">
+      <header className="sticky top-0 z-40 shrink-0 border-b border-neutral-200 bg-white/95 px-4 py-2 backdrop-blur md:px-6 md:py-3">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div>
             <h1 className="text-lg font-bold md:text-xl">Màn hình Kho</h1>
