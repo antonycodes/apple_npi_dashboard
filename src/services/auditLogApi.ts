@@ -9,6 +9,14 @@ export type AuditEvent = {
   staffName?: string;
   stt?: string;
   customerName?: string;
+  customerKey?: string;
+  customerData?: {
+    backupDecision?: string;
+    tradeInTiming?: string;
+    imei?: string;
+    scanQr?: string;
+    deviceCondition?: string;
+  };
   result?: 'success' | 'error' | 'cancelled';
   detail?: string;
 };
@@ -52,9 +60,9 @@ export async function fetchAuditLogs(filters: {
 }
 
 export function downloadAuditLogExcel(rows: AuditLogItem[], fileName: string): void {
-  const headers = ['Thời gian app', 'Phân loại', 'Vị trí', 'MSNV', 'Nhân sự', 'STT', 'Khách hàng', 'Hành động', 'Kết quả', 'Chi tiết', 'Vai trò', 'Route', 'Site'];
+  const headers = ['Thời gian app', 'Phân loại', 'Vị trí', 'MSNV', 'Nhân sự', 'STT', 'Khách hàng', 'Hành động', 'Có Backup', 'Thu máy', 'IMEI', 'Mã QR / Serial', 'Kết quả', 'Chi tiết', 'Vai trò', 'Route', 'Site'];
   const escape = (value: unknown) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const body = rows.map((item) => [item.event_at, item.stage, item.deskCode, item.msnv, item.staffName, item.stt, item.customerName, item.action, item.result, item.detail, item.actor_role, item.route, item.site]);
+  const body = rows.map((item) => [item.event_at, item.stage, item.deskCode, item.msnv, item.staffName, item.stt, item.customerName, item.action, item.customerData?.backupDecision, item.customerData?.tradeInTiming, item.customerData?.imei, item.customerData?.scanQr, item.result, item.detail, item.actor_role, item.route, item.site]);
   const html = `<html><head><meta charset="UTF-8"></head><body><table><tr>${headers.map((item) => `<th>${escape(item)}</th>`).join('')}</tr>${body.map((cells) => `<tr>${cells.map((cell) => `<td>${escape(cell)}</td>`).join('')}</tr>`).join('')}</table></body></html>`;
   const blob = new Blob([`\ufeff${html}`], { type: 'application/vnd.ms-excel;charset=utf-8' });
   const url = URL.createObjectURL(blob);

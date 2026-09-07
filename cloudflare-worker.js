@@ -564,8 +564,8 @@ async function insertAuditLog(env, input) {
   await env.AUDIT_LOG.prepare(`
     INSERT INTO audit_logs
       (id, site, event_at, action, stage, desk_code, msnv, staff_name, stt,
-       customer_name, result, detail, route, actor_role)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       customer_name, customer_key, customer_data, result, detail, route, actor_role)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     auditValue(input.id, 80) || crypto.randomUUID(),
     auditValue(env.NPI_SITE, 20),
@@ -577,6 +577,14 @@ async function insertAuditLog(env, input) {
     auditValue(input.staffName, 160),
     auditValue(input.stt, 40),
     auditValue(input.customerName, 160),
+    auditValue(input.customerKey, 240),
+    JSON.stringify(input.customerData && typeof input.customerData === 'object' ? {
+      backupDecision: auditValue(input.customerData.backupDecision, 40),
+      tradeInTiming: auditValue(input.customerData.tradeInTiming, 40),
+      imei: auditValue(input.customerData.imei, 120),
+      scanQr: auditValue(input.customerData.scanQr, 120),
+      deviceCondition: auditValue(input.customerData.deviceCondition, 240),
+    } : {}),
     auditValue(input.result, 30) || 'success',
     auditValue(input.detail, 500),
     auditValue(input.route, 120),
@@ -2576,7 +2584,7 @@ export default {
       try {
         const result = await env.AUDIT_LOG.prepare(
           `SELECT id, event_at, action, stage, desk_code, msnv, staff_name, stt,
-                  customer_name, result, detail, route,
+                  customer_name, customer_key, customer_data, result, detail, route,
                   CASE
                     WHEN desk_code LIKE 'TV%' THEN 'Tư vấn'
                     WHEN desk_code LIKE 'TC%' THEN 'Thu cũ'
@@ -2590,7 +2598,13 @@ export default {
              FROM audit_logs WHERE ${where.join(' AND ')}
             ORDER BY event_at DESC LIMIT ?`,
         ).bind(...binds, limit).all();
-        return json({ code: 0, msg: 'success', data: { items: result.results ?? [] } });
+        const items = (result.results ?? []).map((item) => {
+          let customerData = {};
+          try { customerData = JSON.parse(String(item.customer_data || '{}')); } catch { /* dữ liệu cũ */ }
+          const { customer_data: _rawCustomerData, ...publicItem } = item;
+          return { ...publicItem, customerData };
+        });
+        return json({ code: 0, msg: 'success', data: { items } });
       } catch (e) {
         return json({ code: -1, msg: `Không đọc được audit log: ${String(e?.message || e)}` }, 500);
       }

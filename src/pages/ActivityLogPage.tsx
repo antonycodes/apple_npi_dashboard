@@ -18,6 +18,45 @@ const FIXED_DESKS_BY_STAGE: Record<string, string[]> = {
 function today() { return new Date().toISOString().slice(0, 10); }
 function firstOfMonth() { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); }
 
+function customerKeyOf(item: AuditLogItem): string {
+  return item.customerKey || `${item.stt || ''}|${item.customerName || ''}`;
+}
+
+function CustomerDetail({ item, timeline, onClose }: { item: AuditLogItem; timeline: AuditLogItem[]; onClose: () => void }) {
+  const data = item.customerData ?? {};
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-neutral-950/30 p-3 sm:items-center" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-neutral-200 bg-white p-5 shadow-[0_18px_50px_rgba(17,24,39,0.16)]" role="dialog" aria-modal="true" aria-labelledby="customer-detail-title">
+        <div className="flex items-start justify-between gap-4 border-b border-neutral-200 pb-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Khách được phục vụ</p>
+            <h2 id="customer-detail-title" className="mt-1 text-xl font-black text-neutral-950">{item.customerName || 'Chưa có tên khách'}</h2>
+            <p className="mt-1 text-sm text-neutral-500">STT {item.stt || '—'} · {item.deskCode || 'Chưa có vị trí'} · {item.stage || '—'}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg border border-neutral-300 px-3 py-2 text-sm font-bold hover:bg-neutral-50">Đóng</button>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {[
+            ['Vị trí', item.deskCode || '—'],
+            ['Nhân sự', [item.msnv, item.staffName].filter(Boolean).join(' — ') || '—'],
+            ['Có Backup', data.backupDecision || 'Chưa ghi nhận'],
+            ['Thu máy', data.tradeInTiming || 'Chưa ghi nhận'],
+            ['IMEI', data.imei || '—'],
+            ['Mã QR / Serial', data.scanQr || '—'],
+            ['Tình trạng máy', data.deviceCondition || '—'],
+          ].map(([label, value]) => <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2"><p className="text-xs font-bold text-neutral-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-neutral-900">{value}</p></div>)}
+        </div>
+        <div className="mt-5">
+          <h3 className="text-sm font-black text-neutral-950">Lịch sử hoạt động</h3>
+          <div className="mt-2 divide-y divide-neutral-100 rounded-lg border border-neutral-200">
+            {timeline.map((entry) => <div key={entry.id} className="grid gap-1 px-3 py-3 sm:grid-cols-[150px_1fr_auto] sm:items-center"><span className="font-mono text-xs text-neutral-500">{new Date(entry.event_at).toLocaleString('vi-VN')}</span><span className="text-sm font-semibold">{entry.action}<span className="ml-2 text-xs font-normal text-neutral-500">{entry.deskCode || '—'} · {entry.msnv || '—'}</span></span><span className="text-xs font-bold text-neutral-500">{entry.result}</span></div>)}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function ActivityLogPage() {
   const session = useAdminInfo();
   const [rows, setRows] = useState<AuditLogItem[]>([]);
@@ -27,6 +66,7 @@ export default function ActivityLogPage() {
   const [desk, setDesk] = useState('');
   const [from, setFrom] = useState(firstOfMonth);
   const [to, setTo] = useState(today);
+  const [selectedCustomer, setSelectedCustomer] = useState<AuditLogItem | null>(null);
   const { roster } = useDashboardData();
 
   const load = async () => {
@@ -54,6 +94,11 @@ export default function ActivityLogPage() {
     return identity ? `${deskCode} — ${identity}` : deskCode;
   };
   const visibleRows = useMemo(() => desk ? rows.filter((item) => item.deskCode === desk) : rows, [desk, rows]);
+  const customerTimeline = useMemo(() => {
+    if (!selectedCustomer) return [];
+    const key = customerKeyOf(selectedCustomer);
+    return visibleRows.filter((item) => customerKeyOf(item) === key).sort((a, b) => a.event_at.localeCompare(b.event_at));
+  }, [selectedCustomer, visibleRows]);
   if (session?.role !== 'admin') return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Chỉ tài khoản Admin được xem và tải audit log.</p></main>;
 
   return (
@@ -73,7 +118,8 @@ export default function ActivityLogPage() {
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-4"><div><p className="text-lg font-black">{visibleRows.length.toLocaleString('vi-VN')} log</p><p className="text-xs text-neutral-500">Nguồn: audit log riêng của app</p></div><button type="button" disabled={loading || !visibleRows.length} onClick={() => { recordAuditEvent({ action: 'Tải audit log', stage: 'Admin', result: 'success', detail: `${visibleRows.length} dòng` }); downloadAuditLogExcel(visibleRows, `audit-log-${today()}.xls`); }} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-neutral-900 px-4 text-sm font-bold text-white hover:bg-neutral-700 disabled:opacity-40"><DownloadIcon className="h-4 w-4" /> Tải Excel</button></div>
         </section>
         {error && <p className="mt-4 border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Không tải được audit log: {error}</p>}
-        <section className="mt-5 overflow-hidden border border-neutral-200 bg-white"><div className="overflow-x-auto"><table className="min-w-[1100px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500"><tr>{['Thời gian app', 'Phân loại', 'Vị trí', 'MSNV', 'Nhân sự', 'Hành động', 'Kết quả', 'Chi tiết', 'Vai trò'].map((item) => <th key={item} className="border-b border-neutral-200 px-3 py-3 font-bold">{item}</th>)}</tr></thead><tbody>{visibleRows.slice(0, 200).map((item) => <tr key={item.id} className="border-b border-neutral-100"><td className="whitespace-nowrap px-3 py-3 font-mono text-xs">{new Date(item.event_at).toLocaleString('vi-VN')}</td><td className="px-3 py-3 font-bold">{item.stage || '—'}</td><td className="px-3 py-3 font-bold">{item.deskCode || '—'}</td><td className="px-3 py-3">{item.msnv || '—'}</td><td className="px-3 py-3">{item.staffName || '—'}</td><td className="px-3 py-3">{item.action}</td><td className="px-3 py-3 font-semibold">{item.result}</td><td className="max-w-[260px] truncate px-3 py-3 text-neutral-500">{item.detail || '—'}</td><td className="px-3 py-3 text-xs text-neutral-500">{item.actor_role || '—'}</td></tr>)}{!loading && !visibleRows.length && <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-neutral-500">Chưa có audit log theo bộ lọc.</td></tr>}</tbody></table></div>{visibleRows.length > 200 && <p className="border-t border-neutral-100 px-4 py-3 text-xs text-neutral-500">Xem trước 200 dòng; file Excel chứa toàn bộ {visibleRows.length.toLocaleString('vi-VN')} dòng.</p>}</section>
+        <section className="mt-5 overflow-hidden border border-neutral-200 bg-white"><div className="overflow-x-auto"><table className="min-w-[760px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500"><tr>{['Thời gian app', 'Phân loại', 'Hành động', 'Kết quả', 'Khách'].map((item) => <th key={item} className="border-b border-neutral-200 px-3 py-3 font-bold">{item}</th>)}</tr></thead><tbody>{visibleRows.slice(0, 200).map((item) => <tr key={item.id} className="border-b border-neutral-100"><td className="whitespace-nowrap px-3 py-3 font-mono text-xs">{new Date(item.event_at).toLocaleString('vi-VN')}</td><td className="px-3 py-3 font-bold">{item.stage || '—'}</td><td className="px-3 py-3">{item.action}</td><td className="px-3 py-3 font-semibold">{item.result}</td><td className="px-3 py-3"><button type="button" disabled={!item.customerName && !item.stt} onClick={() => setSelectedCustomer(item)} className="text-left font-semibold text-brand underline-offset-2 hover:underline disabled:cursor-default disabled:text-neutral-500 disabled:no-underline">{item.customerName || 'Chưa có thông tin khách'}{item.stt ? <span className="ml-2 text-xs font-normal text-neutral-500">STT {item.stt}</span> : null}</button></td></tr>)}{!loading && !visibleRows.length && <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-neutral-500">Chưa có audit log theo bộ lọc.</td></tr>}</tbody></table></div>{visibleRows.length > 200 && <p className="border-t border-neutral-100 px-4 py-3 text-xs text-neutral-500">Xem trước 200 dòng; file Excel chứa toàn bộ {visibleRows.length.toLocaleString('vi-VN')} dòng.</p>}</section>
+        {selectedCustomer && <CustomerDetail item={selectedCustomer} timeline={customerTimeline} onClose={() => setSelectedCustomer(null)} />}
       </div>
     </main>
   );
