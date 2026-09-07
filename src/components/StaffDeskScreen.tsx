@@ -97,6 +97,7 @@ function buildDeviceDefaults(
     values: {
       checkBackup: '',
       thuLaiMay: backupDaThuMay ? 'Thu máy ngay' : tiepTuc ? prev?.thuLaiMay ?? '' : '',
+      khachKhongDongYGiaThuCu: false,
       hinhNghiemThu: [] as File[],
       anhGiuLai: dienSan ? prev?.images ?? [] : [],
       scanQr: dienSan ? prev?.scanQr ?? '' : '',
@@ -681,6 +682,8 @@ export default function StaffDeskScreen({
         isComplete && isDeviceStage && values.thuLaiMay
           ? (values.thuLaiMay as 'Thu máy ngay' | 'Thu máy sau')
           : undefined;
+      const khachKhongDongYGiaThuCu =
+        isComplete && view.cluster === 'tradein' && values.khachKhongDongYGiaThuCu;
       const scanQr = thuLaiMay ? values.scanQr.trim() : '';
       const imei = thuLaiMay ? values.imei.trim() : '';
 
@@ -752,6 +755,7 @@ export default function StaffDeskScreen({
         thoiGian: new Date().toISOString(),
         ...(checkBackup ? { checkBackup } : {}),
         ...(thuLaiMay ? { thuLaiMay } : {}),
+        ...(khachKhongDongYGiaThuCu ? { khachKhongDongYGiaThuCu: true } : {}),
         ...(hinhNghiemThu?.length ? { hinhNghiemThu } : {}),
         ...(scanQr ? { scanQr } : {}),
         ...(imei ? { imei } : {}),
@@ -1075,7 +1079,7 @@ export default function StaffDeskScreen({
             disabled={!webhookMode}
             className="flex min-h-14 w-full items-center justify-center gap-2 rounded-3xl border-2 border-amber-400 bg-amber-50 text-base font-bold text-amber-800 active:bg-amber-100 disabled:opacity-40"
           >
-            Thu máy cũ
+            Thu máy nhanh
             {pendingDevice.length > 0 && (
               <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs text-white">
                 {pendingDevice.length} chờ

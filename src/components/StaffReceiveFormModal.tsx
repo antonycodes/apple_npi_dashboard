@@ -35,6 +35,8 @@ export interface ReceiveFormValues {
   checkBackup: string;
   /** "Thu máy ngay" | "Thu máy sau" | "" — chỉ Hoàn tất ở khâu Thu cũ/Backup. */
   thuLaiMay: string;
+  /** Khách đang cân nhắc giá, không cần nhập thông tin máy — chỉ Hoàn tất ở Thu cũ. */
+  khachKhongDongYGiaThuCu: boolean;
   /** Ảnh nghiệm thu NV vừa chụp/chọn (chọn được NHIỀU) — upload lấy `file_token` lúc submit. */
   hinhNghiemThu: File[];
   /**
@@ -89,13 +91,15 @@ export default function StaffReceiveFormModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [busy, onClose]);
 
-  // Check Backup khi HOÀN TẤT, TRỪ chính bàn Backup (yêu cầu user 2026-08-12,
-  // tiếp): hỏi "khách có dùng Backup không" ngay tại bàn Backup là thừa.
-  const showBackupCheck = action === 'hoan_tat' && cluster !== 'backup';
-  // "Thu lại máy" + 3 field máy thu cũ: CHỈ Hoàn tất ở khâu Thu cũ/Backup.
-  const showThuLaiMay = action === 'hoan_tat' && (cluster === 'tradein' || cluster === 'backup');
+  // Khi chưa đánh dấu khách cân nhắc giá, giữ nguyên đầy đủ luồng cũ.
+  // Đánh dấu sẽ ẩn toàn bộ lựa chọn Backup/thu máy và phần nhập máy.
+  const showBackupCheck = action === 'hoan_tat' && cluster !== 'backup' && !values.khachKhongDongYGiaThuCu;
+  const showThuLaiMay = action === 'hoan_tat'
+    && (cluster === 'tradein' || cluster === 'backup')
+    && !values.khachKhongDongYGiaThuCu;
   // 3 field chỉ bung ra sau khi chọn 1 trong 2 option (yêu cầu user).
-  const showDeviceFields = showThuLaiMay && values.thuLaiMay.length > 0;
+  const showPriceConsideration = action === 'hoan_tat' && cluster === 'tradein';
+  const showDeviceFields = showThuLaiMay && values.thuLaiMay.length > 0 && !values.khachKhongDongYGiaThuCu;
   const photoSlots: PhotoSlot[] = [
     ...values.anhGiuLai.map((image) => ({ kind: 'existing' as const, image })),
     ...values.hinhNghiemThu.map((file) => ({ kind: 'new' as const, file })),
@@ -185,6 +189,34 @@ export default function StaffReceiveFormModal({
                 })}
               </div>
             </div>
+          )}
+
+          {showPriceConsideration && (
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2">
+              <input
+                type="checkbox"
+                checked={values.khachKhongDongYGiaThuCu}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setValues((current) => ({
+                    ...current,
+                    khachKhongDongYGiaThuCu: checked,
+                    ...(checked
+                      ? {
+                          checkBackup: '',
+                          thuLaiMay: '',
+                          hinhNghiemThu: [],
+                          anhGiuLai: [],
+                          scanQr: '',
+                          imei: '',
+                        }
+                      : {}),
+                  }));
+                }}
+                className="h-5 w-5 accent-emerald-600"
+              />
+              <span className="text-sm font-semibold text-neutral-700">Khách cân nhắc giá thu cũ</span>
+            </label>
           )}
 
           {/* 3 field máy thu cũ — bung ra sau khi chọn 1 trong 2 option trên.

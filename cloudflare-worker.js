@@ -801,6 +801,7 @@ const RECORD_FIELD_MAP = {
   thoiGian: 'Thời gian',
   checkBackup: 'Back up',
   thuLaiMay: 'Thu lại máy',
+  khachKhongDongYGiaThuCu: 'Khách không đồng ý giá thu cũ',
   scanQr: 'Scan QR máy cũ',
   imei: 'Scan IMEI',
   hinhNghiemThu: 'Hình nghiệm thu máy cũ',

@@ -115,7 +115,7 @@ export default function ThuMayModal({
       <div className="flex max-h-[92dvh] w-full max-w-[430px] flex-col rounded-t-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-neutral-900">Thu máy cũ</h2>
+            <h2 className="text-lg font-bold text-neutral-900">Thu máy nhanh</h2>
             <p className="truncate text-xs text-neutral-500">
               {chon
                 ? `STT ${chon.stt ?? '—'} · ${chon.name ?? 'chưa rõ tên'} · Bàn ${deskLabel}`
