@@ -1,5 +1,6 @@
 import type { WarehouseInboxOrder, WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
 import { adminSessionStore } from '@/config/adminSession';
+import { recordAuditEvent } from './auditLogApi';
 
 export async function fetchWarehouseOrderClaims(apiUrl: string, signal?: AbortSignal): Promise<WarehouseOrderClaims> {
   let response: Response;
@@ -30,6 +31,7 @@ export async function claimWarehouseOrder(
   if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Không thể tiếp nhận order.');
   const key = claim.orderCode.trim().toUpperCase();
   const current = body.data?.claims?.[key];
+  recordAuditEvent({ action: 'Tiếp nhận order Kho', stage: 'Kho', deskCode: claim.claimedDesk, msnv: claim.claimedMsnv, staffName: claim.claimedName, stt: claim.stt ?? undefined, result: 'success', detail: claim.orderCode });
   return { won: current?.claimedBy === claim.claimedBy, claims: body.data?.claims ?? {} };
 }
 
@@ -44,6 +46,7 @@ export async function claimWarehouseOrders(
   });
   const body = await response.json() as { code: number; msg?: string; data?: { claims?: WarehouseOrderClaims; wonAll?: boolean } };
   if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Không thể tiếp nhận các order.');
+  recordAuditEvent({ action: 'Tiếp nhận nhiều order Kho', stage: 'Kho', result: 'success', detail: `${orders.length} order` });
   return { wonAll: Boolean(body.data?.wonAll), claims: body.data?.claims ?? {} };
 }
 
@@ -57,6 +60,7 @@ export async function unlockWarehouseOrder(apiUrl: string, orderCode: string): P
   });
   const body = await response.json() as { code: number; msg?: string; data?: { claims?: WarehouseOrderClaims } };
   if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Không thể mở khóa order.');
+  recordAuditEvent({ action: 'Mở khóa order Kho', stage: 'Kho', result: 'success', detail: orderCode });
   return body.data?.claims ?? {};
 }
 
@@ -77,6 +81,7 @@ export async function deleteWarehouseOrder(apiUrl: string, orderId: string): Pro
   });
   const body = await response.json() as { code: number; msg?: string };
   if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Không thể xóa order.');
+  recordAuditEvent({ action: 'Xóa order Kho', stage: 'Kho', result: 'success', detail: orderId });
 }
 
 export async function downloadWarehouseOrderLog(apiUrl: string): Promise<Blob> {
@@ -105,6 +110,7 @@ export async function sendWarehouseOrder(
     data?: { order?: WarehouseInboxOrder; webhookErrors?: string[] };
   };
   if (!response.ok || body.code !== 0 || !body.data?.order) throw new Error(body.msg || 'Không thể gửi order tới Kho.');
+  recordAuditEvent({ action: 'Gửi order tới Kho', stage: 'Kho', deskCode: order.deskId, stt: order.stt ?? '', customerName: order.customerName ?? '', result: 'success' });
   return {
     order: body.data.order,
     webhookErrors: Array.isArray(body.data.webhookErrors) ? body.data.webhookErrors : [],

@@ -1,5 +1,6 @@
 import { adminSessionStore } from '@/config/adminSession';
 import { workerBaseUrl } from './adminApi';
+import { recordAuditEvent } from './auditLogApi';
 
 export interface CheckinRecordPayload {
   stt: string;
@@ -32,5 +33,6 @@ export async function submitCheckinRecord(payload: CheckinRecordPayload) {
     body: JSON.stringify(payload),
   });
   const body = await parseResponse(response);
+  recordAuditEvent({ action: 'Check-in khách', stage: 'Check-in', stt: payload.stt, result: 'success' });
   return body.data as { recordId?: string | null; stt: string; written: string[]; skipped: string[] };
 }
