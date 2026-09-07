@@ -543,6 +543,35 @@ function json(body, status = 200) {
   });
 }
 
+function auditValue(value, max = 240) {
+  return String(value ?? '').trim().slice(0, max);
+}
+
+async function insertAuditLog(env, input) {
+  if (!env.AUDIT_LOG) return;
+  await env.AUDIT_LOG.prepare(`
+    INSERT INTO audit_logs
+      (id, site, event_at, action, stage, desk_code, msnv, staff_name, stt,
+       customer_name, result, detail, route, actor_role)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    auditValue(input.id, 80) || crypto.randomUUID(),
+    auditValue(env.NPI_SITE, 20),
+    auditValue(input.eventAt, 40) || new Date().toISOString(),
+    auditValue(input.action, 120),
+    auditValue(input.stage, 40),
+    auditValue(input.deskCode, 40),
+    auditValue(input.msnv, 80),
+    auditValue(input.staffName, 160),
+    auditValue(input.stt, 40),
+    auditValue(input.customerName, 160),
+    auditValue(input.result, 30) || 'success',
+    auditValue(input.detail, 500),
+    auditValue(input.route, 120),
+    auditValue(input.actorRole, 40),
+  ).run();
+}
+
 function guestCellText(value) {
   if (Array.isArray(value)) return value.map((part) => typeof part === 'string' ? part : part?.text || '').join('').trim();
   return value == null ? '' : String(value).trim();
@@ -2486,6 +2515,61 @@ export default {
         };
         await env.CONFIG.put(siteKvKey(env.NPI_SITE, KV_APP_SETTINGS), JSON.stringify(payload));
         return json({ code: 0, msg: 'success', data: payload });
+      }
+    }
+
+    // ── Audit log hoạt động app ────────────────────────────────────────────
+    // Log này độc lập với dữ liệu nghiệp vụ trong Lark Base. POST cho mọi
+    // phiên hợp lệ; GET chỉ dành cho admin.
+    if (route === 'audit/log') {
+      if (request.method !== 'POST') return json({ code: -1, msg: 'Audit log chỉ nhận POST' }, 405);
+      const session = await verifyToken(env, bearer(request));
+      if (!session) return json({ code: -1, msg: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn' }, 401);
+      if (!env.AUDIT_LOG) return json({ code: -1, msg: 'Chưa cấu hình kho audit log' }, 500);
+      let body = {};
+      try { body = await request.json(); } catch { return json({ code: -1, msg: 'Body không phải JSON' }, 400); }
+      try {
+        await insertAuditLog(env, {
+          ...body,
+          actorRole: session.role,
+          msnv: body.msnv || session.subject,
+          deskCode: body.deskCode || session.desk.split(',')[0],
+          route: body.route || requestUrl.pathname,
+        });
+        return json({ code: 0, msg: 'success' });
+      } catch (e) {
+        return json({ code: -1, msg: `Không ghi được audit log: ${String(e?.message || e)}` }, 500);
+      }
+    }
+
+    if (route === 'audit/logs') {
+      if (request.method !== 'GET') return json({ code: -1, msg: 'Audit logs chỉ nhận GET' }, 405);
+      if ((await verifyToken(env, bearer(request)))?.role !== 'admin') {
+        return json({ code: -1, msg: 'Chỉ admin được xem audit log' }, 403);
+      }
+      if (!env.AUDIT_LOG) return json({ code: -1, msg: 'Chưa cấu hình kho audit log' }, 500);
+      const params = requestUrl.searchParams;
+      const where = ['site = ?'];
+      const binds = [env.NPI_SITE];
+      const from = auditValue(params.get('from'), 40);
+      const to = auditValue(params.get('to'), 40);
+      const stage = auditValue(params.get('stage'), 40);
+      const desk = auditValue(params.get('desk'), 40);
+      if (from) { where.push('event_at >= ?'); binds.push(`${from}T00:00:00.000Z`); }
+      if (to) { where.push('event_at <= ?'); binds.push(`${to}T23:59:59.999Z`); }
+      if (stage) { where.push('stage = ?'); binds.push(stage); }
+      if (desk) { where.push('desk_code = ?'); binds.push(desk); }
+      const limit = Math.min(Math.max(Number(params.get('limit') || 10000), 1), 20000);
+      try {
+        const result = await env.AUDIT_LOG.prepare(
+          `SELECT id, event_at, action, stage, desk_code, msnv, staff_name, stt,
+                  customer_name, result, detail, route, actor_role, site
+             FROM audit_logs WHERE ${where.join(' AND ')}
+            ORDER BY event_at DESC LIMIT ?`,
+        ).bind(...binds, limit).all();
+        return json({ code: 0, msg: 'success', data: { items: result.results ?? [] } });
+      } catch (e) {
+        return json({ code: -1, msg: `Không đọc được audit log: ${String(e?.message || e)}` }, 500);
       }
     }
 

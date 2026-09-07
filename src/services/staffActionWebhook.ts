@@ -14,6 +14,7 @@
  * (`confirmed: false`). UI nói đúng sự thật thay vì báo thành công chắc nịch.
  */
 import { adminSessionStore } from '@/config/adminSession';
+import { recordAuditEvent } from '@/services/auditLogApi';
 
 /** Payload gửi lên webhook — key ASCII không dấu, để map trong Lark cho gọn. */
 export interface StaffActionPayload {
@@ -161,6 +162,7 @@ export async function sendStaffAction(
       }
       throw new Error(`Webhook trả về HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
     }
+    recordAuditEvent({ action: payload.action === 'tiep_nhan' ? 'Tiếp nhận khách' : payload.action === 'hoan_tat' ? 'Hoàn tất khách' : payload.action === 'thu_may' ? 'Thu máy nhanh' : 'Bàn giao kho', stage: payload.phanLoai || 'Kho', deskCode: payload.maBan, msnv: payload.msnv, staffName: payload.hoTen, stt: payload.stt, customerName: payload.hoTen, result: 'success' });
     return { confirmed: true };
   } catch (err) {
     // Chỉ `TypeError` mới là "fetch không đi được" (CORS/mạng); lỗi HTTP ở trên

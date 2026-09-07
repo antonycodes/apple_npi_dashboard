@@ -18,6 +18,7 @@ import { adminSessionStore } from '@/config/adminSession';
 import type { LarkSettings } from '@/config/larkSettings';
 import { DEFAULT_API_URL } from '@/config/larkConfig';
 import { workerBaseUrl } from './adminApi';
+import { recordAuditEvent } from './auditLogApi';
 
 /**
  * URL công khai của Worker mà mọi máy nhân viên có thể dùng để bootstrap.
@@ -73,6 +74,7 @@ async function parse(res: Response): Promise<{ data?: unknown }> {
 export async function fetchSharedSettings(signal?: AbortSignal): Promise<SharedSettingsEnvelope> {
   const res = await fetch(`${sharedConfigWorkerUrl()}/config/app`, { signal });
   const body = await parse(res);
+  recordAuditEvent({ action: 'Cập nhật cấu hình dùng chung', stage: 'Admin', result: 'success' });
   return body.data as SharedSettingsEnvelope;
 }
 

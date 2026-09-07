@@ -186,6 +186,7 @@ function AdminHome({ name }: { name: string }) {
     { href: '/dashboard', label: 'Dashboard Admin' },
     { href: '/check-in', label: 'Check-in khách' },
     { href: '/settings', label: 'Cài đặt' },
+    { href: '/admin/logs', label: 'Quản lý & tải log' },
   ];
 
   return (

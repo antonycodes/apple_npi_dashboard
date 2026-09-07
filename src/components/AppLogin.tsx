@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import { SITE_BRAND } from '@/config/siteBrand';
 import { login } from '@/services/adminApi';
+import { recordAuditEvent } from '@/services/auditLogApi';
 
 /** MSNV lần trước — tiện cho máy dùng riêng, không phải bí mật gì. */
 const LS_LAST_USER = 'npievent-aio-user-v1';
@@ -48,7 +49,14 @@ export default function AppLogin({
     setError(null);
     try {
       const account = (fixedUsername ?? username).trim().toUpperCase();
-      await login(account, password);
+      const session = await login(account, password);
+      recordAuditEvent({
+        action: 'Đăng nhập',
+        stage: session.role === 'admin' ? 'Admin' : session.role === 'kho' ? 'Kho' : session.role === 'dieuphoi' ? 'Điều phối' : session.workspaces[0]?.loai || 'Nhân sự',
+        deskCode: session.desk,
+        msnv: session.msnv,
+        staffName: session.name,
+      });
       try {
         localStorage.setItem(LS_LAST_USER, account);
       } catch {

@@ -22,6 +22,7 @@
  * cổng đăng nhập chỉ còn tác dụng ở mức giao diện.
  */
 import { adminSessionStore } from '@/config/adminSession';
+import { recordAuditEvent } from '@/services/auditLogApi';
 
 /** Payload gửi lên webhook — key ASCII, không dấu, để map trong Lark cho gọn. */
 export interface DispatchFormPayload {
@@ -101,6 +102,7 @@ export async function sendDispatchForm(
     } catch {
       // Webhook cũ có thể trả text hoặc body rỗng.
     }
+    recordAuditEvent({ action: payload.daySms ? 'Đẩy SMS điều phối' : 'Gọi điều phối', stage: payload.phanLoai || 'Điều phối', deskCode: payload.maBan, msnv: payload.msnv, staffName: payload.nhanSu, stt: payload.stt, customerName: '', result: 'success' });
     return { confirmed: true, written };
   } catch (err) {
     // Chỉ `TypeError` mới là "fetch không đi được" (CORS/mạng); lỗi HTTP ở
@@ -113,6 +115,7 @@ export async function sendDispatchForm(
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
       body,
     });
+    recordAuditEvent({ action: payload.daySms ? 'Đẩy SMS điều phối' : 'Gọi điều phối', stage: payload.phanLoai || 'Điều phối', deskCode: payload.maBan, msnv: payload.msnv, staffName: payload.nhanSu, stt: payload.stt, result: 'success', detail: 'Đã gửi nhưng chưa đọc được phản hồi Worker' });
     return { confirmed: false };
   }
 }

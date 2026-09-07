@@ -36,6 +36,13 @@
       "id": "4c310d2bfd1f4295aa980b05f913cfba"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "AUDIT_LOG",
+      "database_name": "vhws-app-audit-log",
+      "database_id": "0924c726-fd42-46b6-ae6a-9f8aa97c0ffc"
+    }
+  ],
   "r2_buckets": [
     {
       "binding": "GUEST_MEDIA",

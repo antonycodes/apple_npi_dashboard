@@ -30,6 +30,7 @@ import StaffPage from './pages/StaffPage';
 import GuestPage from './pages/GuestPage';
 import CheckinPage from './pages/CheckinPage';
 import SmsPage from './pages/SmsPage';
+import ActivityLogPage from './pages/ActivityLogPage';
 import GlobalSessionBar from './components/GlobalSessionBar';
 import { useAdminInfo, useAdminToken } from './config/adminSession';
 
@@ -46,7 +47,8 @@ type Route =
         | 'checkin'
         | 'sms'
         | 'staff'
-        | 'app';
+        | 'app'
+        | 'activityLogs';
     }
   | { kind: 'desk'; deskId: string };
 
@@ -69,6 +71,7 @@ const PROTECTED_ROUTE_KINDS = new Set<Route['kind']>([
   'checkin',
   'sms',
   'settings',
+  'activityLogs',
   'staff',
   'desk',
 ]);
@@ -94,10 +97,11 @@ function useAppRoute(): Route {
   const legacyPath = hashPath(window.location.hash);
   const path = legacyPath || pathname;
   if (path === 'dashboard' || path === 'admin-dashboard') return { kind: 'dashboard' };
-  if (path.startsWith('admin')) return { kind: 'app' };
   if (path === 'guest' || path.startsWith('guest/')) return { kind: 'guest' };
   if (path === 'check-in' || path.startsWith('check-in/')) return { kind: 'checkin' };
   if (path === 'sms' || path.startsWith('sms/')) return { kind: 'sms' };
+  if (path === 'admin/logs' || path === 'admin/activity-logs') return { kind: 'activityLogs' };
+  if (path.startsWith('admin')) return { kind: 'app' };
   if (path.startsWith('settings')) return { kind: 'settings' };
   if (path === 'mock') return { kind: 'dashboard' };
   if (path.startsWith('tuvanview')) return { kind: 'tuvanview' };
@@ -137,6 +141,7 @@ export default function App() {
   else if (route.kind === 'guest') page = <GuestPage />;
   else if (route.kind === 'checkin') page = <CheckinPage />;
   else if (route.kind === 'sms') page = <SmsPage />;
+  else if (route.kind === 'activityLogs') page = <ActivityLogPage />;
   else if (route.kind === 'tuvanview') page = <QueueBoardPage cluster="consult" />;
   else if (route.kind === 'thucuview') page = <QueueBoardPage cluster="tradein" />;
   else if (route.kind === 'backupview') page = <QueueBoardPage cluster="backup" />;
