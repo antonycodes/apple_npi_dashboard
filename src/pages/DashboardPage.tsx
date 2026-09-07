@@ -15,7 +15,7 @@ import StatusLegend from '@/components/StatusLegend';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import DeskAlertNotifications from '@/components/DeskAlertNotifications';
-import { canSendSms, useAdminInfo } from '@/config/adminSession';
+import { adminSessionStore, canSendSms, useAdminInfo } from '@/config/adminSession';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
@@ -23,7 +23,7 @@ import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { formatElapsed } from '@/config/staffTimers';
 import type { WaitingZoneKey } from '@/types/desk';
 import { isTradeInCustomer } from '@/utils/tradeInFilter';
-import { acknowledgeDeskAlert, subscribeDeskAlerts } from '@/services/dashboardRealtime';
+import { acknowledgeDeskAlert, resetDeskAlerts, subscribeDeskAlerts } from '@/services/dashboardRealtime';
 import { deskAlertStatus, type DeskAlert } from '@/services/deskAlerts';
 import { SITE_BRAND } from '@/config/siteBrand';
 
@@ -71,6 +71,10 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
       realtimeApiUrl,
       (alert) => setDeskAlerts((current) => [...current.filter((item) => item.id !== alert.id), alert]),
       (alertId) => setDeskAlerts((current) => current.filter((alert) => alert.id !== alertId)),
+      () => {
+        setDeskAlerts([]);
+        setDeskAlertNotifications([]);
+      },
     );
   }, [realtimeApiUrl, simulation]);
 
@@ -108,6 +112,13 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
         : item));
     }
   }, [guestRoom, realtimeApiUrl, session, simulation]);
+
+  const resetSupport = useCallback(() => {
+    if (simulation || session?.role !== 'admin') return;
+    const confirmed = window.confirm('Reset toàn bộ yêu cầu hỗ trợ trên Dashboard?');
+    if (!confirmed) return;
+    void resetDeskAlerts(realtimeApiUrl, adminSessionStore.getSnapshot());
+  }, [realtimeApiUrl, session?.role, simulation]);
 
   useEffect(() => {
     if (!showGuestQr || !guestRoom?.joinUrl) {
@@ -334,6 +345,8 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
                 onSelectOvertimeDesk={handleSelect}
                 supportAlerts={visibleDeskAlerts}
                 onSelectSupportDesk={handleSelect}
+                canResetSupport={session?.role === 'admin' && !simulation}
+                onResetSupport={resetSupport}
                 readOnly={!canDispatch}
                 endFlowCount={endFlow.length}
                 endFlowOpen={showEndFlow}

@@ -4,6 +4,7 @@ import type { DeskAlert } from './deskAlerts';
 type RealtimeListener = (tables?: LarkTables) => void;
 type AlertListener = (alert: DeskAlert) => void;
 type AlertClearedListener = (alertId: string) => void;
+type AlertResetListener = () => void;
 
 let socket: WebSocket | null = null;
 let socketUrl = '';
@@ -12,6 +13,7 @@ let reconnectDelay = 1000;
 const listeners = new Set<RealtimeListener>();
 const alertListeners = new Set<AlertListener>();
 const alertClearedListeners = new Set<AlertClearedListener>();
+const alertResetListeners = new Set<AlertResetListener>();
 
 function toWebSocketUrl(apiUrl: string): string {
   const url = new URL(apiUrl);
@@ -27,7 +29,7 @@ function notify(tables?: LarkTables) {
 }
 
 function scheduleReconnect() {
-  if ((!listeners.size && !alertListeners.size && !alertClearedListeners.size) || reconnectTimer !== null) return;
+    if ((!listeners.size && !alertListeners.size && !alertClearedListeners.size && !alertResetListeners.size) || reconnectTimer !== null) return;
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = null;
     connect();
@@ -61,6 +63,9 @@ function connect() {
       if (message.type === 'desk-alert-cleared' && message.alertId) {
         for (const listener of alertClearedListeners) listener(String(message.alertId));
       }
+      if (message.type === 'desk-alerts-reset') {
+        for (const listener of alertResetListeners) listener();
+      }
     } catch {
       // Ignore malformed frames; the next fallback poll remains authoritative.
     }
@@ -85,7 +90,7 @@ export function subscribeDashboardRealtime(apiUrl: string | undefined, listener:
 
   return () => {
     listeners.delete(listener);
-    if (!listeners.size && !alertListeners.size && !alertClearedListeners.size) {
+    if (!listeners.size && !alertListeners.size && !alertClearedListeners.size && !alertResetListeners.size) {
       if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
       reconnectTimer = null;
       socket?.close();
@@ -94,7 +99,7 @@ export function subscribeDashboardRealtime(apiUrl: string | undefined, listener:
   };
 }
 
-function subscribeAlerts(apiUrl: string | undefined, onAlert: AlertListener, onCleared: AlertClearedListener): () => void {
+function subscribeAlerts(apiUrl: string | undefined, onAlert: AlertListener, onCleared: AlertClearedListener, onReset?: AlertResetListener): () => void {
   if (!apiUrl || typeof window === 'undefined' || typeof WebSocket === 'undefined') return () => undefined;
   const nextUrl = toWebSocketUrl(apiUrl);
   if (socketUrl !== nextUrl) {
@@ -104,11 +109,13 @@ function subscribeAlerts(apiUrl: string | undefined, onAlert: AlertListener, onC
   }
   alertListeners.add(onAlert);
   alertClearedListeners.add(onCleared);
+  if (onReset) alertResetListeners.add(onReset);
   connect();
   return () => {
     alertListeners.delete(onAlert);
     alertClearedListeners.delete(onCleared);
-    if (!listeners.size && !alertListeners.size && !alertClearedListeners.size) {
+    if (onReset) alertResetListeners.delete(onReset);
+    if (!listeners.size && !alertListeners.size && !alertClearedListeners.size && !alertResetListeners.size) {
       if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
       reconnectTimer = null;
       socket?.close();
@@ -121,8 +128,9 @@ export function subscribeDeskAlerts(
   apiUrl: string | undefined,
   onAlert: AlertListener,
   onCleared: AlertClearedListener,
+  onReset?: AlertResetListener,
 ): () => void {
-  return subscribeAlerts(apiUrl, onAlert, onCleared);
+  return subscribeAlerts(apiUrl, onAlert, onCleared, onReset);
 }
 
 export function sendDeskAlert(apiUrl: string | undefined, alert: Omit<DeskAlert, 'id' | 'createdAt'>): boolean {
@@ -145,4 +153,18 @@ export function acknowledgeDeskAlert(
     acknowledgedByMsnv,
   }));
   return true;
+}
+
+export async function resetDeskAlerts(apiUrl: string | undefined, token: string): Promise<boolean> {
+  if (!apiUrl || !token) return false;
+  try {
+    const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/realtime/reset-alerts`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await response.json() as { code?: number };
+    return response.ok && body.code === 0;
+  } catch {
+    return false;
+  }
 }

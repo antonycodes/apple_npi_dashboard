@@ -1,165 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeftIcon, DownloadIcon, RefreshIcon } from '@/components/AppShellIcons';
+import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useAdminInfo, logoutToApp } from '@/config/adminSession';
-import { ALL_POSITIONS } from '@/config/layoutConfig';
-import { deleteAdminAuditLogs, fetchAuditLogs, downloadAuditLogExcel, recordAuditEvent, type AuditLogItem } from '@/services/auditLogApi';
+import { DEFAULT_FIELD_CONFIG, useLarkSettings } from '@/config/larkSettings';
 import { useDashboardData } from '@/hooks/useDashboardData';
-import { useLarkSettings } from '@/config/larkSettings';
+import { operationsLogMockTables } from '@/data/operationsLogMockData';
 import OperationsLogPanel from '@/components/OperationsLogPanel';
 
-const STAGES = ['Tất cả', 'Điều phối', 'Tư vấn', 'Thu cũ', 'Backup', 'Kho', 'Admin'];
-const FIXED_DESKS_BY_STAGE: Record<string, string[]> = {
-  'Điều phối': ['DP1', 'DP2', 'DP3', 'DP4'],
-  'Tư vấn': ALL_POSITIONS.filter((item) => item.cluster === 'consult').map((item) => item.id),
-  'Thu cũ': ALL_POSITIONS.filter((item) => item.cluster === 'tradein').map((item) => item.id),
-  Backup: ALL_POSITIONS.filter((item) => item.cluster === 'backup').map((item) => item.id),
-  Kho: [],
-  Admin: [],
-};
-
-function today() { return new Date().toISOString().slice(0, 10); }
-function firstOfMonth() { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); }
-
-function customerKeyOf(item: AuditLogItem): string {
-  return item.customerKey || `${item.stt || ''}|${item.customerName || ''}`;
-}
-
-function CustomerDetail({ item, timeline, onClose }: { item: AuditLogItem; timeline: AuditLogItem[]; onClose: () => void }) {
-  const data = item.customerData ?? {};
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-neutral-950/30 p-3 sm:items-center" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-neutral-200 bg-white p-5 shadow-[0_18px_50px_rgba(17,24,39,0.16)]" role="dialog" aria-modal="true" aria-labelledby="customer-detail-title">
-        <div className="flex items-start justify-between gap-4 border-b border-neutral-200 pb-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Khách được phục vụ</p>
-            <h2 id="customer-detail-title" className="mt-1 text-xl font-black text-neutral-950">{item.customerName || 'Chưa có tên khách'}</h2>
-            <p className="mt-1 text-sm text-neutral-500">STT {item.stt || '—'} · {item.deskCode || 'Chưa có vị trí'} · {item.stage || '—'}</p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-lg border border-neutral-300 px-3 py-2 text-sm font-bold hover:bg-neutral-50">Đóng</button>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {[
-            ['Vị trí', item.deskCode || '—'],
-            ['Nhân sự', [item.msnv, item.staffName].filter(Boolean).join(' — ') || '—'],
-            ['Có Backup', data.backupDecision || 'Chưa ghi nhận'],
-            ['Thu máy', data.tradeInTiming || 'Chưa ghi nhận'],
-            ['IMEI', data.imei || '—'],
-            ['Mã QR / Serial', data.scanQr || '—'],
-            ['Tình trạng máy', data.deviceCondition || '—'],
-          ].map(([label, value]) => <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2"><p className="text-xs font-bold text-neutral-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-neutral-900">{value}</p></div>)}
-        </div>
-        <div className="mt-5">
-          <h3 className="text-sm font-black text-neutral-950">Lịch sử hoạt động</h3>
-          <div className="mt-2 divide-y divide-neutral-100 rounded-lg border border-neutral-200">
-            {timeline.map((entry) => <div key={entry.id} className="grid gap-1 px-3 py-3 sm:grid-cols-[150px_1fr_auto] sm:items-center"><span className="font-mono text-xs text-neutral-500">{new Date(entry.event_at).toLocaleString('vi-VN')}</span><span className="text-sm font-semibold">{entry.action}<span className="ml-2 text-xs font-normal text-neutral-500">{entry.deskCode || '—'} · {entry.msnv || '—'}</span></span><span className="text-xs font-bold text-neutral-500">{entry.result}</span></div>)}
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-export default function ActivityLogPage() {
+export default function ActivityLogPage({ mock = false }: { mock?: boolean }) {
   const session = useAdminInfo();
-  const [rows, setRows] = useState<AuditLogItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [stages, setStages] = useState<string[]>(['Tất cả']);
-  const [stageMenuOpen, setStageMenuOpen] = useState(false);
-  const [desk, setDesk] = useState('');
-  const [from, setFrom] = useState(firstOfMonth);
-  const [to, setTo] = useState(today);
-  const [selectedCustomer, setSelectedCustomer] = useState<AuditLogItem | null>(null);
-  const [tab, setTab] = useState<'operations' | 'system'>('operations');
-  const { roster, tables, loading: operationsLoading, refresh: refreshOperations } = useDashboardData();
+  const { tables, loading, refresh } = useDashboardData({ forceMock: mock });
   const settings = useLarkSettings();
+  const pageTables = mock ? operationsLogMockTables : tables;
+  const pageFields = mock ? DEFAULT_FIELD_CONFIG : settings.fields;
 
-  const load = async () => {
-    setLoading(true); setError(null);
-    try {
-      setRows(await fetchAuditLogs({ from, to, stage: stages.includes('Tất cả') ? [] : stages }));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally { setLoading(false); }
-  };
-  useEffect(() => { void load(); }, [stages, from, to]);
-
-  const deskOptions = useMemo(() => {
-    const rosterDesks = roster
-      .filter((item) => stages.includes('Tất cả') || stages.includes(item.loai))
-      .map((item) => item.deskCode);
-    const fixed = stages.includes('Tất cả') ? Object.values(FIXED_DESKS_BY_STAGE).flat() : stages.flatMap((item) => FIXED_DESKS_BY_STAGE[item] ?? []);
-    const logged = rows.map((item) => item.deskCode).filter(Boolean) as string[];
-    return Array.from(new Set([...fixed, ...rosterDesks, ...logged])).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [roster, rows, stages]);
-  const deskLabel = (deskCode: string) => {
-    const staff = roster.find((item) => item.deskCode === deskCode && (stages.includes('Tất cả') || stages.includes(item.loai)));
-    if (!staff) return deskCode;
-    const identity = [staff.staffId, staff.staffName].filter(Boolean).join(' — ');
-    return identity ? `${deskCode} — ${identity}` : deskCode;
-  };
-  const visibleRows = useMemo(() => desk ? rows.filter((item) => item.deskCode === desk) : rows, [desk, rows]);
-  const customerTimeline = useMemo(() => {
-    if (!selectedCustomer) return [];
-    const key = customerKeyOf(selectedCustomer);
-    return visibleRows.filter((item) => customerKeyOf(item) === key).sort((a, b) => a.event_at.localeCompare(b.event_at));
-  }, [selectedCustomer, visibleRows]);
-  const adminOnly = stages.length === 1 && stages[0] === 'Admin';
-  const stageSummary = stages.includes('Tất cả') ? 'Tất cả phân loại' : stages.join(', ');
-  const toggleStage = (value: string) => {
-    if (value === 'Tất cả') {
-      setStages(['Tất cả']);
-      setDesk('');
-      return;
-    }
-    setStages((current) => {
-      const withoutAll = current.filter((item) => item !== 'Tất cả');
-      const next = withoutAll.includes(value) ? withoutAll.filter((item) => item !== value) : [...withoutAll, value];
-      return next.length ? next : ['Tất cả'];
-    });
-    setDesk('');
-  };
-  const removeAdminLogs = async () => {
-    if (!adminOnly || !visibleRows.length) return;
-    const confirmed = window.confirm(`Có ${visibleRows.length.toLocaleString('vi-VN')} log Admin trong khoảng thời gian đã chọn.\n\nXóa vĩnh viễn các log này?`);
-    if (!confirmed) return;
-    setLoading(true);
-    try {
-      const deleted = await deleteAdminAuditLogs(from, to);
-      setRows([]);
-      setDesk('');
-      setError(deleted ? `Đã xóa ${deleted.toLocaleString('vi-VN')} log Admin.` : 'Không có log Admin để xóa.');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally { setLoading(false); }
-  };
-  if (session?.role !== 'admin') return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Chỉ tài khoản Admin được xem và tải audit log.</p></main>;
+  if (!mock && session?.role !== 'admin') return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Bạn không có quyền xem nhật ký vận hành.</p></main>;
 
   return (
     <main className="min-h-screen bg-[#f7f6f3] px-4 py-6 text-neutral-800 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-200 pb-5">
-          <div><a href="/app" className="inline-flex items-center gap-2 text-sm font-bold text-neutral-500 hover:text-neutral-900"><ArrowLeftIcon className="h-4 w-4" /> Quản trị</a><h1 className="mt-4 text-2xl font-black tracking-tight text-neutral-950">Nhật ký vận hành</h1><p className="mt-1 text-sm text-neutral-500">Theo dõi hành trình khách và audit hệ thống.</p></div>
-          <button type="button" onClick={logoutToApp} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold text-red-700 hover:bg-red-50">Đăng xuất</button>
+          <div><a href={mock ? '/admin/logs' : '/app'} className="inline-flex items-center gap-2 text-sm font-bold text-neutral-500 hover:text-neutral-900"><ArrowLeftIcon className="h-4 w-4" /> {mock ? 'Nhật ký thật' : 'Quản trị'}</a><h1 className="mt-4 text-2xl font-black tracking-tight text-neutral-950">Nhật ký vận hành{mock ? ' · Mock data' : ''}</h1><p className="mt-1 text-sm text-neutral-500">Theo dõi hành trình khách qua tất cả các khâu.</p></div>
+          {!mock && <button type="button" onClick={logoutToApp} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold text-red-700 hover:bg-red-50">Đăng xuất</button>}
         </header>
-        <nav className="mt-5 flex gap-2 border-b border-neutral-200" aria-label="Loại nhật ký">
-          {([['operations', 'Nhật ký vận hành'], ['system', 'Audit hệ thống']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setTab(value)} className={`border-b-2 px-3 py-3 text-sm font-bold ${tab === value ? 'border-neutral-900 text-neutral-950' : 'border-transparent text-neutral-500 hover:text-neutral-900'}`}>{label}</button>)}
-        </nav>
-        {tab === 'operations' && <OperationsLogPanel tables={tables} fields={settings.fields} loading={operationsLoading} refresh={refreshOperations} />}
-        {tab === 'system' && <>
-        <section className="mt-6 border border-neutral-200 bg-white p-4 sm:p-5">
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="relative grid gap-2 text-sm font-bold"><span>Phân loại</span><button type="button" onClick={() => setStageMenuOpen((open) => !open)} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 text-left font-medium">{stageSummary}</button>{stageMenuOpen && <div className="absolute inset-x-0 top-[calc(100%+4px)] z-20 rounded-lg border border-neutral-200 bg-white p-2 shadow-[0_12px_30px_rgba(17,24,39,0.12)]">{STAGES.map((item) => <label key={item} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm font-medium hover:bg-neutral-50"><input type="checkbox" checked={stages.includes(item)} onChange={() => toggleStage(item)} />{item}</label>)}</div>}</div>
-            <label className="grid gap-2 text-sm font-bold md:col-span-2">Vị trí nhân sự<select value={desk} onChange={(e) => setDesk(e.target.value)} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 font-medium"><option value="">Tất cả vị trí</option>{deskOptions.map((item) => <option key={item} value={item}>{deskLabel(item)}</option>)}</select></label>
-            <div className="mt-auto flex gap-2"><button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50 disabled:opacity-60"><RefreshIcon className="h-4 w-4" />{loading ? 'Đang tải…' : 'Lọc log'}</button>{adminOnly && <button type="button" onClick={() => void removeAdminLogs()} disabled={loading || !visibleRows.length} className="min-h-11 rounded-lg bg-red-700 px-3 text-xs font-bold text-white hover:bg-red-800 disabled:opacity-40">Xóa log Admin</button>}</div>
-          </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="grid gap-2 text-sm font-bold">Từ ngày<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="min-h-11 rounded-lg border border-neutral-300 px-3" /></label><label className="grid gap-2 text-sm font-bold">Đến ngày<input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="min-h-11 rounded-lg border border-neutral-300 px-3" /></label></div>
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-4"><div><p className="text-lg font-black">{visibleRows.length.toLocaleString('vi-VN')} log</p><p className="text-xs text-neutral-500">Nguồn: audit log riêng của app</p></div><button type="button" disabled={loading || !visibleRows.length} onClick={() => { recordAuditEvent({ action: 'Tải audit log', stage: 'Admin', result: 'success', detail: `${visibleRows.length} dòng` }); downloadAuditLogExcel(visibleRows, `audit-log-${today()}.xls`); }} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-neutral-900 px-4 text-sm font-bold text-white hover:bg-neutral-700 disabled:opacity-40"><DownloadIcon className="h-4 w-4" /> Tải Excel</button></div>
-        </section>
-        {error && <p className="mt-4 border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Không tải được audit log: {error}</p>}
-        <section className="mt-5 overflow-hidden border border-neutral-200 bg-white"><div className="overflow-x-auto"><table className="min-w-[760px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500"><tr>{['Thời gian app', 'Phân loại', 'Hành động', 'Kết quả', 'Khách'].map((item) => <th key={item} className="border-b border-neutral-200 px-3 py-3 font-bold">{item}</th>)}</tr></thead><tbody>{visibleRows.slice(0, 200).map((item) => <tr key={item.id} className="border-b border-neutral-100"><td className="whitespace-nowrap px-3 py-3 font-mono text-xs">{new Date(item.event_at).toLocaleString('vi-VN')}</td><td className="px-3 py-3 font-bold">{item.stage || '—'}</td><td className="px-3 py-3">{item.action}</td><td className="px-3 py-3 font-semibold">{item.result}</td><td className="px-3 py-3"><button type="button" disabled={!item.customerName && !item.stt} onClick={() => setSelectedCustomer(item)} className="text-left font-semibold text-brand underline-offset-2 hover:underline disabled:cursor-default disabled:text-neutral-500 disabled:no-underline">{item.customerName || 'Chưa có thông tin khách'}{item.stt ? <span className="ml-2 text-xs font-normal text-neutral-500">STT {item.stt}</span> : null}</button></td></tr>)}{!loading && !visibleRows.length && <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-neutral-500">Chưa có audit log theo bộ lọc.</td></tr>}</tbody></table></div>{visibleRows.length > 200 && <p className="border-t border-neutral-100 px-4 py-3 text-xs text-neutral-500">Xem trước 200 dòng; file Excel chứa toàn bộ {visibleRows.length.toLocaleString('vi-VN')} dòng.</p>}</section>
-        {selectedCustomer && <CustomerDetail item={selectedCustomer} timeline={customerTimeline} onClose={() => setSelectedCustomer(null)} />}
-        </>}
+        {mock && <p className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Đây là dữ liệu mẫu. Không đọc hoặc ghi dữ liệu Lark.</p>}
+        <OperationsLogPanel tables={pageTables} fields={pageFields} loading={mock ? false : loading} refresh={mock ? () => undefined : refresh} />
       </div>
     </main>
   );

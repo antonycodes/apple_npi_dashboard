@@ -1331,6 +1331,12 @@ export class DashboardSnapshotCoordinator extends DurableObject {
       this.checkinWriteQueue = run.then(() => undefined, () => undefined);
       return run;
     }
+    if (request.method === 'POST' && path === 'reset-alerts') {
+      this.activeAlerts.clear();
+      await this.ctx.storage.delete('desk-alerts');
+      this.broadcast({ type: 'desk-alerts-reset' });
+      return json({ code: 0, msg: 'success' });
+    }
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
       return json({ code: -1, msg: 'WebSocket Upgrade required' }, 426);
     }
@@ -2214,6 +2220,21 @@ export default {
         const coordinator = dashboardSnapshotCoordinator(env);
         await coordinator.setSite(env.NPI_SITE);
         return await coordinator.fetch(new Request(request, { headers: { ...Object.fromEntries(request.headers), 'X-NPI-Site': env.NPI_SITE } }));
+      } catch (e) {
+        return json({ code: -1, msg: String(e?.message || e) }, 500);
+      }
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname.endsWith('/realtime/reset-alerts')) {
+      const session = await verifyToken(env, bearer(request));
+      if (session?.role !== 'admin') return json({ code: -1, msg: 'Chỉ admin được reset hỗ trợ.' }, 403);
+      try {
+        const coordinator = dashboardSnapshotCoordinator(env);
+        await coordinator.setSite(env.NPI_SITE);
+        return await coordinator.fetch(new Request('https://dashboard-snapshot/reset-alerts', {
+          method: 'POST',
+          headers: { 'X-NPI-Site': env.NPI_SITE },
+        }));
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);
       }

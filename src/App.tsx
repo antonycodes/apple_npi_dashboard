@@ -48,7 +48,8 @@ type Route =
         | 'sms'
         | 'staff'
         | 'app'
-        | 'activityLogs';
+        | 'activityLogs'
+        | 'activityLogsMock';
     }
   | { kind: 'desk'; deskId: string };
 
@@ -100,6 +101,7 @@ function useAppRoute(): Route {
   if (path === 'guest' || path.startsWith('guest/')) return { kind: 'guest' };
   if (path === 'check-in' || path.startsWith('check-in/')) return { kind: 'checkin' };
   if (path === 'sms' || path.startsWith('sms/')) return { kind: 'sms' };
+  if (path === 'admin/logs/mock') return { kind: 'activityLogsMock' };
   if (path === 'admin/logs' || path === 'admin/activity-logs') return { kind: 'activityLogs' };
   if (path.startsWith('admin')) return { kind: 'app' };
   if (path.startsWith('settings')) return { kind: 'settings' };
@@ -142,6 +144,7 @@ export default function App() {
   else if (route.kind === 'checkin') page = <CheckinPage />;
   else if (route.kind === 'sms') page = <SmsPage />;
   else if (route.kind === 'activityLogs') page = <ActivityLogPage />;
+  else if (route.kind === 'activityLogsMock') page = <ActivityLogPage mock />;
   else if (route.kind === 'tuvanview') page = <QueueBoardPage cluster="consult" />;
   else if (route.kind === 'thucuview') page = <QueueBoardPage cluster="tradein" />;
   else if (route.kind === 'backupview') page = <QueueBoardPage cluster="backup" />;

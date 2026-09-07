@@ -26,6 +26,8 @@ interface FilterBarProps {
   onTogglePendingDevice: () => void;
   supportAlerts: DeskAlert[];
   onSelectSupportDesk: (deskId: string) => void;
+  canResetSupport: boolean;
+  onResetSupport: () => void;
 }
 
 export interface OvertimeDesk {
@@ -48,6 +50,8 @@ export default function FilterBar({
   onTogglePendingDevice,
   supportAlerts,
   onSelectSupportDesk,
+  canResetSupport,
+  onResetSupport,
 }: FilterBarProps) {
   const [overtimeOpen, setOvertimeOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
@@ -138,7 +142,7 @@ export default function FilterBar({
             style={supportPosition}
           >
             <div className="flex items-center justify-between gap-3 px-2 pb-2">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-400">GỌI ĐIỀU PHỐI HỖ TRỢ</p>
+              <div><p className="text-[11px] font-bold uppercase tracking-wide text-neutral-400">GỌI ĐIỀU PHỐI HỖ TRỢ</p>{canResetSupport && <button type="button" onClick={onResetSupport} className="mt-1 text-[10px] font-bold text-red-600 hover:text-red-800">Reset hỗ trợ</button>}</div>
               <div className="flex gap-1" role="group" aria-label="Lọc yêu cầu hỗ trợ">
                 {([
                   ['all', 'Tất cả'],
