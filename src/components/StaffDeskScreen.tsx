@@ -607,6 +607,11 @@ export default function StaffDeskScreen({
     setActionError(null);
     setSending(true);
     try {
+      // Snapshot này là khách đã xác nhận trong form. Không đọc lại
+      // `DS Master.STT tiếp theo`: đó là hàng đợi, không phải audit context.
+      const submittedStt = stt || formCustomer?.stt?.trim() || '';
+      const submittedName = values.hoTen.trim() || formCustomer?.name?.trim() || '';
+      const submittedDesk = values.maBan.trim() || view.id;
       if (simulation) {
         if (formAction === 'hoan_tat') completeCustomer(stt);
         else {
@@ -717,11 +722,11 @@ export default function StaffDeskScreen({
       await sendStaffAction(webhookUrl, {
         action: formAction ?? 'tiep_nhan',
         trangThai: formAction === 'hoan_tat' ? 'Hoàn tất' : 'Tiếp nhận',
-        stt,
-        hoTen: values.hoTen.trim(),
+        stt: submittedStt,
+        hoTen: submittedName,
         // Form hiển thị lại mã bàn để nhân sự đối chiếu. Nếu dữ liệu cũ thiếu
         // mã bàn, lấy mã bàn của màn hình đang mở để audit không bị mất vị trí.
-        maBan: values.maBan.trim() || view.id,
+        maBan: submittedDesk,
         msnv: submitByMsnv,
         auditStaffName: view.staffName ?? undefined,
         phanLoai: values.phanLoai || STAGE_LABEL[view.cluster],
