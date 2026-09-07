@@ -547,6 +547,18 @@ function auditValue(value, max = 240) {
   return String(value ?? '').trim().slice(0, max);
 }
 
+function auditRoleFromAction(deskCode, stage, fallback) {
+  const desk = auditValue(deskCode, 40).toUpperCase();
+  if (/^TV\d+$/.test(desk)) return 'Tư vấn';
+  if (/^TC\d+$/.test(desk)) return 'Thu cũ';
+  if (/^BK\d+$/.test(desk)) return 'Backup';
+  if (/^DP\d+$/.test(desk)) return 'Điều phối';
+  if (/^KHO\d+$/.test(desk)) return 'Kho';
+  const actionStage = auditValue(stage, 40);
+  if (['Tư vấn', 'Thu cũ', 'Backup', 'Điều phối', 'Kho'].includes(actionStage)) return actionStage;
+  return fallback;
+}
+
 async function insertAuditLog(env, input) {
   if (!env.AUDIT_LOG) return;
   await env.AUDIT_LOG.prepare(`
@@ -2529,11 +2541,12 @@ export default {
       let body = {};
       try { body = await request.json(); } catch { return json({ code: -1, msg: 'Body không phải JSON' }, 400); }
       try {
+        const deskCode = body.deskCode || session.desk.split(',')[0];
         await insertAuditLog(env, {
           ...body,
-          actorRole: session.role,
+          actorRole: auditRoleFromAction(deskCode, body.stage, session.role),
           msnv: body.msnv || session.subject,
-          deskCode: body.deskCode || session.desk.split(',')[0],
+          deskCode,
           route: body.route || requestUrl.pathname,
         });
         return json({ code: 0, msg: 'success' });
@@ -2563,7 +2576,17 @@ export default {
       try {
         const result = await env.AUDIT_LOG.prepare(
           `SELECT id, event_at, action, stage, desk_code, msnv, staff_name, stt,
-                  customer_name, result, detail, route, actor_role, site
+                  customer_name, result, detail, route,
+                  CASE
+                    WHEN desk_code LIKE 'TV%' THEN 'Tư vấn'
+                    WHEN desk_code LIKE 'TC%' THEN 'Thu cũ'
+                    WHEN desk_code LIKE 'BK%' THEN 'Backup'
+                    WHEN desk_code LIKE 'DP%' THEN 'Điều phối'
+                    WHEN desk_code LIKE 'KHO%' THEN 'Kho'
+                    WHEN stage IN ('Tư vấn', 'Thu cũ', 'Backup', 'Điều phối', 'Kho') THEN stage
+                    ELSE actor_role
+                  END AS actor_role,
+                  site
              FROM audit_logs WHERE ${where.join(' AND ')}
             ORDER BY event_at DESC LIMIT ?`,
         ).bind(...binds, limit).all();
