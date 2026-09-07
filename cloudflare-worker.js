@@ -1340,7 +1340,11 @@ export class DashboardSnapshotCoordinator extends DurableObject {
     this.webSockets.add(server);
     server.serializeAttachment({ connectedAt: Date.now() });
     server.send(JSON.stringify({ type: 'connected', generatedAt: new Date().toISOString() }));
-    for (const alert of this.activeAlerts.values()) server.send(JSON.stringify({ type: 'desk-alert', alert }));
+    // Chỉ replay yêu cầu còn chờ. Alert đã tiếp nhận vẫn có thể giữ trong
+    // storage để đối chiếu, nhưng không được biến thành noti mới sau khi F5.
+    for (const alert of this.activeAlerts.values()) {
+      if (!alert.acknowledgedAt) server.send(JSON.stringify({ type: 'desk-alert', alert }));
+    }
     return new Response(null, { status: 101, webSocket: client });
   }
 

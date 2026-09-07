@@ -36,6 +36,7 @@ import StaffReceiveFormModal, { type ReceiveFormValues } from './StaffReceiveFor
 import ThuMayModal, { type ThuMayValues } from './ThuMayModal';
 import type { ClusterKey } from '@/types/desk';
 import { sendDeskAlert } from '@/services/dashboardRealtime';
+import { recordAuditEvent } from '@/services/auditLogApi';
 import { useWarehouseOrders } from '@/hooks/useWarehouseOrders';
 
 /** Trạng thái lạc quan tự huỷ sau 2 phút (NV mở link rồi bỏ ngang). */
@@ -502,6 +503,22 @@ export default function StaffDeskScreen({
       customerName: primary?.name ?? ghost?.name ?? null,
       callerMsnv: submitByMsnv || null,
     });
+    if (sent) {
+      const stt = primary?.stt ?? ghost?.stt ?? '';
+      const customerName = primary?.name ?? ghost?.name ?? '';
+      recordAuditEvent({
+        action: 'Gọi Điều phối hỗ trợ',
+        stage: STAGE_LABEL[view.cluster],
+        deskCode: view.id,
+        msnv: submitByMsnv,
+        staffName: view.staffName ?? undefined,
+        stt: stt || undefined,
+        customerName: customerName || undefined,
+        customerKey: stt || customerName ? `${stt}|${customerName}` : undefined,
+        result: 'success',
+        detail: 'Alert realtime đã gửi đến Dashboard Điều phối',
+      });
+    }
     setDeskAlertMessage(sent ? 'Đã báo Điều phối.' : 'Chưa kết nối Dashboard Điều phối. Vui lòng thử lại.');
   };
 

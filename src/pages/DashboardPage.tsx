@@ -75,8 +75,9 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   }, [realtimeApiUrl, simulation]);
 
   useEffect(() => {
-    const currentIds = new Set(visibleDeskAlerts.map((alert) => alert.id));
-    const addedAlerts = visibleDeskAlerts.filter((alert) => !previousAlertIds.current.has(alert.id));
+    const pendingAlerts = visibleDeskAlerts.filter((alert) => deskAlertStatus(alert) === 'pending');
+    const currentIds = new Set(pendingAlerts.map((alert) => alert.id));
+    const addedAlerts = pendingAlerts.filter((alert) => !previousAlertIds.current.has(alert.id));
     previousAlertIds.current = currentIds;
 
     setDeskAlertNotifications((current) => {
