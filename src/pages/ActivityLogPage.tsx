@@ -4,6 +4,8 @@ import { useAdminInfo, logoutToApp } from '@/config/adminSession';
 import { ALL_POSITIONS } from '@/config/layoutConfig';
 import { deleteAdminAuditLogs, fetchAuditLogs, downloadAuditLogExcel, recordAuditEvent, type AuditLogItem } from '@/services/auditLogApi';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import { useLarkSettings } from '@/config/larkSettings';
+import OperationsLogPanel from '@/components/OperationsLogPanel';
 
 const STAGES = ['Tất cả', 'Điều phối', 'Tư vấn', 'Thu cũ', 'Backup', 'Kho', 'Admin'];
 const FIXED_DESKS_BY_STAGE: Record<string, string[]> = {
@@ -68,7 +70,9 @@ export default function ActivityLogPage() {
   const [from, setFrom] = useState(firstOfMonth);
   const [to, setTo] = useState(today);
   const [selectedCustomer, setSelectedCustomer] = useState<AuditLogItem | null>(null);
-  const { roster } = useDashboardData();
+  const [tab, setTab] = useState<'operations' | 'system'>('operations');
+  const { roster, tables, loading: operationsLoading, refresh: refreshOperations } = useDashboardData();
+  const settings = useLarkSettings();
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -135,9 +139,14 @@ export default function ActivityLogPage() {
     <main className="min-h-screen bg-[#f7f6f3] px-4 py-6 text-neutral-800 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-200 pb-5">
-          <div><a href="/app" className="inline-flex items-center gap-2 text-sm font-bold text-neutral-500 hover:text-neutral-900"><ArrowLeftIcon className="h-4 w-4" /> Quản trị</a><h1 className="mt-4 text-2xl font-black tracking-tight text-neutral-950">Audit log hoạt động app</h1><p className="mt-1 text-sm text-neutral-500">Dữ liệu do app ghi nhận, độc lập với lịch sử nghiệp vụ trong Lark Base.</p></div>
+          <div><a href="/app" className="inline-flex items-center gap-2 text-sm font-bold text-neutral-500 hover:text-neutral-900"><ArrowLeftIcon className="h-4 w-4" /> Quản trị</a><h1 className="mt-4 text-2xl font-black tracking-tight text-neutral-950">Nhật ký vận hành</h1><p className="mt-1 text-sm text-neutral-500">Theo dõi hành trình khách và audit hệ thống.</p></div>
           <button type="button" onClick={logoutToApp} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold text-red-700 hover:bg-red-50">Đăng xuất</button>
         </header>
+        <nav className="mt-5 flex gap-2 border-b border-neutral-200" aria-label="Loại nhật ký">
+          {([['operations', 'Nhật ký vận hành'], ['system', 'Audit hệ thống']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setTab(value)} className={`border-b-2 px-3 py-3 text-sm font-bold ${tab === value ? 'border-neutral-900 text-neutral-950' : 'border-transparent text-neutral-500 hover:text-neutral-900'}`}>{label}</button>)}
+        </nav>
+        {tab === 'operations' && <OperationsLogPanel tables={tables} fields={settings.fields} loading={operationsLoading} refresh={refreshOperations} />}
+        {tab === 'system' && <>
         <section className="mt-6 border border-neutral-200 bg-white p-4 sm:p-5">
           <div className="grid gap-4 md:grid-cols-4">
             <div className="relative grid gap-2 text-sm font-bold"><span>Phân loại</span><button type="button" onClick={() => setStageMenuOpen((open) => !open)} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 text-left font-medium">{stageSummary}</button>{stageMenuOpen && <div className="absolute inset-x-0 top-[calc(100%+4px)] z-20 rounded-lg border border-neutral-200 bg-white p-2 shadow-[0_12px_30px_rgba(17,24,39,0.12)]">{STAGES.map((item) => <label key={item} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm font-medium hover:bg-neutral-50"><input type="checkbox" checked={stages.includes(item)} onChange={() => toggleStage(item)} />{item}</label>)}</div>}</div>
@@ -150,6 +159,7 @@ export default function ActivityLogPage() {
         {error && <p className="mt-4 border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Không tải được audit log: {error}</p>}
         <section className="mt-5 overflow-hidden border border-neutral-200 bg-white"><div className="overflow-x-auto"><table className="min-w-[760px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500"><tr>{['Thời gian app', 'Phân loại', 'Hành động', 'Kết quả', 'Khách'].map((item) => <th key={item} className="border-b border-neutral-200 px-3 py-3 font-bold">{item}</th>)}</tr></thead><tbody>{visibleRows.slice(0, 200).map((item) => <tr key={item.id} className="border-b border-neutral-100"><td className="whitespace-nowrap px-3 py-3 font-mono text-xs">{new Date(item.event_at).toLocaleString('vi-VN')}</td><td className="px-3 py-3 font-bold">{item.stage || '—'}</td><td className="px-3 py-3">{item.action}</td><td className="px-3 py-3 font-semibold">{item.result}</td><td className="px-3 py-3"><button type="button" disabled={!item.customerName && !item.stt} onClick={() => setSelectedCustomer(item)} className="text-left font-semibold text-brand underline-offset-2 hover:underline disabled:cursor-default disabled:text-neutral-500 disabled:no-underline">{item.customerName || 'Chưa có thông tin khách'}{item.stt ? <span className="ml-2 text-xs font-normal text-neutral-500">STT {item.stt}</span> : null}</button></td></tr>)}{!loading && !visibleRows.length && <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-neutral-500">Chưa có audit log theo bộ lọc.</td></tr>}</tbody></table></div>{visibleRows.length > 200 && <p className="border-t border-neutral-100 px-4 py-3 text-xs text-neutral-500">Xem trước 200 dòng; file Excel chứa toàn bộ {visibleRows.length.toLocaleString('vi-VN')} dòng.</p>}</section>
         {selectedCustomer && <CustomerDetail item={selectedCustomer} timeline={customerTimeline} onClose={() => setSelectedCustomer(null)} />}
+        </>}
       </div>
     </main>
   );

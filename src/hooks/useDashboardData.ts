@@ -28,6 +28,7 @@ import {
 } from '@/types/desk';
 
 interface RawState {
+  tables: LarkTables;
   statesById: Record<string, DeskLiveState>;
   totalCheckIn: number;
   totalRegistered: number;
@@ -40,6 +41,7 @@ interface RawState {
 }
 
 const EMPTY: RawState = {
+  tables: { checkin: [], orders: [], master: [], dispatch: [], dsMaster: [] },
   statesById: {},
   totalCheckIn: 0,
   totalRegistered: 0,
@@ -52,6 +54,8 @@ const EMPTY: RawState = {
 };
 
 export interface UseDashboardDataResult {
+  /** Raw tables already fetched by the shared dashboard polling cycle. */
+  tables: LarkTables;
   desks: DeskData[];
   summary: DashboardSummary;
   /** Đã check-in, chưa từng vào bàn nào — chờ điều phối lần đầu. */
@@ -128,6 +132,7 @@ export function useDashboardData(options: DashboardDataOptions = {}): UseDashboa
 
     if (isMock) {
       setRaw(forceMock ? EMPTY : {
+        tables: mockLarkTables,
         ...mapDeskStates(mockLarkTables, DEFAULT_FIELD_CONFIG),
         pendingDevice: mapPendingDevices(mockLarkTables, DEFAULT_FIELD_CONFIG),
       });
@@ -152,7 +157,7 @@ export function useDashboardData(options: DashboardDataOptions = {}): UseDashboa
           ? guestSimulation?.seed(guestTables(liveTables, settings.fields)) ?? guestTables(liveTables, settings.fields)
           : liveTables;
         if (cancelled) return;
-        setRaw({ ...mapDeskStates(tables), pendingDevice: mapPendingDevices(tables) });
+        setRaw({ tables, ...mapDeskStates(tables), pendingDevice: mapPendingDevices(tables) });
         setError(null);
         setLastUpdated(new Date());
       } catch (err) {
@@ -178,7 +183,7 @@ export function useDashboardData(options: DashboardDataOptions = {}): UseDashboa
   useEffect(() => {
     if (!guestMode || !guestSimulation) return;
     const tables = guestSimulation.tables;
-    setRaw({ ...mapDeskStates(tables, settings.fields), pendingDevice: mapPendingDevices(tables, settings.fields) });
+    setRaw({ tables, ...mapDeskStates(tables, settings.fields), pendingDevice: mapPendingDevices(tables, settings.fields) });
     setError(null);
   }, [guestMode, guestSimulation, settings.fields]);
 
@@ -192,6 +197,7 @@ export function useDashboardData(options: DashboardDataOptions = {}): UseDashboa
   });
 
   return {
+    tables: raw.tables,
     desks,
     summary,
     waitingCheckin: raw.waitingCheckin,

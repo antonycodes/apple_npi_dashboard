@@ -74,7 +74,6 @@ async function parse(res: Response): Promise<{ data?: unknown }> {
 export async function fetchSharedSettings(signal?: AbortSignal): Promise<SharedSettingsEnvelope> {
   const res = await fetch(`${sharedConfigWorkerUrl()}/config/app`, { signal });
   const body = await parse(res);
-  recordAuditEvent({ action: 'Cập nhật cấu hình dùng chung', stage: 'Admin', result: 'success' });
   return body.data as SharedSettingsEnvelope;
 }
 
@@ -98,6 +97,7 @@ export async function pushSharedSettings(settings: SharedSettings): Promise<Shar
     body: JSON.stringify({ settings }),
   });
   const body = await parse(res);
+  recordAuditEvent({ action: 'Cập nhật cấu hình dùng chung', stage: 'Admin', result: 'success' });
   return body.data as SharedSettingsEnvelope;
 }
 

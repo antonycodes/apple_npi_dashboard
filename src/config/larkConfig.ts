@@ -109,6 +109,8 @@ export interface MasterFieldMap {
   imei: string;
   /** Cột đính kèm ảnh nghiệm thu. */
   hinhNghiemThu: string;
+  /** Checkbox khách chưa đồng ý giá thu cũ. */
+  khachKhongDongYGiaThuCu: string;
 }
 
 /**
@@ -209,6 +211,7 @@ export const DEFAULT_MASTER_FIELDS: MasterFieldMap = {
   scanQr: 'Scan QR máy cũ',
   imei: 'Scan IMEI',
   hinhNghiemThu: 'Hình nghiệm thu máy cũ',
+  khachKhongDongYGiaThuCu: 'Khách không đồng ý giá thu cũ',
 };
 
 export const DEFAULT_DISPATCH_FIELDS: DispatchFieldMap = {
