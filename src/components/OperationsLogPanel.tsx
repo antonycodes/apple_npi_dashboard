@@ -235,13 +235,9 @@ export default function OperationsLogPanel({ tables, fields, loading, refresh }:
       </section>}
       <section className="mt-5 overflow-hidden border border-neutral-200 bg-white">
         <div className="border-b border-neutral-200 px-4 py-3"><h2 className="font-black text-neutral-950">Leadtime trung bình theo vị trí</h2><p className="mt-1 text-xs text-neutral-500">Tính theo từng lượt xử lý đã có đủ thời gian tại vị trí. Bộ lọc khâu, vị trí và ngày được áp dụng.</p></div>
-        {leadtimeChart.rows.length > 0 && <div className="border-b border-neutral-200 p-4 sm:p-5"><div className="space-y-3" role="img" aria-label="Biểu đồ leadtime trung bình theo vị trí">
+        {leadtimeChart.rows.length > 0 ? <div className="p-4 sm:p-5"><div className="space-y-3" role="img" aria-label="Biểu đồ leadtime trung bình theo vị trí">
           {leadtimeChart.rows.map((item) => <div key={item.position} className="grid grid-cols-[5rem_minmax(0,1fr)_5rem] items-center gap-3 text-sm"><span className="truncate font-black text-neutral-800" title={item.position}>{item.position}</span><div className="h-7 overflow-hidden rounded-md bg-neutral-100"><div className="flex h-full min-w-1 items-center rounded-md bg-emerald-500 px-2 text-xs font-bold text-white transition-all" style={{ width: `${Math.max(3, (item.averageMs / leadtimeChart.maxMs) * 100)}%` }}>{formatDuration(item.averageMs)}</div></div><span className="text-right text-xs text-neutral-500">{item.samples} lượt</span></div>)}
-        </div></div>}
-        <div className="overflow-x-auto"><table className="min-w-[520px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500"><tr>{['Vị trí', 'Số lượt', 'Leadtime trung bình'].map((item) => <th key={item} className="border-b border-neutral-200 px-3 py-3 font-bold">{item}</th>)}</tr></thead><tbody>
-          {leadtimeByPosition.map((item) => <tr key={item.position} className="border-b border-neutral-100"><td className="px-3 py-3 font-black">{item.position}</td><td className="px-3 py-3">{item.samples}</td><td className="px-3 py-3 font-bold">{formatDuration(item.averageMs)}</td></tr>)}
-          {!leadtimeByPosition.length && <tr><td colSpan={3} className="px-4 py-10 text-center text-sm text-neutral-500">Chưa có leadtime theo vị trí trong bộ lọc.</td></tr>}
-        </tbody></table></div>
+        </div></div> : <p className="px-4 py-10 text-center text-sm text-neutral-500">Chưa có leadtime theo vị trí trong bộ lọc.</p>}
       </section>
       {(stage === 'all' || stage === 'warehouse') && <section className="mt-5 overflow-hidden border border-neutral-200 bg-white">
         <div className="border-b border-neutral-200 px-4 py-3"><h2 className="font-black text-neutral-950">Nhật ký bàn giao Kho</h2><p className="mt-1 text-xs text-neutral-500">Nguồn: Master · Trạng thái “Bàn giao kho”. Các dòng này không có STT khách.</p></div>
