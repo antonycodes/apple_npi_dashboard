@@ -719,9 +719,12 @@ export default function StaffDeskScreen({
         trangThai: formAction === 'hoan_tat' ? 'Hoàn tất' : 'Tiếp nhận',
         stt,
         hoTen: values.hoTen.trim(),
-        maBan: values.maBan.trim(),
+        // Form hiển thị lại mã bàn để nhân sự đối chiếu. Nếu dữ liệu cũ thiếu
+        // mã bàn, lấy mã bàn của màn hình đang mở để audit không bị mất vị trí.
+        maBan: values.maBan.trim() || view.id,
         msnv: submitByMsnv,
-        phanLoai: values.phanLoai,
+        auditStaffName: view.staffName ?? undefined,
+        phanLoai: values.phanLoai || STAGE_LABEL[view.cluster],
         // Submit by bên Lark thống nhất là MSNV, giống webhook Điều phối.
         submitBy: submitByMsnv,
         thoiGian: new Date().toISOString(),

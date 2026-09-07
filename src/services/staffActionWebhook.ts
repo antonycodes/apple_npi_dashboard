@@ -58,6 +58,8 @@ export interface StaffActionPayload {
   maBan: string;
   /** MSNV lấy từ Master_DS, không cho sửa trên form nhân viên. */
   msnv: string;
+  /** Tên nhân sự của vị trí đang thao tác, chỉ dùng cho audit log nội bộ. */
+  auditStaffName?: string;
   /**
    * "Tư vấn" | "Thu cũ" | "Backup" — cùng bộ giá trị với `Master."Loại 2"`.
    *
@@ -136,7 +138,8 @@ export async function sendStaffAction(
 ): Promise<StaffActionResult> {
   if (!url) throw new Error('Chưa cấu hình Webhook Tiếp nhận/Hoàn tất.');
 
-  const body = JSON.stringify(payload);
+  const { auditStaffName, ...webhookPayload } = payload;
+  const body = JSON.stringify(webhookPayload);
   const actionUrl = url;
   const token = adminSessionStore.getSnapshot();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -162,7 +165,7 @@ export async function sendStaffAction(
       }
       throw new Error(`Webhook trả về HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
     }
-    recordAuditEvent({ action: payload.action === 'tiep_nhan' ? 'Tiếp nhận khách' : payload.action === 'hoan_tat' ? 'Hoàn tất khách' : payload.action === 'thu_may' ? 'Thu máy nhanh' : 'Bàn giao kho', stage: payload.phanLoai || 'Kho', deskCode: payload.maBan, msnv: payload.msnv, staffName: payload.hoTen, stt: payload.stt, customerName: payload.hoTen, result: 'success' });
+    recordAuditEvent({ action: payload.action === 'tiep_nhan' ? 'Tiếp nhận khách' : payload.action === 'hoan_tat' ? 'Hoàn tất khách' : payload.action === 'thu_may' ? 'Thu máy nhanh' : 'Bàn giao kho', stage: payload.phanLoai || 'Kho', deskCode: payload.maBan, msnv: payload.msnv, staffName: auditStaffName, stt: payload.stt, customerName: payload.hoTen, result: 'success' });
     return { confirmed: true };
   } catch (err) {
     // Chỉ `TypeError` mới là "fetch không đi được" (CORS/mạng); lỗi HTTP ở trên

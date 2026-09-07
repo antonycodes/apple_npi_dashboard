@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeftIcon, DownloadIcon, RefreshIcon } from '@/components/AppShellIcons';
 import { useAdminInfo, logoutToApp } from '@/config/adminSession';
+import { ALL_POSITIONS } from '@/config/layoutConfig';
 import { fetchAuditLogs, downloadAuditLogExcel, recordAuditEvent, type AuditLogItem } from '@/services/auditLogApi';
+import { useDashboardData } from '@/hooks/useDashboardData';
 
 const STAGES = ['Tất cả', 'Điều phối', 'Tư vấn', 'Thu cũ', 'Backup', 'Kho', 'Admin'];
+const FIXED_DESKS_BY_STAGE: Record<string, string[]> = {
+  'Điều phối': ['DP1', 'DP2', 'DP3', 'DP4'],
+  'Tư vấn': ALL_POSITIONS.filter((item) => item.cluster === 'consult').map((item) => item.id),
+  'Thu cũ': ALL_POSITIONS.filter((item) => item.cluster === 'tradein').map((item) => item.id),
+  Backup: ALL_POSITIONS.filter((item) => item.cluster === 'backup').map((item) => item.id),
+  Kho: [],
+  Admin: [],
+};
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function firstOfMonth() { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); }
@@ -17,6 +27,7 @@ export default function ActivityLogPage() {
   const [desk, setDesk] = useState('');
   const [from, setFrom] = useState(firstOfMonth);
   const [to, setTo] = useState(today);
+  const { roster } = useDashboardData();
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -28,7 +39,20 @@ export default function ActivityLogPage() {
   };
   useEffect(() => { void load(); }, [stage, from, to]);
 
-  const deskOptions = useMemo(() => Array.from(new Set(rows.map((item) => item.deskCode).filter(Boolean))).sort(), [rows]);
+  const deskOptions = useMemo(() => {
+    const rosterDesks = roster
+      .filter((item) => stage === 'Tất cả' || item.loai === stage)
+      .map((item) => item.deskCode);
+    const fixed = stage === 'Tất cả' ? Object.values(FIXED_DESKS_BY_STAGE).flat() : FIXED_DESKS_BY_STAGE[stage] ?? [];
+    const logged = rows.map((item) => item.deskCode).filter(Boolean) as string[];
+    return Array.from(new Set([...fixed, ...rosterDesks, ...logged])).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [roster, rows, stage]);
+  const deskLabel = (deskCode: string) => {
+    const staff = roster.find((item) => item.deskCode === deskCode && (stage === 'Tất cả' || item.loai === stage));
+    if (!staff) return deskCode;
+    const identity = [staff.staffId, staff.staffName].filter(Boolean).join(' — ');
+    return identity ? `${deskCode} — ${identity}` : deskCode;
+  };
   const visibleRows = useMemo(() => desk ? rows.filter((item) => item.deskCode === desk) : rows, [desk, rows]);
   if (session?.role !== 'admin') return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Chỉ tài khoản Admin được xem và tải audit log.</p></main>;
 
@@ -42,7 +66,7 @@ export default function ActivityLogPage() {
         <section className="mt-6 border border-neutral-200 bg-white p-4 sm:p-5">
           <div className="grid gap-4 md:grid-cols-4">
             <label className="grid gap-2 text-sm font-bold">Phân loại<select value={stage} onChange={(e) => { setStage(e.target.value); setDesk(''); }} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 font-medium"><option>Tất cả</option>{STAGES.slice(1).map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label className="grid gap-2 text-sm font-bold md:col-span-2">Vị trí nhân sự<select value={desk} onChange={(e) => setDesk(e.target.value)} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 font-medium"><option value="">Tất cả vị trí</option>{deskOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label className="grid gap-2 text-sm font-bold md:col-span-2">Vị trí nhân sự<select value={desk} onChange={(e) => setDesk(e.target.value)} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 font-medium"><option value="">Tất cả vị trí</option>{deskOptions.map((item) => <option key={item} value={item}>{deskLabel(item)}</option>)}</select></label>
             <button type="button" onClick={() => void load()} disabled={loading} className="mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50 disabled:opacity-60"><RefreshIcon className="h-4 w-4" />{loading ? 'Đang tải…' : 'Lọc log'}</button>
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="grid gap-2 text-sm font-bold">Từ ngày<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="min-h-11 rounded-lg border border-neutral-300 px-3" /></label><label className="grid gap-2 text-sm font-bold">Đến ngày<input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="min-h-11 rounded-lg border border-neutral-300 px-3" /></label></div>
