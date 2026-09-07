@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeftIcon, DownloadIcon, RefreshIcon } from '@/components/AppShellIcons';
 import { useAdminInfo, logoutToApp } from '@/config/adminSession';
 import { ALL_POSITIONS } from '@/config/layoutConfig';
-import { fetchAuditLogs, downloadAuditLogExcel, recordAuditEvent, type AuditLogItem } from '@/services/auditLogApi';
+import { deleteAdminAuditLogs, fetchAuditLogs, downloadAuditLogExcel, recordAuditEvent, type AuditLogItem } from '@/services/auditLogApi';
 import { useDashboardData } from '@/hooks/useDashboardData';
 
 const STAGES = ['Tất cả', 'Điều phối', 'Tư vấn', 'Thu cũ', 'Backup', 'Kho', 'Admin'];
@@ -62,7 +62,8 @@ export default function ActivityLogPage() {
   const [rows, setRows] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [stage, setStage] = useState('Tất cả');
+  const [stages, setStages] = useState<string[]>(['Tất cả']);
+  const [stageMenuOpen, setStageMenuOpen] = useState(false);
   const [desk, setDesk] = useState('');
   const [from, setFrom] = useState(firstOfMonth);
   const [to, setTo] = useState(today);
@@ -72,23 +73,23 @@ export default function ActivityLogPage() {
   const load = async () => {
     setLoading(true); setError(null);
     try {
-      setRows(await fetchAuditLogs({ from, to, stage: stage === 'Tất cả' ? '' : stage }));
+      setRows(await fetchAuditLogs({ from, to, stage: stages.includes('Tất cả') ? [] : stages }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally { setLoading(false); }
   };
-  useEffect(() => { void load(); }, [stage, from, to]);
+  useEffect(() => { void load(); }, [stages, from, to]);
 
   const deskOptions = useMemo(() => {
     const rosterDesks = roster
-      .filter((item) => stage === 'Tất cả' || item.loai === stage)
+      .filter((item) => stages.includes('Tất cả') || stages.includes(item.loai))
       .map((item) => item.deskCode);
-    const fixed = stage === 'Tất cả' ? Object.values(FIXED_DESKS_BY_STAGE).flat() : FIXED_DESKS_BY_STAGE[stage] ?? [];
+    const fixed = stages.includes('Tất cả') ? Object.values(FIXED_DESKS_BY_STAGE).flat() : stages.flatMap((item) => FIXED_DESKS_BY_STAGE[item] ?? []);
     const logged = rows.map((item) => item.deskCode).filter(Boolean) as string[];
     return Array.from(new Set([...fixed, ...rosterDesks, ...logged])).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [roster, rows, stage]);
+  }, [roster, rows, stages]);
   const deskLabel = (deskCode: string) => {
-    const staff = roster.find((item) => item.deskCode === deskCode && (stage === 'Tất cả' || item.loai === stage));
+    const staff = roster.find((item) => item.deskCode === deskCode && (stages.includes('Tất cả') || stages.includes(item.loai)));
     if (!staff) return deskCode;
     const identity = [staff.staffId, staff.staffName].filter(Boolean).join(' — ');
     return identity ? `${deskCode} — ${identity}` : deskCode;
@@ -99,6 +100,35 @@ export default function ActivityLogPage() {
     const key = customerKeyOf(selectedCustomer);
     return visibleRows.filter((item) => customerKeyOf(item) === key).sort((a, b) => a.event_at.localeCompare(b.event_at));
   }, [selectedCustomer, visibleRows]);
+  const adminOnly = stages.length === 1 && stages[0] === 'Admin';
+  const stageSummary = stages.includes('Tất cả') ? 'Tất cả phân loại' : stages.join(', ');
+  const toggleStage = (value: string) => {
+    if (value === 'Tất cả') {
+      setStages(['Tất cả']);
+      setDesk('');
+      return;
+    }
+    setStages((current) => {
+      const withoutAll = current.filter((item) => item !== 'Tất cả');
+      const next = withoutAll.includes(value) ? withoutAll.filter((item) => item !== value) : [...withoutAll, value];
+      return next.length ? next : ['Tất cả'];
+    });
+    setDesk('');
+  };
+  const removeAdminLogs = async () => {
+    if (!adminOnly || !visibleRows.length) return;
+    const confirmed = window.confirm(`Có ${visibleRows.length.toLocaleString('vi-VN')} log Admin trong khoảng thời gian đã chọn.\n\nXóa vĩnh viễn các log này?`);
+    if (!confirmed) return;
+    setLoading(true);
+    try {
+      const deleted = await deleteAdminAuditLogs(from, to);
+      setRows([]);
+      setDesk('');
+      setError(deleted ? `Đã xóa ${deleted.toLocaleString('vi-VN')} log Admin.` : 'Không có log Admin để xóa.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally { setLoading(false); }
+  };
   if (session?.role !== 'admin') return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Chỉ tài khoản Admin được xem và tải audit log.</p></main>;
 
   return (
@@ -110,9 +140,9 @@ export default function ActivityLogPage() {
         </header>
         <section className="mt-6 border border-neutral-200 bg-white p-4 sm:p-5">
           <div className="grid gap-4 md:grid-cols-4">
-            <label className="grid gap-2 text-sm font-bold">Phân loại<select value={stage} onChange={(e) => { setStage(e.target.value); setDesk(''); }} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 font-medium"><option>Tất cả</option>{STAGES.slice(1).map((item) => <option key={item}>{item}</option>)}</select></label>
+            <div className="relative grid gap-2 text-sm font-bold"><span>Phân loại</span><button type="button" onClick={() => setStageMenuOpen((open) => !open)} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 text-left font-medium">{stageSummary}</button>{stageMenuOpen && <div className="absolute inset-x-0 top-[calc(100%+4px)] z-20 rounded-lg border border-neutral-200 bg-white p-2 shadow-[0_12px_30px_rgba(17,24,39,0.12)]">{STAGES.map((item) => <label key={item} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm font-medium hover:bg-neutral-50"><input type="checkbox" checked={stages.includes(item)} onChange={() => toggleStage(item)} />{item}</label>)}</div>}</div>
             <label className="grid gap-2 text-sm font-bold md:col-span-2">Vị trí nhân sự<select value={desk} onChange={(e) => setDesk(e.target.value)} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 font-medium"><option value="">Tất cả vị trí</option>{deskOptions.map((item) => <option key={item} value={item}>{deskLabel(item)}</option>)}</select></label>
-            <button type="button" onClick={() => void load()} disabled={loading} className="mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50 disabled:opacity-60"><RefreshIcon className="h-4 w-4" />{loading ? 'Đang tải…' : 'Lọc log'}</button>
+            <div className="mt-auto flex gap-2"><button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50 disabled:opacity-60"><RefreshIcon className="h-4 w-4" />{loading ? 'Đang tải…' : 'Lọc log'}</button>{adminOnly && <button type="button" onClick={() => void removeAdminLogs()} disabled={loading || !visibleRows.length} className="min-h-11 rounded-lg bg-red-700 px-3 text-xs font-bold text-white hover:bg-red-800 disabled:opacity-40">Xóa log Admin</button>}</div>
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="grid gap-2 text-sm font-bold">Từ ngày<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="min-h-11 rounded-lg border border-neutral-300 px-3" /></label><label className="grid gap-2 text-sm font-bold">Đến ngày<input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="min-h-11 rounded-lg border border-neutral-300 px-3" /></label></div>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-4"><div><p className="text-lg font-black">{visibleRows.length.toLocaleString('vi-VN')} log</p><p className="text-xs text-neutral-500">Nguồn: audit log riêng của app</p></div><button type="button" disabled={loading || !visibleRows.length} onClick={() => { recordAuditEvent({ action: 'Tải audit log', stage: 'Admin', result: 'success', detail: `${visibleRows.length} dòng` }); downloadAuditLogExcel(visibleRows, `audit-log-${today()}.xls`); }} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-neutral-900 px-4 text-sm font-bold text-white hover:bg-neutral-700 disabled:opacity-40"><DownloadIcon className="h-4 w-4" /> Tải Excel</button></div>

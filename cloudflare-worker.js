@@ -2564,7 +2564,6 @@ export default {
     }
 
     if (route === 'audit/logs') {
-      if (request.method !== 'GET') return json({ code: -1, msg: 'Audit logs chỉ nhận GET' }, 405);
       if ((await verifyToken(env, bearer(request)))?.role !== 'admin') {
         return json({ code: -1, msg: 'Chỉ admin được xem audit log' }, 403);
       }
@@ -2574,12 +2573,29 @@ export default {
       const binds = [env.NPI_SITE];
       const from = auditValue(params.get('from'), 40);
       const to = auditValue(params.get('to'), 40);
-      const stage = auditValue(params.get('stage'), 40);
+      const stages = params.getAll('stage').map((value) => auditValue(value, 40)).filter(Boolean);
       const desk = auditValue(params.get('desk'), 40);
       if (from) { where.push('event_at >= ?'); binds.push(`${from}T00:00:00.000Z`); }
       if (to) { where.push('event_at <= ?'); binds.push(`${to}T23:59:59.999Z`); }
-      if (stage) { where.push('stage = ?'); binds.push(stage); }
+      if (stages.length === 1) { where.push('stage = ?'); binds.push(stages[0]); }
+      if (stages.length > 1) {
+        where.push(`stage IN (${stages.map(() => '?').join(', ')})`);
+        binds.push(...stages);
+      }
       if (desk) { where.push('desk_code = ?'); binds.push(desk); }
+      if (request.method === 'DELETE') {
+        if (stages.length !== 1 || stages[0] !== 'Admin') {
+          return json({ code: -1, msg: 'Chỉ được xóa log Admin' }, 400);
+        }
+        if (!from || !to) return json({ code: -1, msg: 'Xóa log Admin bắt buộc có khoảng ngày' }, 400);
+        try {
+          const result = await env.AUDIT_LOG.prepare(`DELETE FROM audit_logs WHERE ${where.join(' AND ')}`).bind(...binds).run();
+          return json({ code: 0, msg: 'success', data: { deleted: result.meta?.changes ?? 0 } });
+        } catch (e) {
+          return json({ code: -1, msg: `Không xóa được audit log: ${String(e?.message || e)}` }, 500);
+        }
+      }
+      if (request.method !== 'GET') return json({ code: -1, msg: 'Audit logs chỉ nhận GET hoặc DELETE' }, 405);
       const limit = Math.min(Math.max(Number(params.get('limit') || 10000), 1), 20000);
       try {
         const result = await env.AUDIT_LOG.prepare(

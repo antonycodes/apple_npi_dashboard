@@ -44,19 +44,35 @@ export function recordAuditEvent(event: AuditEvent): void {
 export async function fetchAuditLogs(filters: {
   from?: string;
   to?: string;
-  stage?: string;
+  stage?: string | string[];
   desk?: string;
 }): Promise<AuditLogItem[]> {
   const token = adminSessionStore.getSnapshot();
   if (!token) throw new Error('Phiên admin đã hết hạn — đăng nhập lại.');
   const params = new URLSearchParams({ limit: '20000' });
-  for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+  for (const [key, value] of Object.entries(filters)) {
+    if (Array.isArray(value)) value.filter(Boolean).forEach((item) => params.append(key, item));
+    else if (value) params.set(key, value);
+  }
   const response = await fetch(`${workerBaseUrl()}/audit/logs?${params}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
   const body = await response.json() as { code: number; msg?: string; data?: { items?: AuditLogItem[] } };
   if (!response.ok || body.code !== 0) throw new Error(body.msg || `HTTP ${response.status}`);
   return body.data?.items ?? [];
+}
+
+export async function deleteAdminAuditLogs(from: string, to: string): Promise<number> {
+  const token = adminSessionStore.getSnapshot();
+  if (!token) throw new Error('Phiên admin đã hết hạn — đăng nhập lại.');
+  const params = new URLSearchParams({ from, to, stage: 'Admin' });
+  const response = await fetch(`${workerBaseUrl()}/audit/logs?${params}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+  });
+  const body = await response.json() as { code: number; msg?: string; data?: { deleted?: number } };
+  if (!response.ok || body.code !== 0) throw new Error(body.msg || `HTTP ${response.status}`);
+  return body.data?.deleted ?? 0;
 }
 
 export function downloadAuditLogExcel(rows: AuditLogItem[], fileName: string): void {
