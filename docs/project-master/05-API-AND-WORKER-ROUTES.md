@@ -181,12 +181,8 @@ Worker:
 
 ## 9. Legacy routes
 
-### POST `/webhook` và `/webhook2`
-
-- Forward tới URL lưu trong Worker secret.
-- Tồn tại để rollback/tương thích.
-- Client hiện normalize `/webhook` → `/dispatch-record` và `/webhook2` → `/record`.
-- Không dùng route legacy làm route chính cho test tải.
+Các route forwarding cũ đã được gỡ. Luồng ghi hiện tại chỉ dùng
+`/dispatch-record` và `/record`.
 
 ## 10. Authorization matrix hiện tại
 

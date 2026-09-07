@@ -7,7 +7,7 @@
  * màn hình lớn treo ở kho, còn màn này nằm trong tay người đang bê máy.
  *
  * Đường ghi dùng lại NGUYÊN `sendStaffAction` + `uploadNghiemThuImage` của màn
- * hình nhân viên — cùng một đường vào `SS_Master`, cùng cách xử lý token và
+ * hình nhân viên — cùng một đường vào `Master`, cùng cách xử lý token và
  * CORS. Thêm một đường ghi thứ hai chỉ để tiết kiệm vài dòng là tự chuốc lấy
  * hai chỗ phải sửa mỗi lần Base đổi.
  */

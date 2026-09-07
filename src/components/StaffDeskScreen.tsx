@@ -6,9 +6,9 @@
  * tầm ngón cái và chừa `env(safe-area-inset-*)` cho Dynamic Island / thanh
  * home. Trên máy rộng hơn (iPad/desktop) cột vẫn canh giữa, không vỡ layout.
  *
- * **Cả 2 nút cùng đi webhook**: Tiếp nhận và Hoàn tất đều mở
+ * **Cả 2 nút cùng đi route `/record`**: Tiếp nhận và Hoàn tất đều mở
  * `StaffReceiveFormModal` cho NV soi/sửa lại thông tin, rồi POST ra workflow
- * Lark (`/webhook2` của worker) để automation TẠO RECORD trong SS_Master.
+ * Lark (`/record` của worker) để ghi record trực tiếp trong Master.
  * Cả 2 đường đều KHÔNG tự sửa dữ liệu hiển thị: trạng thái thật chỉ đổi sau khi
  * Lark ghi xong và vòng polling kế tiếp (5s) đọc về.
  *
@@ -44,7 +44,7 @@ const PENDING_TTL_MS = 120_000;
 /** Gửi webhook xong mà bấy nhiêu lâu Lark vẫn chưa hiện record → cảnh báo. */
 const CONFIRM_WARN_MS = 15_000;
 
-/** Cụm → giá trị cột `SS_Master."Loại 2"` bên Lark (KHÁC `CLUSTER_LABELS` dùng cho UI). */
+/** Cụm → giá trị cột `Master."Loại 2"` bên Lark (KHÁC `CLUSTER_LABELS` dùng cho UI). */
 const STAGE_LABEL: Record<ClusterKey, string> = {
   consult: 'Tư vấn',
   tradein: 'Thu cũ',
@@ -466,7 +466,7 @@ export default function StaffDeskScreen({
     staffTimerStore.stop(view.id, stt);
   };
 
-  // ── Nút Tiếp nhận qua webhook: form recheck → POST tạo record SS_Master ──
+  // ── Nút Tiếp nhận: form recheck → POST tạo record Master ──
   const settings = useLarkSettings();
   const realtimeApiUrl = toRuntimeConfig(settings).apiUrl;
   const warehouseOrders = useWarehouseOrders(realtimeApiUrl, view.cluster === 'consult' && !simulation);

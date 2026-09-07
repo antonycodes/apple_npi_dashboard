@@ -658,7 +658,7 @@ function normalizedStage(raw: string | null): 'consult' | 'tradein' | 'backup' |
 
 /**
  * Ghi đè dữ liệu Điều phối bằng người/bàn THỰC TẾ đã tiếp nhận trong
- * SS_Master. Chỉ ghi đè đúng khâu của từng record (`Loại 2`), vì cùng một
+ * Master. Chỉ ghi đè đúng khâu của từng record (`Loại 2`), vì cùng một
  * khách có thể lần lượt qua TV, TC và BK ở các thời điểm khác nhau.
  *
  * Cũng KHÔNG suy bàn từ `Người` nữa — cùng lý do ở `latestByDeskAndName`: dòng
@@ -691,7 +691,7 @@ function mergeReceivedDetailByName(
       normalizeDeskCode(deskCodeFromDispatch(dispatchDetails.get(name), stage));
     const previous = result.get(name) ?? { dsTuVan: null, dsThuCu: null, dsBackup: null };
 
-    // BK.X/BK.X2 are standalone Backup nodes. Once SS_Master records the
+    // BK.X/BK.X2 are standalone Backup nodes. Once Master records the
     // actual reception code, it must override the dispatch-side value so the
     // popup shows the real Backup node instead of an empty/old assignment.
     if (primaryDeskCode === 'BK.X' || primaryDeskCode === 'BK.X2') {

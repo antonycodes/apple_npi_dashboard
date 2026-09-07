@@ -5,7 +5,7 @@
  *
  * Bấm một trong hai nút KHÔNG gửi ngay: mở sheet này để NV soi lại thông tin khách
  * tiếp và sửa được nếu lệch (vd khách đổi chỗ, STT gõ sai bên check-in), rồi
- * mới POST ra webhook để Lark tạo record `SS_Master`.
+ * mới POST qua Worker để ghi record `Master`.
  *
  * Ô nào **sửa được = ô đó được GỬI ĐI**; phần sản phẩm/ghi chú/thu cũ chỉ hiện
  * để đối chiếu (read-only) và không nằm trong payload — giữ đúng bộ field đã

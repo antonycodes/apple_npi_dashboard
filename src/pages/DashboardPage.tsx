@@ -133,7 +133,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   const [onlyTradeIn, setOnlyTradeIn] = useState(false);
   const [showEndFlow, setShowEndFlow] = useState(false);
   const [showPendingDevice, setShowPendingDevice] = useState(false);
-  // Form Điều phối — chỉ POST lên webhook Lark, không nối vào state dashboard.
+  // Form Điều phối — chỉ POST ghi log, không nối vào state dashboard.
   const [showDispatchForm, setShowDispatchForm] = useState(false);
   /** STT điền sẵn khi mở form từ nút "DP" trong popup khách chờ ('' = mở tay từ nút trên thanh lọc). */
   const [dispatchStt, setDispatchStt] = useState('');

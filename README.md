@@ -50,19 +50,19 @@ vụ**), **STT khách tiếp theo** + số khách đang chờ, danh sách **sổ
   vẫn giữ đúng mốc. Trong lúc chờ record Tiếp nhận đầu tiên xuất hiện, UI dùng
   mốc tạm trên máy rồi tự thay bằng mốc Base. Vàng ≥ 10 phút, đỏ ≥ 20 phút.
 
-### 2 nút Tiếp nhận / Hoàn tất — cùng 1 đường: form recheck → webhook
+### 2 nút Tiếp nhận / Hoàn tất — form recheck → ghi thẳng Master
 
 Cả 2 nút đều mở **form recheck** (sửa được STT / họ tên; mã bàn / phân loại /
-nhân sự / MSNV chỉ để đối chiếu, không sửa) → POST webhook → automation Lark
-tạo record `SS_Master`. **Bắt buộc phải cấu hình webhook** — không còn đường
+nhân sự / MSNV chỉ để đối chiếu, không sửa) → POST `/record` → ghi bảng
+`Master`. **Bắt buộc phải cấu hình route** — không còn đường
 dự phòng mở hyperlink trực tiếp: thiếu webhook thì cả 2 nút xám, không bấm
 được.
 
 Điền ô "Webhook Tiếp nhận / Hoàn tất" ở `#/settings` bằng
-`https://<worker>.workers.dev/webhook2`.
+`https://<worker>.workers.dev/record`.
 
 ```jsonc
-// POST /webhook2 → worker chuyển tiếp tới secret LARK_WEBHOOK_URL2
+// POST /record → Worker ghi trực tiếp vào bảng Master
 {
   "action": "tiep_nhan",        // hoặc "hoan_tat" — dùng để rẽ nhánh trong automation
   "trangThai": "Tiếp nhận",     // → cột "Trạng thái"
@@ -200,7 +200,7 @@ nhau). Dấu **`~`** đánh dấu mốc suy ra — đúng ký hiệu màn hình 
 
 Cột `Leadtime` là kiểu Number nên tính trung bình / tổng ngay trong Base được.
 
-> Cần tự thêm cột trong `SS_Master` + map 5 field mới (`checkBackup`,
+> Cần tự thêm cột trong `Master` + map 5 field mới (`checkBackup`,
 > `thuLaiMay`, `hinhNghiemThu`, `scanQr`, `imei`) trong automation Lark thì giá
 > trị mới được lưu. Riêng `hinhNghiemThu` phải map vào **cột đính kèm**.
 
@@ -214,7 +214,7 @@ ngay (kèm nhãn "đang chờ Lark cập nhật") chứ không phải đợi h�
 > Cột hyperlink (`Master."Hyperlink Master"`, `Master_Check in."Hyperlink
 > Tiếp nhận"`, và cặp cột dự phòng cấp bàn ở `Master_DS`) vẫn được đọc và tính
 > sẵn trong `staffMapper.ts` nhưng **hiện không nút nào dùng tới** — mã còn
-> lại từ bản trước khi chuyển hẳn sang webhook, giữ lại phòng khi cần quay
+> lại từ bản trước khi chuyển hẳn sang route ghi trực tiếp, giữ lại phòng khi cần quay
 > lại kiểu mở hyperlink trực tiếp.
 
 ## Trang Cài đặt Lark (`#/settings`)
@@ -245,34 +245,6 @@ npm run dev      # dev server — mặc định chạy mock data (từ file NPI_
 npm run build    # typecheck + build production
 npm run preview  # xem bản build
 ```
-
-## Stress test hạ tầng
-
-Branch tối ưu hạ tầng/test: `codex/infra-k6-optimization`. Các màn hình đọc
-Lark dùng polling tuần tự để tránh chồng vòng đọc khi Lark phản hồi chậm. Các
-POST Tiếp nhận/Hoàn tất vẫn độc lập và có thể chạy đồng thời giữa TV1/TV2.
-
-Runner chỉ đọc mặc định, kiểm tra `/health` rồi tạo tải đồng thời lên 5 route
-bảng mà dashboard đọc. Ví dụ 30 worker trong 5 phút:
-
-```bash
-npm run stress-test -- --mode read --duration 300 --concurrency 30
-```
-
-Muốn mô phỏng cả điều phối, Tiếp nhận và Hoàn tất thì phải bật ghi live một cách
-tường minh. Các payload đều mang mã synthetic `LOADTEST-...`/STT test và có thể
-tạo record thật trong Lark; nên chạy trên Base/test workflow hoặc có kế hoạch dọn
-dữ liệu sau đó:
-
-```bash
-npm run stress-test -- --mode write --duration 600 --concurrency 32 --allow-live-writes
-```
-
-Có thể đổi `--base-url`, `--dispatch-url`, `--staff-url`, `--interval-ms` và
-`--timeout-ms`. Kết quả cuối gồm tổng request, lỗi/timeout, throughput và p50/p95/p99.
-Runner không tự kết luận sức chịu tải của Lark hay workflow nếu chưa chạy vào môi
-trường live; cần đối chiếu thêm Workers Logs, Lark automation run history và số
-record thực tế sau bài test.
 
 ## Kiến trúc dữ liệu
 
@@ -325,7 +297,7 @@ Chịu lỗi tạm thời của Lark (`1254607 Data not ready`) theo **từng b�
 nào lỗi thì trả cache riêng của bảng đó (hoặc `[]`) và ghi vào `data.warnings`,
 `msg` thành `"partial snapshot"` — endpoint vẫn **HTTP 200** để dashboard không
 sập vì một bảng chớp nháy. Cache 4 giây, có stale fallback 30 giây, và bị xoá
-ngay sau mỗi `/record`, `/webhook`, `/webhook2` thành công.
+ngay sau mỗi `/record` hoặc `/dispatch-record` thành công.
 
 > Route đọc bảng lẻ (`/checkin`, `/master`…) **không có** lớp chịu lỗi này —
 > Lark trả `1254607` là nó trả thẳng HTTP 500. Đó chính là nguyên nhân "lỗi đồng
@@ -346,28 +318,12 @@ ghi được). Mở bằng trình duyệt để kiểm tra map **trước khi** 
 khỏi tốn record rác mới biết lệch tên. Mặc định soi `TB_MASTER`;
 `?table=dispatch` soi bảng Điều phối.
 
-### `POST /dispatch-record` — Điều phối ghi thẳng, thay `/webhook`
+### `POST /dispatch-record` — Điều phối ghi thẳng
 
-`/webhook` chỉ **châm ngòi** một Lark Automation. Lark trả 200 nghĩa là "đã
-nhận trigger", **không phải** "đã tạo record" — phần ghi chạy bất đồng bộ trong
-hàng đợi của Lark, và khi trigger đến nhanh hơn tốc độ hàng đợi thì run bị bỏ.
-Đo trên production, tỉ lệ mất tăng theo mức đồng thời:
+Route gọi thẳng Bitable API. Worker giữ kết nối tới khi Lark xác nhận.
+Lỗi trả `code != 0` để client thấy ngay.
 
-| Request đồng thời | Tỉ lệ mất record |
-| --- | --- |
-| nhịp thưa (~10 VU rải đều) | 6,5% |
-| 10 | 19% |
-| 15 | 38% |
-| 20 | 43% |
-
-Người gọi không có cách nào biết, vì 200 đã trả từ trước khi automation chạy.
-Đây cũng là gốc của hiện tượng cột Nhân sự hiện `()()()` ở bảng End Flow.
-
-Route này gọi thẳng Bitable API như `/record`: worker giữ kết nối tới khi Lark
-xác nhận, lỗi thì trả `code != 0` để client thấy ngay. **Drop-in thay
-`/webhook`** — nhận đúng `DispatchFormPayload` app đang gửi, nên đổi đường chỉ
-cần sửa ô "Webhook Điều phối" ở `#/settings` sang `…/dispatch-record`; dán lại
-URL cũ là rollback.
+Route nhận đúng `DispatchFormPayload` và ghi thẳng bảng Điều phối.
 
 > Bảng Điều phối tách mã bàn thành **ba cột** theo khâu (`DS Tư vấn`,
 > `DS Thu cũ`, `DS Backup`) chứ không dùng chung một cột như bảng Master.
@@ -392,16 +348,8 @@ text** vào ô đó — nên ảnh nghiệm thu gần như chắc chắn không 
 đường automation. Route này gọi thẳng Bitable API, nơi định dạng trên là chính
 thức.
 
-**Cách đổi sang đường này — không cần sửa code app**: route nhận đúng payload
-app đang gửi và trả cùng khuôn `{code, msg}`. Chỉ cần vào `#/settings` → ô
-"Webhook Tiếp nhận / Hoàn tất", đổi `…/webhook2` thành `…/record`. Dán lại URL
-cũ là quay về automation ngay, không phải deploy lại.
-
-| | `/webhook2` (automation) | `/record` (ghi thẳng) |
-| --- | --- | --- |
-| Ảnh nghiệm thu | ❌ gần như không vào được ô đính kèm | ✅ đúng định dạng Lark quy định |
-| Tên cột | map trong automation | map trong `RECORD_FIELD_MAP` ở worker |
-| Việc khác của automation (thông báo, cập nhật bảng khác…) | ✅ giữ nguyên | ❌ mất — phải tự làm lại |
+Route nhận đúng payload app và ghi thẳng vào `TB_MASTER`.
+Ảnh nghiệm thu dùng đúng định dạng file token của Lark.
 
 Route **tự dò schema** trước khi ghi: đọc field metadata của bảng `TB_MASTER`,
 chỉ ghi cột nào có thật và ghi được; cột sai tên / là formula-lookup-hệ thống /
@@ -445,5 +393,5 @@ npx wrangler secret put STAFF_PASSWORD
 npx wrangler deploy
 ```
 
-Mapping hiện tại: `TB_MASTER` dùng table `Master_Staff` (logic Master /
-SS_Master); `TB_DS_MASTER` dùng table `Master_DS` (logic DS Master).
+Mapping hiện tại: `TB_MASTER` dùng table `Master`; `TB_DS_MASTER` dùng table
+`Master_DS`.

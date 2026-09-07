@@ -35,7 +35,7 @@ Ghi các quyết định ảnh hưởng nghiệp vụ, data mapping, kết nối
 
 - Điều phối: `/dispatch-record`.
 - Staff/Kho: `/record`.
-- Webhook legacy chỉ dùng rollback/tương thích.
+- Route forwarding legacy đã được gỡ; luồng ghi dùng route trực tiếp.
 
 ### DEC-006 — Tối đa ba ảnh
 

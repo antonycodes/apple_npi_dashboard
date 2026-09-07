@@ -22,7 +22,7 @@
 | API Gateway | Cloudflare Worker | Kết nối Lark, xác thực, cache, upload, ghi record |
 | Shared config | Cloudflare KV | Cấu hình App và danh sách Điều phối dùng chung |
 | Data source | Lark Base | Roster, Check-in, Điều phối, Master, đơn hàng, formula/lookup |
-| Load test | k6 | Baseline, peak 40 VU, journey và media test |
+| Load test | Không nằm trong runtime repo | Chạy ngoài phạm vi ứng dụng |
 
 ## 3. Các module giao diện
 
@@ -72,7 +72,7 @@ Route: `/app` và `/#/app`.
 | `Master_Check in` | STT, tên khách, sản phẩm, ghi chú, trạng thái flow |
 | Đơn hàng | Tổng đăng ký và thông tin đơn |
 | `Master_Điều phối` | Lịch sử gán khách vào bàn theo khâu |
-| Master/`SS_Master` | Tiếp nhận, Hoàn tất, Thu máy nhanh, Bàn giao kho, media |
+| Master | Tiếp nhận, Hoàn tất, Thu máy nhanh, Bàn giao kho, media |
 | `Master_DS` | Roster, workspace, vai trò, MSNV, tài khoản AIO |
 
 Tên bảng vật lý và Table ID được giữ trong cấu hình Worker; tài liệu không công bố Table ID.

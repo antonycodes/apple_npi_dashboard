@@ -1,14 +1,12 @@
 /**
  * staffActionWebhook — gửi 2 thao tác "Tiếp nhận" / "Hoàn tất" của nhân viên
- * ra webhook Lark để automation TẠO RECORD trong `SS_Master`.
+ * ghi trực tiếp record thao tác vào bảng `Master`.
  *
  * Đường GHI MỘT CHIỀU, tách hẳn khỏi luồng đọc: app không đọc lại phản hồi để
  * dựng UI — trạng thái thật vẫn do vòng polling 5s đọc từ Lark quyết định (xem
  * `StaffDeskScreen`). Webhook chỉ là cách ghi thay cho việc mở hyperlink.
  *
- * Đích thật nằm trong secret `LARK_WEBHOOK_URL2` của worker; app chỉ trỏ vào
- * `https://<worker>/webhook2` nên URL Lark không lộ trong bundle và worker
- * không thành open proxy (xem `cloudflare-worker.js`).
+ * Đích là route `/record` của Worker. URL Lark không lộ trong bundle.
  *
  * **CORS**: y hệt `dispatchWebhook.ts` — qua worker thì đọc được HTTP status
  * (`confirmed: true`); trỏ thẳng URL Lark thì phải gửi lại kiểu "simple
@@ -35,7 +33,7 @@ export interface StaffActionPayload {
    */
   action: 'tiep_nhan' | 'hoan_tat' | 'thu_may' | 'ban_giao';
   /**
-   * Trạng thái ghi vào `SS_Master."Trạng thái"` — gửi luôn để automation khỏi
+   * Trạng thái ghi vào `Master."Trạng thái"` — gửi luôn để Worker xử lý
    * tự nối.
    *
    * `Thu máy nhanh` (option user thêm bên Lark 2026-08-18) dành cho thao tác
@@ -55,12 +53,12 @@ export interface StaffActionPayload {
   stt: string;
   /** Họ và tên khách — khoá join của mọi bảng bên Lark. */
   hoTen: string;
-  /** Mã bàn, khớp `SS_Master."TV_MãNV"` (vd "TV4", "TC1", "BK3"). */
+  /** Mã bàn, khớp `Master."TV_MãNV"` (vd "TV4", "TC1", "BK3"). */
   maBan: string;
   /** MSNV lấy từ Master_DS, không cho sửa trên form nhân viên. */
   msnv: string;
   /**
-   * "Tư vấn" | "Thu cũ" | "Backup" — cùng bộ giá trị với `SS_Master."Loại 2"`.
+   * "Tư vấn" | "Thu cũ" | "Backup" — cùng bộ giá trị với `Master."Loại 2"`.
    *
    * Gửi chuỗi RỖNG để không ghi cột này (worker bỏ qua key rỗng). Dùng cho
    * thao tác bàn giao của kho: đó không phải một khâu phục vụ, mà `Loại 2` là
@@ -131,20 +129,6 @@ export interface StaffActionResult {
   confirmed: boolean;
 }
 
-/** Tiếp nhận/Hoàn tất phải ghi thẳng vào SS_Master qua `/record`. */
-function normalizeStaffActionUrl(rawUrl: string): string {
-  try {
-    const url = new URL(rawUrl);
-    if (url.pathname.replace(/\/+$/, '') === '/webhook2') {
-      url.pathname = '/record';
-      return url.toString();
-    }
-  } catch {
-    // Giữ nguyên để fetch trả lỗi cấu hình rõ ràng.
-  }
-  return rawUrl;
-}
-
 export async function sendStaffAction(
   url: string,
   payload: StaffActionPayload,
@@ -152,7 +136,7 @@ export async function sendStaffAction(
   if (!url) throw new Error('Chưa cấu hình Webhook Tiếp nhận/Hoàn tất.');
 
   const body = JSON.stringify(payload);
-  const actionUrl = normalizeStaffActionUrl(url);
+  const actionUrl = url;
   const token = adminSessionStore.getSnapshot();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;

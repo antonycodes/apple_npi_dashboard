@@ -93,7 +93,7 @@ export interface MasterFieldMap {
    * không có `deskCode` vẫn suy được bàn qua roster `DS Master` (cột `MSNV`).
    */
   submitBy: string;
-  /** Phân loại khâu của bản ghi SS_Master: "Tư vấn" / "Thu cũ" / "Backup". */
+  /** Phân loại khâu của bản ghi Master: "Tư vấn" / "Thu cũ" / "Backup". */
   stage: string;
   hyperlink: string;
   /** Dùng để sắp khách theo thứ tự khi 1 NV/bàn phục vụ nhiều khách cùng lúc. */
@@ -271,8 +271,7 @@ export const ENV_DEFAULTS = {
   dispatchWebhookUrl:
     (env.VITE_LARK_DISPATCH_WEBHOOK as string | undefined) || `${DEFAULT_API_URL}/dispatch-record`,
   /**
-   * Webhook thứ hai — 2 nút Tiếp nhận/Hoàn tất ở màn hình nhân viên. Trỏ vào
-   * `https://<worker>/webhook2` (secret `LARK_WEBHOOK_URL2`).
+   * Route ghi trực tiếp cho 2 nút Tiếp nhận/Hoàn tất ở màn hình nhân viên.
    */
   staffActionWebhookUrl:
     (env.VITE_LARK_STAFF_WEBHOOK as string | undefined) || `${DEFAULT_API_URL}/record`,

@@ -45,10 +45,8 @@ export interface LarkSettings {
    */
   dispatchWebhookUrl: string;
   /**
-   * Webhook cho 2 nút Tiếp nhận / Hoàn tất ở màn hình nhân viên — workflow Lark
-   * RIÊNG (secret `LARK_WEBHOOK_URL2` trên worker, route `/webhook2`), tạo
-   * record trong SS_Master. Để TRỐNG = giữ nguyên cách cũ: 2 nút chỉ mở
-   * hyperlink Lark, app không ghi gì.
+   * Route Worker cho 2 nút Tiếp nhận / Hoàn tất ở màn hình nhân viên.
+   * Route này ghi trực tiếp vào bảng Master. Để TRỐNG, app chỉ mở hyperlink Lark.
    */
   staffActionWebhookUrl: string;
   pollSeconds: number;
@@ -301,7 +299,7 @@ export const DS_MASTER_FIELD_LABELS: Record<keyof DsMasterFieldMap, string> = {
 export const TABLE_LABELS: Record<TableKey, string> = {
   checkin: 'Check in (bảng "Master_Check in")',
   orders: 'Danh sách đơn hàng',
-  master: 'Master_Staff (bảng logic Master / SS_Master)',
+  master: 'Master (nhật ký thao tác tại bàn)',
   dispatch: 'Master Điều phối (khách đã gán bàn, chờ NV nhận)',
   dsMaster: 'Master_DS (bảng logic DS Master)',
 };

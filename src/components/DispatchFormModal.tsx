@@ -1,8 +1,8 @@
 /**
  * DispatchFormModal — form "Điều phối", mở từ nút cạnh "End Flow".
  *
- * CHỈ GHI RA NGOÀI: nội dung form được POST thẳng lên webhook Lark Base
- * (`services/dispatchWebhook.ts`) để Lark tự ghi vào Base. Dashboard KHÔNG đọc
+ * CHỈ GHI RA NGOÀI: nội dung form được POST tới route ghi của Worker
+ * (`services/dispatchWebhook.ts`) để Worker ghi vào Base. Dashboard KHÔNG đọc
  * lại, KHÔNG đổi state bàn/khách nào theo dữ liệu nhập ở đây — sơ đồ vẫn chỉ
  * phản ánh dữ liệu đồng bộ từ Lark như trước.
  *
@@ -383,7 +383,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
             <input
               value={submitBy || '— Chưa có MSNV điều phối trong Master_DS —'}
               readOnly
-              className={`${FIELD_BASE} ${submitBy ? 'border-neutral-200 bg-neutral-100 text-neutral-700' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
+              className={`${FIELD_BASE} ${submitBy ? 'border-neutral-200 bg-neutral-100 text-neutral-700' : 'border-amber-300 bg-amber-50 text-amber-900'}`}
             />
           </Field>
 

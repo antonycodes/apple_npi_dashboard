@@ -203,4 +203,4 @@ Hoặc promote deployment tốt trước đó. Sau rollback phải kiểm tra do
 - Vercel READY ≠ AIO route đúng.
 - Worker health 200 ≠ Lark đủ năm bảng.
 - POST 200 ≠ record đúng field/End Flow.
-- k6 0% HTTP error ≠ không mất dữ liệu Lark.
+- HTTP 0% error không đồng nghĩa dữ liệu Lark đã ghi đủ.

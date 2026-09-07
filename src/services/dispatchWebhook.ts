@@ -16,7 +16,7 @@
  * Trường hợp (2) trả `confirmed: false` để UI nói đúng sự thật ("đã gửi,
  * không đọc được phản hồi") thay vì báo thành công chắc nịch.
  *
- * **Token**: khi Webhook URL trỏ vào worker (`/webhook`), worker BẮT BUỘC
+ * **Token**: khi Webhook URL trỏ vào worker, worker BẮT BUỘC
  * Bearer token admin — máy chưa đăng nhập không submit được. Trỏ thẳng vào
  * URL Lark thì không có ràng buộc đó (Lark không biết token của ta), lúc đó
  * cổng đăng nhập chỉ còn tác dụng ở mức giao diện.
@@ -57,19 +57,6 @@ export interface DispatchSendResult {
 }
 
 /** Điều phối phải ghi thẳng vào bảng dispatch để không mất record khi burst. */
-function normalizeDispatchUrl(rawUrl: string): string {
-  try {
-    const url = new URL(rawUrl);
-    if (url.pathname.replace(/\/+$/, '') === '/webhook') {
-      url.pathname = `${url.pathname.replace(/\/+$/, '')}-record`;
-      return url.toString();
-    }
-  } catch {
-    // Giữ nguyên để fetch trả lỗi cấu hình rõ ràng.
-  }
-  return rawUrl;
-}
-
 export async function sendDispatchForm(
   url: string,
   payload: DispatchFormPayload,
@@ -79,7 +66,7 @@ export async function sendDispatchForm(
   }
 
   const body = JSON.stringify(payload);
-  const dispatchUrl = normalizeDispatchUrl(url);
+  const dispatchUrl = url;
   const token = adminSessionStore.getSnapshot();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;

@@ -119,7 +119,7 @@ Frontend có gửi token khi đã đăng nhập, nhưng server không kiểm tra
 - Không chụp ảnh cột password.
 - Không lưu raw `/roster-check` trong Git nếu có username.
 - Không ghi bearer token, app token, table ID hoặc file token vào PDF.
-- Kết quả k6 cần redact URL/query có identifier.
+- Log kiểm thử ngoài repo cần redact URL/query có identifier.
 - Screenshot production phải kiểm tra tên/SĐT khách trước khi phát hành.
 
 ## 10. Checklist trước event

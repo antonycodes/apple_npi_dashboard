@@ -231,7 +231,7 @@ Edge cache trả dữ liệu nhanh và làm mới Lark ở nền. Đường ghi 
 | `/record` | POST | Ghi Master | Có |
 | `/upload` | POST | Upload ảnh Lark | Có |
 | `/media/:file_token` | GET | Xem lại media | Không |
-| `/webhook`, `/webhook2` | POST | Route legacy/rollback | Có qua webhook ngoài |
+| `/dispatch-record`, `/record` | POST | Ghi trực tiếp vào bảng vận hành | Có |
 
 Quy tắc chuẩn hiện tại:
 
@@ -241,7 +241,7 @@ Quy tắc chuẩn hiện tại:
 
 ## 8. Data mapping trọng yếu
 
-### 8.1 Master/SS_Master — ghi qua `/record`
+### 8.1 Master — ghi qua `/record`
 
 | Payload App | Cột Lark | Kiểu production | Trạng thái mapping | Ghi chú |
 | --- | --- | --- | --- | --- |
@@ -328,8 +328,6 @@ Các field phải được tài liệu hóa chi tiết ở `04-LARK-DATA-MAPPING
 | `README.md` | Trộn mô tả kiến trúc cũ với các bổ sung mới; một số đoạn còn nói branch tối ưu riêng và nhịp polling cũ | Giữ quick-start, thay phần kiến trúc bằng link sang project-master |
 | `docs/PROJECT_OVERVIEW.md` | Còn mô hình 38 bàn/TV18, năm bảng kiểu cũ, polling 30 giây và chưa có AIO/Kho | Gắn nhãn historical trước khi viết lại |
 | `docs/LARK_SETUP.md` | Có giá trị tham khảo thiết lập ban đầu nhưng phải đối chiếu Worker/KV/route trực tiếp hiện tại | Tách setup hiện hành và migration/legacy |
-| `k6/README.md` | Có lệnh test nhưng chưa phải báo cáo năng lực production có evidence | Giữ hướng dẫn chạy; kết quả chính chuyển sang `08-LOAD-CAPACITY-REPORT.md` |
-| `k6/END_FLOW_SCENARIO.md` | Mô tả một kịch bản chuyên biệt, không bao phủ AIO/Kho hiện tại | Giữ làm test reference và liên kết từ test matrix |
 
 Không xóa tài liệu cũ trước khi nội dung còn giá trị đã được chuyển sang bộ project-master.
 
@@ -404,7 +402,7 @@ Mockup phải đặt screenshot thật trong khung thiết bị; wireframe chỉ
 - Worker có cache snapshot memory + edge và stale fallback.
 - Frontend dùng serialized polling và timeout, giảm hiện tượng request chồng nhau.
 - Route ghi trực tiếp tách khỏi đường cache đọc.
-- Repository có các script k6 cho stress, journey, peak 40 VU và media live.
+- Repository không chứa bộ dữ liệu kiểm thử runtime.
 - Các bài live trước đây đã chứng minh được một số route/attachment, nhưng kết quả phải được gom lại thành artifact có thể truy vết.
 
 ### 11.2 Điều chưa được phép khẳng định

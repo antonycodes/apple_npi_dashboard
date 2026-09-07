@@ -9,7 +9,7 @@
  * không được nằm trong bundle web. Nên đường đi là:
  *
  *   điện thoại NV → `POST <worker>/upload` (multipart) → worker ký bằng tenant
- *   token → Lark trả `file_token` → app gắn vào JSON gửi `/webhook2`.
+ *   token → Lark trả `file_token` → app gắn vào JSON gửi `/record`.
  *
  * Xem `cloudflare-worker.js` (route `upload`) và `staffActionWebhook.ts`
  * (field `hinhNghiemThu`).

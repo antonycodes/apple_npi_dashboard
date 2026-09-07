@@ -42,8 +42,7 @@ export function useSharedSettingsSync(): void {
         // Trước đây còn một vế nữa: "hoặc khi máy khác KV thì cũng áp lại",
         // với ý định kéo máy bị chỉnh tay về đúng bản Live. Nhưng nó khiến
         // trang Cài đặt KHÔNG SỬA ĐƯỢC MẤY Ô DÙNG CHUNG (bug thật user báo
-        // 2026-08-12: đổi Webhook sang `/record` thì 5 giây sau tự về
-        // `/webhook2`) — admin gõ xong là vòng sync kế tiếp ghi đè, muốn lưu
+        // 2026-08-12: đổi đường ghi sang `/record` thì 5 giây sau tự về đường cũ — admin gõ xong là vòng sync kế tiếp ghi đè, muốn lưu
         // phải thắng cuộc đua 5 giây.
         //
         // Ý định cũ vẫn còn nguyên: `appliedUpdatedAt` là biến module, reset
@@ -86,9 +85,14 @@ export function useSharedSettingsSync(): void {
             : trimmed.startsWith(LEGACY_PUBLIC_API_URL)
               ? LEGACY_PUBLIC_API_URL
               : '';
-          return legacyPrefix
+          const migrated = legacyPrefix
             ? `${DEFAULT_API_URL}${trimmed.slice(legacyPrefix.length)}`
             : trimmed;
+          const endpoint = new URL(migrated);
+          const path = endpoint.pathname.replace(/\/+$/, '');
+          if (path === '/webhook') endpoint.pathname = '/dispatch-record';
+          if (path === '/webhook2') endpoint.pathname = '/record';
+          return endpoint.toString();
         };
 
         larkSettingsStore.save({

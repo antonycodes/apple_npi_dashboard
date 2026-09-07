@@ -9,15 +9,13 @@ import { DurableObject } from 'cloudflare:workers';
  *   TB_CHECKIN, TB_ORDERS, TB_MASTER, TB_DISPATCH, TB_DS_MASTER,
  *   CHECKIN_PASSWORD, HCM_CHECKIN_PASSWORD, HN_CHECKIN_PASSWORD
  *
- * Tuỳ chọn (2 nút Tiếp nhận/Hoàn tất ở màn hình nhân viên, 2026-08-12):
- * `LARK_WEBHOOK_URL2` = URL webhook của workflow Lark tạo record SS_Master.
+ * Hai nút Tiếp nhận/Hoàn tất ở màn hình nhân viên ghi trực tiếp vào bảng Master.
  * `ADMIN_PASSWORD` = mật khẩu tài khoản `admin` (BẮT BUỘC — thiếu thì mọi lần
  * đăng nhập admin trả 500 kèm thông báo rõ, KHÔNG rơi về chế độ không mật khẩu).
  * `STAFF_PASSWORD` = mật khẩu dùng chung cho tài khoản con TV/TC/BK (đặt 0000)
  * — chỉ còn để đỡ link riêng từng bàn đã phát ra ngoài. Từ 2026-08-19 tài khoản
  * THẬT nằm ở `Master_DS` (`NPI_AIO_User`/`NPI_AIO_Pass`, xem `readRoster`), user
  * tự đổi mật khẩu trong Base không cần deploy. Xoá secret này là tắt hẳn đường cũ.
- * App trỏ ô "Webhook Tiếp nhận / Hoàn tất" vào `https://<worker>/webhook2`.
  * `CHECKIN_PASSWORD` = mật khẩu cho tài khoản cố định `checkin` tại `/check-in`.
  * `HCM_CHECKIN_PASSWORD` và `HN_CHECKIN_PASSWORD` là mật khẩu riêng theo miền.
  * HCM dùng fallback `CHECKIN_PASSWORD` để tương thích cấu hình cũ.
@@ -28,26 +26,16 @@ import { DurableObject } from 'cloudflare:workers';
  *
  * `POST /upload` (2026-08-12, tiếp) — ảnh nghiệm thu ở form Hoàn tất khâu Thu
  * cũ/Backup: nhận multipart `file`, upload lên Lark bằng tenant token của
- * worker, trả `file_token` để app gắn vào JSON `/webhook2`. Không cần secret
+ * worker, trả `file_token` để app gắn vào JSON `/record`. Không cần secret
  * mới (dùng lại `LARK_APP_ID`/`LARK_APP_SECRET`/`LARK_APP_TOKEN` sẵn có).
  *
- * Tuỳ chọn (form "Điều phối", 2026-08-11): `LARK_WEBHOOK_URL` = URL webhook
- * Lark Base nhận form. **Phải đặt dạng Secret** (`wrangler secret put`), KHÔNG
- * phải biến plaintext "Text" trên dashboard: `wrangler deploy` đẩy lên nguyên
- * danh sách biến plaintext lấy từ `wrangler.jsonc` nên biến Text thêm tay trên
- * dashboard sẽ bị XOÁ ngay lần deploy kế tiếp (secret thì được giữ). Đặt xong
- * thì trỏ "Webhook URL" trong Cài đặt vào
- * `https://<worker>.workers.dev/webhook` để tránh CORS (xem `POST /webhook`
- * bên dưới); không đặt cũng được — web sẽ gửi thẳng lên Lark kiểu `no-cors`,
- * chỉ là không đọc được phản hồi.
  *
  * Dashboard trỏ vào:  API URL = https://<worker>.workers.dev/api/lark
  * (Worker lấy tên bảng ở segment cuối, nên /api/lark/<table> hay /<table> đều được.)
  * `GET /` hoặc `GET /health` → liệt kê các table key đang hỗ trợ, không cần Lark token.
  *
- * **Schema (2026-08-05, "no DS Master")**: `TB_CHECKIN` = table id của
- * "Master_Check in". `TB_MASTER` = table id của bảng "Master_Staff" (logic
- * Master/SS_Master, log NV tiếp
+ * **Schema**: `TB_CHECKIN` = table id của "Master_Check in". `TB_MASTER` =
+ * table id của bảng "Master", log NV tiếp
  * nhận khách theo bàn — nguồn xác định khách đang ở bàn nào + màu bàn + "Chờ
  * điều phối"). `TB_DISPATCH` = table id của "Master Điều phối" (khách đã gán
  * bàn, chờ NV nhận — nguồn số "khách đang chờ" mỗi bàn).
@@ -112,7 +100,7 @@ function scopedSiteEnv(env, site) {
   for (const envName of Object.values(TABLE_ENV)) {
     scoped[envName] = siteSecret(env, site, envName, { hcmFallback: true });
   }
-  for (const name of ['LARK_WEBHOOK_URL', 'LARK_WEBHOOK_URL2', 'LARK_EVENT_VERIFICATION_TOKEN']) {
+  for (const name of ['LARK_EVENT_VERIFICATION_TOKEN']) {
     scoped[name] = siteSecret(env, site, name, { hcmFallback: true });
   }
   scoped.CHECKIN_PASSWORD = siteSecret(env, site, 'CHECKIN_PASSWORD', { hcmFallback: true });
@@ -246,14 +234,27 @@ const KV_APP_SETTINGS = 'app-settings';
 function normalizeAppSettings(input) {
   const s = input && typeof input === 'object' ? input : {};
   const str = (v) => (typeof v === 'string' ? v.trim() : '');
+  const endpoint = (value) => {
+    const raw = str(value);
+    if (!raw) return '';
+    try {
+      const url = new URL(raw);
+      const path = url.pathname.replace(/\/+$/, '');
+      if (path === '/webhook') url.pathname = '/dispatch-record';
+      if (path === '/webhook2') url.pathname = '/record';
+      return url.toString();
+    } catch {
+      return raw;
+    }
+  };
   return {
     useMock: Boolean(s.useMock),
     sleepMode: Boolean(s.sleepMode),
     guestLock: Boolean(s.guestLock),
     guestUsers: s.guestUsers && typeof s.guestUsers === 'object' ? s.guestUsers : {},
     apiUrl: str(s.apiUrl),
-    dispatchWebhookUrl: str(s.dispatchWebhookUrl),
-    staffActionWebhookUrl: str(s.staffActionWebhookUrl),
+    dispatchWebhookUrl: endpoint(s.dispatchWebhookUrl),
+    staffActionWebhookUrl: endpoint(s.staffActionWebhookUrl),
     // Ánh xạ tên cột: cấu trúc lồng nhau do client định nghĩa (xem
     // `larkConfig.ts`), giữ nguyên vẹn — đã qua cổng token admin.
     fields: s.fields && typeof s.fields === 'object' ? s.fields : null,
@@ -2488,35 +2489,19 @@ export default {
       }
     }
 
-    // `POST /webhook` — chuyển tiếp form "Điều phối" tới webhook Lark đặt sẵn
-    // trong secret `LARK_WEBHOOK_URL`. Chỉ để LÁCH CORS (URL webhook gốc của
-    // Lark không trả header CORS nên trình duyệt không đọc được phản hồi):
-    // dashboard trỏ "Webhook URL" vào đây thì mới biết chắc Lark nhận hay
-    // chưa. KHÔNG nhận URL đích từ client — tránh biến Worker thành open proxy.
-    // KHÔNG đòi token ở đây (gỡ 2026-08-11): máy điều phối không còn phải đăng
-    // nhập để vận hành, nên bắt token sẽ làm mọi lần submit trả 401. Đăng nhập
-    // giờ chỉ chặn việc ĐỔI điều phối viên của máy + sửa danh sách
-    // (`/config/coordinators` PUT vẫn đòi token như cũ).
-    // Hệ quả phải chấp nhận: ai biết URL worker đều POST được vào đây.
-    //
-    // `POST /webhook2` (2026-08-12) — ĐÍCH THỨ HAI, secret `LARK_WEBHOOK_URL2`:
-    // workflow Lark riêng cho 2 nút Tiếp nhận / Hoàn tất ở màn hình nhân viên
-    // (`#/tv4`…), tạo record trong SS_Master. Vẫn giữ nguyên nguyên tắc trên:
-    // client CHỈ chọn được 1 trong 2 nhánh có sẵn, không bao giờ gửi URL đích.
-    // ── `POST /upload` (2026-08-12) — ảnh nghiệm thu ở form Hoàn tất ───────
+    // ── `POST /upload` — ảnh nghiệm thu ở form Hoàn tất ───────
     //
     // Cột đính kèm bên Bitable KHÔNG nhận được ảnh từ 1 chuỗi text/base64 —
     // bắt buộc phải có `file_token` do chính Lark cấp. Route này nhận file từ
     // điện thoại NV (multipart `file`), upload bằng `tenant_access_token` của
     // worker (app_id/secret KHÔNG BAO GIỜ ra tới client), rồi trả `file_token`
-    // để app gắn vào JSON gửi `/webhook2`. Automation Lark map token đó vào
-    // cột đính kèm.
+    // để app gắn vào JSON gửi `/record`.
     //
     // `parent_type: bitable_file` + `parent_node: <app_token>` là cặp bắt buộc
     // để file thuộc về đúng Base — dùng `resolveAppToken` y như đường đọc dữ
     // liệu, nên Base nhúng trong Wiki cũng đúng (xem module doc).
     //
-    // KHÔNG đòi token đăng nhập: cùng lý do đã bỏ ở `/webhook` (máy NV không
+    // KHÔNG đòi token đăng nhập: máy NV không
     // duy trì phiên admin). Đánh đổi đã biết: ai có URL worker đều upload
     // được. Có giới hạn 10MB để không biến worker thành kho ảnh miễn phí.
     // ── `GET /fields` (2026-08-12) — soi schema bảng ghi record ────────────
@@ -2710,8 +2695,7 @@ export default {
 
     // ── `POST /dispatch-record` (2026-08-13) — Điều phối ghi thẳng ─────────
     //
-    // Vì sao có route này: `/webhook` chỉ CHÂM NGÒI một Lark Automation. Lark
-    // trả 200 nghĩa là "đã nhận trigger", không phải "đã tạo record" — phần
+    // Route này gọi thẳng Bitable API để xác nhận record đã được ghi.
     // ghi chạy bất đồng bộ trong hàng đợi của Lark, và khi trigger đến nhanh
     // hơn tốc độ hàng đợi thì run bị bỏ. Đo được trên production: tỉ lệ mất
     // tăng theo mức đồng thời — 19% ở 10 request, 38% ở 15, 43% ở 20; nhịp
@@ -2720,9 +2704,7 @@ export default {
     // Route này gọi thẳng Bitable API như `/record`: worker giữ kết nối tới
     // khi Lark xác nhận, lỗi thì trả `code != 0` để client thấy ngay.
     //
-    // **Drop-in thay `/webhook`**: nhận ĐÚNG payload `DispatchFormPayload` app
-    // đang gửi, trả cùng khuôn `{code, msg}`. Đổi đường = sửa ô "Webhook Điều
-    // phối" trong Cài đặt sang `/dispatch-record`; dán lại URL cũ là rollback.
+    // Nhận payload `DispatchFormPayload` và ghi thẳng bảng Master Điều phối.
     if (request.method === 'POST' && table === 'dispatch-record') {
       if (!env.LARK_APP_TOKEN) return json({ code: -1, msg: 'Chưa cấu hình LARK_APP_TOKEN' }, 500);
       const dispatchTableId = env.TB_DISPATCH;
@@ -2816,10 +2798,7 @@ export default {
     // như chắc chắn không vào được nếu đi đường automation. Route này gọi
     // thẳng Bitable API, nơi định dạng trên là chính thức.
     //
-    // **Drop-in thay `/webhook2`**: nhận ĐÚNG payload app đang gửi và trả
-    // cùng khuôn `{code, msg}` — muốn đổi đường chỉ cần sửa ô "Webhook Tiếp
-    // nhận / Hoàn tất" trong Cài đặt từ `/webhook2` sang `/record`. Dán lại
-    // URL cũ là quay về automation, không phải sửa/deploy gì.
+    // Nhận payload thao tác nhân viên và ghi thẳng bảng Master.
     //
     // **Tự dò schema thay vì tin vào tên cột hardcode**: đọc field metadata
     // của bảng rồi CHỈ ghi cột nào có thật + ghi được, cột nào không thì bỏ
@@ -2926,24 +2905,6 @@ export default {
             leadtimeGiay: leadtime?.giay ?? null,
           },
         });
-      } catch (e) {
-        return json({ code: -1, msg: String(e?.message || e) }, 500);
-      }
-    }
-
-    if (request.method === 'POST' && (table === 'webhook' || table === 'webhook2')) {
-      const secretName = table === 'webhook2' ? 'LARK_WEBHOOK_URL2' : 'LARK_WEBHOOK_URL';
-      const target = env[secretName];
-      if (!target) return json({ code: -1, msg: `Missing Cloudflare secret "${secretName}"` }, 500);
-      try {
-        const r = await fetch(target, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: await request.text(),
-        });
-        const text = await r.text();
-        if (r.ok) invalidateDashboardSnapshot(env, ctx);
-        return json({ code: r.ok ? 0 : -1, msg: r.ok ? 'success' : `Lark HTTP ${r.status}`, data: { body: text } }, r.ok ? 200 : 502);
       } catch (e) {
         return json({ code: -1, msg: String(e?.message || e) }, 500);
       }

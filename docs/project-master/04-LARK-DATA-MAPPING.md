@@ -29,7 +29,7 @@
 
 Không rút `Thu cũ check` về boolean; giá trị có thể có nhiều option và phải giữ nguyên văn.
 
-## 3. Master/SS_Master — đọc
+## 3. Master — đọc
 
 | Logic App | Cột mặc định | Ghi chú |
 | --- | --- | --- |
