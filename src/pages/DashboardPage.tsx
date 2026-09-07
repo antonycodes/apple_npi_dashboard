@@ -1,7 +1,7 @@
 /**
  * DashboardPage — the interactive floor map + sidebar + End Flow + popover.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import CustomerPopover from '@/components/CustomerPopover';
 import DeskPopover from '@/components/DeskPopover';
@@ -14,6 +14,7 @@ import Sidebar from '@/components/Sidebar';
 import StatusLegend from '@/components/StatusLegend';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
+import DeskAlertNotifications from '@/components/DeskAlertNotifications';
 import { canSendSms, useAdminInfo } from '@/config/adminSession';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { useDashboardData } from '@/hooks/useDashboardData';
@@ -22,8 +23,8 @@ import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { formatElapsed } from '@/config/staffTimers';
 import type { WaitingZoneKey } from '@/types/desk';
 import { isTradeInCustomer } from '@/utils/tradeInFilter';
-import { clearDeskAlert, subscribeDeskAlerts } from '@/services/dashboardRealtime';
-import type { DeskAlert } from '@/services/deskAlerts';
+import { acknowledgeDeskAlert, subscribeDeskAlerts } from '@/services/dashboardRealtime';
+import { deskAlertStatus, type DeskAlert } from '@/services/deskAlerts';
 import { SITE_BRAND } from '@/config/siteBrand';
 
 export default function DashboardPage({ readOnly = false, simulation = false, onGuestBack }: { readOnly?: boolean; simulation?: boolean; onGuestBack?: () => void } = {}) {
@@ -36,7 +37,16 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   const [showGuestQr, setShowGuestQr] = useState(false);
   const [guestQrDataUrl, setGuestQrDataUrl] = useState<string | null>(null);
   const [deskAlerts, setDeskAlerts] = useState<DeskAlert[]>([]);
-  const visibleDeskAlerts = simulation ? guestRoom?.alerts ?? [] : deskAlerts;
+  const [deskAlertNotifications, setDeskAlertNotifications] = useState<DeskAlert[]>([]);
+  const previousAlertIds = useRef<Set<string>>(new Set());
+  const visibleDeskAlerts = useMemo(
+    () => simulation ? guestRoom?.alerts ?? [] : deskAlerts,
+    [deskAlerts, guestRoom?.alerts, simulation],
+  );
+  const pendingDeskAlerts = useMemo(
+    () => visibleDeskAlerts.filter((alert) => deskAlertStatus(alert) === 'pending'),
+    [visibleDeskAlerts],
+  );
   const realtimeApiUrl = toRuntimeConfig(settings).apiUrl;
   const displayedDesks = useMemo(
     () => simulation
@@ -63,6 +73,40 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
       (alertId) => setDeskAlerts((current) => current.filter((alert) => alert.id !== alertId)),
     );
   }, [realtimeApiUrl, simulation]);
+
+  useEffect(() => {
+    const currentIds = new Set(visibleDeskAlerts.map((alert) => alert.id));
+    const addedAlerts = visibleDeskAlerts.filter((alert) => !previousAlertIds.current.has(alert.id));
+    previousAlertIds.current = currentIds;
+
+    setDeskAlertNotifications((current) => {
+      const stillActive = current.filter((alert) => currentIds.has(alert.id));
+      const existingIds = new Set(stillActive.map((alert) => alert.id));
+      const next = [...stillActive, ...addedAlerts.filter((alert) => !existingIds.has(alert.id))];
+      return next.length === current.length && next.every((alert, index) => alert.id === current[index]?.id)
+        ? current
+        : next;
+    });
+  }, [visibleDeskAlerts]);
+
+  const dismissDeskAlertNotification = useCallback((alertId: string) => {
+    setDeskAlertNotifications((current) => current.filter((alert) => alert.id !== alertId));
+  }, []);
+
+  const acknowledgeAlert = useCallback((alert: DeskAlert) => {
+    const acknowledgedBy = session?.desk || session?.username || 'Điều phối';
+    const acknowledgedByMsnv = session?.msnv || session?.username || '';
+    if (simulation) {
+      guestRoom?.acknowledgeCoordinatorAlert(alert.deskId);
+      return;
+    }
+    const sent = acknowledgeDeskAlert(realtimeApiUrl, alert.id, acknowledgedBy, acknowledgedByMsnv);
+    if (sent) {
+      setDeskAlerts((current) => current.map((item) => item.id === alert.id
+        ? { ...item, acknowledgedAt: Date.now(), acknowledgedBy, acknowledgedByMsnv }
+        : item));
+    }
+  }, [guestRoom, realtimeApiUrl, session, simulation]);
 
   useEffect(() => {
     if (!showGuestQr || !guestRoom?.joinUrl) {
@@ -253,6 +297,8 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
         )}
       </header>
 
+      <DeskAlertNotifications alerts={deskAlertNotifications} onDismiss={dismissDeskAlertNotification} />
+
       {simulation && showGuestQr && guestRoom?.joinUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Mã QR phòng mô phỏng" onClick={() => setShowGuestQr(false)}>
           <div className="w-full max-w-xs rounded-xl bg-white p-5 text-center shadow-xl" onClick={(event) => event.stopPropagation()}>
@@ -285,6 +331,8 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
               <FilterBar
                 overtimeDesks={overtimeDesks}
                 onSelectOvertimeDesk={handleSelect}
+                supportAlerts={visibleDeskAlerts}
+                onSelectSupportDesk={handleSelect}
                 readOnly={!canDispatch}
                 endFlowCount={endFlow.length}
                 endFlowOpen={showEndFlow}
@@ -313,7 +361,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
                 onSelect={handleSelect}
                 onSelectCustomer={handleSelectCustomer}
                 selectedCustomer={selectedCustomer}
-                alertedDeskIds={new Set(visibleDeskAlerts.map((alert) => alert.deskId))}
+                alertedDeskIds={new Set(pendingDeskAlerts.map((alert) => alert.deskId))}
                 tradeInFilterActive={onlyTradeIn}
                 tradeInByStt={tradeInByStt}
                 overlay={
@@ -321,12 +369,10 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
                     <DeskPopover
                       desk={selectedDesk}
                       onClose={() => setSelectedId(null)}
-                      onAcknowledgeAlert={visibleDeskAlerts.some((alert) => alert.deskId === selectedDesk.id) ? () => {
-                        visibleDeskAlerts
+                      onAcknowledgeAlert={pendingDeskAlerts.some((alert) => alert.deskId === selectedDesk.id) ? () => {
+                        pendingDeskAlerts
                           .filter((alert) => alert.deskId === selectedDesk.id)
-                          .forEach((alert) => simulation
-                            ? guestRoom?.clearCoordinatorAlert(alert.deskId)
-                            : clearDeskAlert(realtimeApiUrl, alert.id));
+                          .forEach(acknowledgeAlert);
                       } : undefined}
                     />
                   ) : selectedCustomerData ? (

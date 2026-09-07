@@ -100,7 +100,7 @@ export default function DeskPopover({ desk, onClose, onAcknowledgeAlert }: DeskP
               }}
               className="mt-2 w-full rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
-              Đã tiếp nhận hỗ trợ
+              Tiếp nhận hỗ trợ
             </button>
           )}
           {status === 'occupied' ? (

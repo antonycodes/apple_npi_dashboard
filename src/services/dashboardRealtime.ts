@@ -131,8 +131,18 @@ export function sendDeskAlert(apiUrl: string | undefined, alert: Omit<DeskAlert,
   return true;
 }
 
-export function clearDeskAlert(apiUrl: string | undefined, alertId: string): boolean {
+export function acknowledgeDeskAlert(
+  apiUrl: string | undefined,
+  alertId: string,
+  acknowledgedBy: string,
+  acknowledgedByMsnv: string,
+): boolean {
   if (!apiUrl || !socket || socket.readyState !== WebSocket.OPEN || socketUrl !== toWebSocketUrl(apiUrl)) return false;
-  socket.send(JSON.stringify({ type: 'desk-alert-cleared', alertId }));
+  socket.send(JSON.stringify({
+    type: 'desk-alert-acknowledged',
+    alertId,
+    acknowledgedBy,
+    acknowledgedByMsnv,
+  }));
   return true;
 }

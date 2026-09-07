@@ -41,7 +41,7 @@ interface GuestSimulationValue {
   complete: (stt: string, stage: ClusterKey, checkBackup?: 'Có' | 'Không', thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau', device?: GuestDeviceData) => void;
   quickDevice: (stt: string, stage: ClusterKey, deskId?: string, device?: GuestDeviceData) => void;
   callCoordinator: (deskId: string, role: string, stt: string | null, customerName: string | null) => void;
-  clearCoordinatorAlert: (deskId: string) => void;
+  acknowledgeCoordinatorAlert: (deskId: string) => void;
   orderClaims: WarehouseOrderClaims;
   claimOrder: (claim: WarehouseOrderInput) => Promise<boolean>;
   claimAllOrders: (claims: WarehouseOrderInput[]) => Promise<boolean>;
@@ -464,8 +464,11 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         const resolvedDesk = deskForGuestRole(deskId) ?? deskId;
         void postAction('help', stt ?? '', 'consult', resolvedDesk, { role, customerName: customerName ?? '' });
       },
-      clearCoordinatorAlert(deskId) {
-        void postAction('help-clear', '', 'consult', deskForGuestRole(deskId) ?? deskId);
+      acknowledgeCoordinatorAlert(deskId) {
+        void postAction('help-ack', '', 'consult', deskForGuestRole(deskId) ?? deskId, {
+          acknowledgedBy: 'Guest_DP',
+          acknowledgedByMsnv: 'Guest_DP',
+        });
       },
       orderClaims,
       async claimOrder(claim) {

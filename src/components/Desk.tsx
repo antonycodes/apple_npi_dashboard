@@ -68,18 +68,16 @@ export default function Desk({
         TONE[status],
       ].join(' ')}
     >
-      {id}
       {alert && (
         <span
-          aria-label="Cần Điều phối hỗ trợ"
-          style={{ right: 'calc(var(--dot) * -1.25)', top: 'calc(var(--dot) * -0.45)' }}
-          className="absolute flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-amber-950 shadow-sm"
+          aria-label="HELP — Cần Điều phối hỗ trợ"
+          style={{ bottom: 'calc(var(--node) * 0.04 - 1px)' }}
+          className="absolute left-1/2 z-20 flex h-[calc(var(--node)*0.28)] min-w-[calc(var(--node)*0.78)] -translate-x-1/2 items-center justify-center rounded-[calc(var(--node)*0.07)] bg-amber-400 px-1 text-[length:calc(var(--node)*0.18)] font-black leading-none text-white shadow-[0_1px_3px_rgba(245,158,11,0.22)]"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3 fill-current">
-            <path d="M12 22a2.4 2.4 0 0 0 2.25-1.6h-4.5A2.4 2.4 0 0 0 12 22Zm7-4.1-1.35-1.5V10a5.65 5.65 0 0 0-4.65-5.57V3.7a1 1 0 1 0-2 0v.73A5.65 5.65 0 0 0 6.35 10v6.4L5 17.9v1.1h14v-1.1Z" />
-          </svg>
+          HELP
         </span>
       )}
+      <span className="relative z-10">{id}</span>
       {nextWaitingStt && (
         <span
           data-desk-badge=""

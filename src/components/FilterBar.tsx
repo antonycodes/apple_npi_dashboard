@@ -1,4 +1,6 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { DeskAlert } from '@/services/deskAlerts';
+import { deskAlertStatus } from '@/services/deskAlerts';
 
 /**
  * FilterBar — compact shortcut controls for the coordinator.
@@ -22,6 +24,8 @@ interface FilterBarProps {
   pendingDeviceCount: number;
   pendingDeviceOpen: boolean;
   onTogglePendingDevice: () => void;
+  supportAlerts: DeskAlert[];
+  onSelectSupportDesk: (deskId: string) => void;
 }
 
 export interface OvertimeDesk {
@@ -42,8 +46,14 @@ export default function FilterBar({
   pendingDeviceCount,
   pendingDeviceOpen,
   onTogglePendingDevice,
+  supportAlerts,
+  onSelectSupportDesk,
 }: FilterBarProps) {
   const [overtimeOpen, setOvertimeOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportFilter, setSupportFilter] = useState<'all' | 'pending' | 'acknowledged'>('all');
+  const supportButtonRef = useRef<HTMLButtonElement>(null);
+  const [supportPosition, setSupportPosition] = useState({ top: 0, left: 8 });
   const overtimeButtonRef = useRef<HTMLButtonElement>(null);
   const [overtimePosition, setOvertimePosition] = useState({ top: 0, left: 8 });
 
@@ -70,8 +80,118 @@ export default function FilterBar({
     };
   }, [overtimeOpen]);
 
+  useLayoutEffect(() => {
+    if (!supportOpen) return;
+
+    const updatePosition = () => {
+      const button = supportButtonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const popupWidth = Math.min(416, window.innerWidth - 16);
+      setSupportPosition({
+        top: rect.bottom + 8,
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - popupWidth - 8)),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [supportOpen]);
+
+  const latestSupportAlerts = useMemo(() => {
+    const latest = new Map<string, DeskAlert>();
+    [...supportAlerts]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .forEach((alert) => {
+        if (!latest.has(alert.deskId)) latest.set(alert.deskId, alert);
+      });
+    return [...latest.values()];
+  }, [supportAlerts]);
+  const filteredSupportAlerts = latestSupportAlerts.filter((alert) => supportFilter === 'all' || deskAlertStatus(alert) === supportFilter);
+  const pendingSupportCount = latestSupportAlerts.filter((alert) => deskAlertStatus(alert) === 'pending').length;
+
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <div className="relative">
+        <button
+          ref={supportButtonRef}
+          type="button"
+          onClick={() => setSupportOpen((open) => !open)}
+          aria-expanded={supportOpen}
+          className={[
+            'flex min-h-8 items-center rounded-full border px-3 text-xs font-semibold transition',
+            pendingSupportCount > 0
+              ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+              : 'border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50',
+          ].join(' ')}
+        >
+          Hỗ trợ{pendingSupportCount > 0 ? ` (${pendingSupportCount})` : ''}
+        </button>
+        {supportOpen && (
+          <div
+            className="fixed z-[70] w-[min(26rem,calc(100vw-1rem))] rounded-xl border border-neutral-200 bg-white p-2 shadow-lg"
+            style={supportPosition}
+          >
+            <div className="flex items-center justify-between gap-3 px-2 pb-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-400">GỌI ĐIỀU PHỐI HỖ TRỢ</p>
+              <div className="flex gap-1" role="group" aria-label="Lọc yêu cầu hỗ trợ">
+                {([
+                  ['all', 'Tất cả'],
+                  ['pending', 'Chưa tiếp nhận'],
+                  ['acknowledged', 'Đã tiếp nhận'],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setSupportFilter(value)}
+                    className={`rounded px-2 py-1 text-[10px] font-semibold ${supportFilter === value ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {filteredSupportAlerts.length > 0 ? (
+              <div className="max-h-64 space-y-1 overflow-y-auto">
+                {filteredSupportAlerts.map((alert) => {
+                  const acknowledged = deskAlertStatus(alert) === 'acknowledged';
+                  const time = new Date(alert.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                  const detail = [
+                    time,
+                    alert.deskId,
+                    alert.stt ? `STT ${alert.stt}` : '',
+                    acknowledged ? (alert.acknowledgedBy || '') : '',
+                    alert.callerMsnv || '',
+                  ].filter(Boolean).join(' · ');
+                  return (
+                    <button
+                      key={alert.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectSupportDesk(alert.deskId);
+                        setSupportOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-xs transition hover:bg-neutral-50 ${acknowledged ? 'border-emerald-200 bg-emerald-50/70' : 'border-red-200 bg-red-50/70'}`}
+                    >
+                      <span className={`min-w-0 truncate font-mono font-semibold ${acknowledged ? 'text-emerald-800' : 'text-red-800'}`}>{detail}</span>
+                      <span className={`shrink-0 text-[10px] font-bold ${acknowledged ? 'text-emerald-700' : 'text-red-700'}`}>
+                        {acknowledged ? 'Đã tiếp nhận' : 'Chưa tiếp nhận'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="px-2 py-3 text-sm text-neutral-500">Không có yêu cầu phù hợp.</p>
+            )}
+          </div>
+        )}
+      </div>
       <div className="relative">
         <button
           ref={overtimeButtonRef}

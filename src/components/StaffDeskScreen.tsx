@@ -500,6 +500,7 @@ export default function StaffDeskScreen({
       role: STAGE_LABEL[view.cluster],
       stt: primary?.stt ?? ghost?.stt ?? null,
       customerName: primary?.name ?? ghost?.name ?? null,
+      callerMsnv: submitByMsnv || null,
     });
     setDeskAlertMessage(sent ? 'Đã báo Điều phối.' : 'Chưa kết nối Dashboard Điều phối. Vui lòng thử lại.');
   };

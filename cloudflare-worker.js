@@ -1335,19 +1335,27 @@ export class DashboardSnapshotCoordinator extends DurableObject {
         role: String(input.role || '').trim(),
         stt: input.stt == null ? null : String(input.stt),
         customerName: input.customerName == null ? null : String(input.customerName),
+        callerMsnv: input.callerMsnv == null ? null : String(input.callerMsnv).trim(),
         createdAt: Date.now(),
+        acknowledgedAt: null,
+        acknowledgedBy: null,
+        acknowledgedByMsnv: null,
       };
       if (!alert.deskId) return;
       this.activeAlerts.set(alert.id, alert);
       await this.ctx.storage.put('desk-alerts', [...this.activeAlerts.values()]);
       this.broadcast({ type: 'desk-alert', alert });
     }
-    if (body.type === 'desk-alert-cleared' && body.alertId) {
+    if (body.type === 'desk-alert-acknowledged' && body.alertId) {
       await this.ready;
       const alertId = String(body.alertId);
-      if (!this.activeAlerts.delete(alertId)) return;
+      const alert = this.activeAlerts.get(alertId);
+      if (!alert || alert.acknowledgedAt) return;
+      alert.acknowledgedAt = Date.now();
+      alert.acknowledgedBy = String(body.acknowledgedBy || '').trim() || null;
+      alert.acknowledgedByMsnv = String(body.acknowledgedByMsnv || '').trim() || null;
       await this.ctx.storage.put('desk-alerts', [...this.activeAlerts.values()]);
-      this.broadcast({ type: 'desk-alert-cleared', alertId });
+      this.broadcast({ type: 'desk-alert', alert });
     }
   }
 
@@ -1661,9 +1669,19 @@ export class GuestSimulationRoom extends DurableObject {
           stt: stt || null,
           customerName: body?.customerName || null,
           createdAt: Date.now(),
+          acknowledgedAt: null,
+          acknowledgedBy: null,
+          acknowledgedByMsnv: null,
         });
-      } else if (action === 'help-clear') {
-        this.state.alerts = (this.state.alerts || []).filter((item) => item.deskId !== deskId);
+      } else if (action === 'help-ack') {
+        this.state.alerts = (this.state.alerts || []).map((item) => item.deskId === deskId && !item.acknowledgedAt
+          ? {
+              ...item,
+              acknowledgedAt: Date.now(),
+              acknowledgedBy: String(body?.acknowledgedBy || '').trim() || null,
+              acknowledgedByMsnv: String(body?.acknowledgedByMsnv || '').trim() || null,
+            }
+          : item);
       } else if (action === 'dispatch') {
         this.state.assignments = this.state.assignments.filter(
           (item) => !(item.stt === stt && item.stage === stage && item.status === 'waiting'),
