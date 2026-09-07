@@ -86,6 +86,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const [khachDoiY, setKhachDoiY] = useState('');
   const [deskId, setDeskId] = useState('');
   const [daySms, setDaySms] = useState(false);
+  const [smsConfirmOpen, setSmsConfirmOpen] = useState(false);
   const [busyDeskConfirmOpen, setBusyDeskConfirmOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmProgress, setConfirmProgress] = useState(0);
@@ -103,12 +104,15 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
       if (confirmOpen) {
         setConfirmOpen(false);
         if (confirmCompleted) onClose();
-      }
-      else onClose();
+      } else if (smsConfirmOpen) {
+        setSmsConfirmOpen(false);
+      } else if (busyDeskConfirmOpen) {
+        setBusyDeskConfirmOpen(false);
+      } else onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [confirmCompleted, confirmOpen, onClose]);
+  }, [busyDeskConfirmOpen, confirmCompleted, confirmOpen, onClose, smsConfirmOpen]);
 
   useEffect(() => {
     if (!confirmOpen || !confirmSliderRef.current) return;
@@ -214,9 +218,22 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
     }
   };
 
+  const continueSubmit = async () => {
+    if (selectedDeskBusy) {
+      setBusyDeskConfirmOpen(true);
+      return;
+    }
+    await sendDispatch();
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
+    // Chỉ mở cảnh báo khi bấm nút gửi. Tick checkbox không gửi request.
+    if (daySms) {
+      setSmsConfirmOpen(true);
+      return;
+    }
     if (khachDoiY) {
       confirmProgressRef.current = 0;
       setConfirmProgress(0);
@@ -225,11 +242,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
       setConfirmOpen(true);
       return;
     }
-    if (selectedDeskBusy) {
-      setBusyDeskConfirmOpen(true);
-      return;
-    }
-    await sendDispatch();
+    await continueSubmit();
   };
 
   const updateConfirmProgress = (value: number) => {
@@ -533,6 +546,62 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
                     {confirmCompleted ? 'Đã xác nhận thành công' : confirmSending ? 'Đang gửi về Lark…' : 'Xác nhận khách đồng ý thay đổi'}
                   </span>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {smsConfirmOpen && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sms-confirm-title"
+            onClick={() => setSmsConfirmOpen(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl sm:p-7"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 3 2.8 19a1.5 1.5 0 0 0 1.3 2.2h15.8a1.5 1.5 0 0 0 1.3-2.2L12 3Z" />
+                    <path d="M12 9v4M12 17h.01" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h3 id="sms-confirm-title" className="text-lg font-bold text-neutral-900">Xác nhận gửi SMS</h3>
+                  <p className="mt-1 text-sm leading-5 text-neutral-600">
+                    Bạn đang yêu cầu gửi SMS tới khách. Vui lòng kiểm tra kỹ trước khi xác nhận.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-2 rounded-xl bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                <div className="flex justify-between gap-4"><span className="text-neutral-500">STT</span><strong>{stt || '—'}</strong></div>
+                <div className="flex justify-between gap-4"><span className="text-neutral-500">Phân loại</span><strong>{loai || '—'}</strong></div>
+                <div className="flex justify-between gap-4"><span className="text-neutral-500">Nhân sự</span><strong className="text-right">{selected ? `${deskId} — ${staffNameOf(selected) || 'Chưa gán NV'}` : '—'}</strong></div>
+              </div>
+
+              <div className="mt-5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSmsConfirmOpen(false)}
+                  className="min-h-12 flex-1 rounded-xl border border-neutral-300 px-4 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+                >
+                  Quay lại
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSmsConfirmOpen(false);
+                    void continueSubmit();
+                  }}
+                  className="min-h-12 flex-[1.4] rounded-xl bg-brand px-4 text-sm font-bold text-white hover:opacity-90"
+                >
+                  Xác nhận gửi SMS
+                </button>
               </div>
             </div>
           </div>
