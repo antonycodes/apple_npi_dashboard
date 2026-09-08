@@ -2,14 +2,41 @@ import { useMemo, useState } from 'react';
 import { ArrowLeftIcon, RefreshIcon } from '@/components/AppShellIcons';
 import { useAdminInfo, logoutToApp } from '@/config/adminSession';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import errorMatrixMarkdown from '../../docs/HE-THONG-ERROR-MATRIX.md?raw';
 
 type Severity = 'critical' | 'warning' | 'info';
 type Issue = { id: string; severity: Severity; title: string; source: string; detail: string; impact: string; action: string };
+type MatrixSection = { title: string; headers: string[]; rows: string[][] };
 const SEVERITY_META: Record<Severity, { label: string; tone: string; dot: string }> = {
   critical: { label: 'Nghiêm trọng', tone: 'border-red-200 bg-red-50 text-red-800', dot: 'bg-red-600' },
   warning: { label: 'Cảnh báo', tone: 'border-amber-200 bg-amber-50 text-amber-800', dot: 'bg-amber-500' },
   info: { label: 'Thông tin', tone: 'border-blue-200 bg-blue-50 text-blue-800', dot: 'bg-blue-500' },
 };
+
+function parseMatrix(markdown: string): MatrixSection[] {
+  const lines = markdown.split('\n');
+  const sections: MatrixSection[] = [];
+  let title = '';
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].trim();
+    if (line.startsWith('## ')) {
+      title = line.slice(3).trim();
+      continue;
+    }
+    if (!line.startsWith('|') || !lines[index + 1]?.includes('---')) continue;
+    const cells = (value: string) => value.split('|').slice(1, -1).map((cell) => cell.trim());
+    const headers = cells(line);
+    const rows: string[][] = [];
+    index += 2;
+    while (index < lines.length && lines[index].trim().startsWith('|')) {
+      rows.push(cells(lines[index].trim()));
+      index += 1;
+    }
+    sections.push({ title, headers, rows });
+    index -= 1;
+  }
+  return sections;
+}
 
 function buildIssues(data: ReturnType<typeof useDashboardData>): Issue[] {
   const issues: Issue[] = [];
@@ -28,18 +55,24 @@ export default function SystemErrorsPage() {
   const session = useAdminInfo();
   const data = useDashboardData();
   const [filter, setFilter] = useState<'all' | Severity>('all');
+  const [view, setView] = useState<'live' | 'guide'>('live');
+  const [guideQuery, setGuideQuery] = useState('');
   const issues = useMemo(() => buildIssues(data), [data]);
+  const matrix = useMemo(() => parseMatrix(errorMatrixMarkdown), []);
   const visible = filter === 'all' ? issues : issues.filter((issue) => issue.severity === filter);
   const count = (severity: Severity) => issues.filter((issue) => issue.severity === severity).length;
   if (session?.role !== 'admin') return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Bạn không có quyền xem Kiểm soát hệ thống.</p></main>;
 
   return <main className="min-h-screen bg-[#f7f6f3] px-4 py-6 text-neutral-800 sm:px-6"><div className="mx-auto max-w-6xl">
-    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-200 pb-5"><div><a href="/app" className="inline-flex items-center gap-2 text-sm font-bold text-neutral-700 hover:text-neutral-900"><ArrowLeftIcon className="h-4 w-4" /> Quản trị</a><h1 className="mt-4 text-2xl font-black tracking-tight text-neutral-950">Kiểm soát hệ thống</h1><p className="mt-1 max-w-2xl text-sm text-neutral-600">Phát hiện lỗi đang tồn tại để xử lý trước khi ảnh hưởng vận hành.</p></div><div className="flex items-center gap-2"><button type="button" onClick={data.refresh} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50"><RefreshIcon className="h-4 w-4" /> Kiểm tra lại</button><button type="button" onClick={logoutToApp} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold text-red-700 hover:bg-red-50">Đăng xuất</button></div></header>
+    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-200 pb-5"><div><a href="/app" className="inline-flex items-center gap-2 text-sm font-bold text-neutral-700 hover:text-neutral-900"><ArrowLeftIcon className="h-4 w-4" /> Quản trị</a><h1 className="mt-4 text-2xl font-black tracking-tight text-neutral-950">Kiểm soát hệ thống</h1><p className="mt-1 max-w-2xl text-sm text-neutral-600">Phát hiện lỗi đang tồn tại và tra cứu hướng xử lý theo từng vị trí.</p></div><div className="flex items-center gap-2"><button type="button" onClick={data.refresh} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50"><RefreshIcon className="h-4 w-4" /> Kiểm tra lại</button><button type="button" onClick={logoutToApp} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold text-red-700 hover:bg-red-50">Đăng xuất</button></div></header>
+    <nav aria-label="Nội dung kiểm soát hệ thống" className="mt-5 flex w-fit gap-1 rounded-lg bg-neutral-100 p-1"><button type="button" onClick={() => setView('live')} className={`rounded-md px-3 py-2 text-sm font-bold ${view === 'live' ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-600 hover:text-neutral-950'}`}>Đang phát hiện</button><button type="button" onClick={() => setView('guide')} className={`rounded-md px-3 py-2 text-sm font-bold ${view === 'guide' ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-600 hover:text-neutral-950'}`}>Bảng lỗi & hướng xử lý</button></nav>
+    {view === 'live' ? <>
     <section className="mt-6 grid gap-3 sm:grid-cols-3">{(['critical', 'warning', 'info'] as Severity[]).map((severity) => { const meta = SEVERITY_META[severity]; return <button key={severity} type="button" onClick={() => setFilter(filter === severity ? 'all' : severity)} className={`border p-4 text-left transition hover:border-neutral-400 ${filter === severity ? 'ring-2 ring-neutral-900 ring-offset-2' : ''}`}><p className="text-xs font-bold text-neutral-500">{meta.label}</p><p className="mt-1 text-2xl font-black text-neutral-950">{count(severity)}</p></button>; })}</section>
     <section className="mt-5 border border-neutral-200 bg-white"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-4 py-4 sm:px-5"><div><h2 className="font-black text-neutral-950">Đang theo dõi</h2><p className="mt-1 text-xs text-neutral-500">Nguồn dữ liệu: snapshot vận hành hiện tại.</p></div><select value={filter} onChange={(event) => setFilter(event.target.value as 'all' | Severity)} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm"><option value="all">Tất cả mức độ</option><option value="critical">Nghiêm trọng</option><option value="warning">Cảnh báo</option><option value="info">Thông tin</option></select></div><div className="divide-y divide-neutral-100">
       {data.loading && <p className="px-5 py-12 text-center text-sm text-neutral-500">Đang kiểm tra dữ liệu hệ thống…</p>}
       {!data.loading && visible.map((issue) => { const meta = SEVERITY_META[issue.severity]; return <article key={issue.id} className="px-4 py-5 sm:px-5"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-3"><span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${meta.dot}`} /><div><h3 className="font-black text-neutral-950">{issue.title}</h3><p className="mt-1 text-xs font-semibold text-neutral-500">Vị trí: {issue.source}</p></div></div><span className={`border px-2 py-1 text-[11px] font-bold ${meta.tone}`}>{meta.label}</span></div><p className="mt-4 text-sm text-neutral-700">{issue.detail}</p><div className="mt-4 grid gap-3 border-t border-neutral-100 pt-4 text-sm md:grid-cols-2"><div><p className="text-xs font-bold uppercase tracking-wide text-neutral-400">Ảnh hưởng</p><p className="mt-1 text-neutral-600">{issue.impact}</p></div><div><p className="text-xs font-bold uppercase tracking-wide text-neutral-400">Hướng xử lý</p><p className="mt-1 text-neutral-600">{issue.action}</p></div></div></article>; })}
       {!data.loading && !visible.length && <p className="px-5 py-12 text-center text-sm text-neutral-500">Không có lỗi phù hợp với bộ lọc.</p>}
     </div></section>
+    </> : <section className="mt-5 border border-neutral-200 bg-white"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-4 py-4 sm:px-5"><div><h2 className="font-black text-neutral-950">Bảng lỗi & hướng xử lý</h2><p className="mt-1 text-xs text-neutral-500">Nguồn: `docs/HE-THONG-ERROR-MATRIX.md`.</p></div><input value={guideQuery} onChange={(event) => setGuideQuery(event.target.value)} placeholder="Tìm lỗi, vị trí hoặc hướng xử lý" className="min-h-10 w-full rounded-lg border border-neutral-300 px-3 text-sm sm:w-80" /></div><div className="space-y-6 p-4 sm:p-5">{matrix.map((section) => { const rows = section.rows.filter((row) => !guideQuery.trim() || row.join(' ').toLocaleLowerCase('vi').includes(guideQuery.trim().toLocaleLowerCase('vi'))); return <div key={section.title}><h3 className="mb-3 font-black text-neutral-950">{section.title}</h3><div className="overflow-x-auto border border-neutral-200"><table className="min-w-[980px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500"><tr>{section.headers.map((header) => <th key={header} className="border-b border-neutral-200 px-3 py-3 font-bold">{header}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`${section.title}-${rowIndex}`} className="border-b border-neutral-100 align-top last:border-0">{row.map((cell, cellIndex) => <td key={`${rowIndex}-${cellIndex}`} className="px-3 py-3 text-neutral-700">{cell}</td>)}</tr>)}{!rows.length && <tr><td colSpan={section.headers.length} className="px-3 py-8 text-center text-sm text-neutral-500">Không có dòng phù hợp.</td></tr>}</tbody></table></div></div>; })}</div></section>}
   </div></main>;
 }
