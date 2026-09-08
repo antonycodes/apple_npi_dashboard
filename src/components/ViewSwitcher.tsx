@@ -1,6 +1,6 @@
 import { useAdminInfo } from '@/config/adminSession';
 
-export type AppView = 'main' | 'dash' | 'checkin' | 'sms' | 'tuvan' | 'tradein' | 'backup' | 'kho';
+export type AppView = 'main' | 'dash' | 'checkin' | 'sms' | 'errors' | 'tuvan' | 'tradein' | 'backup' | 'kho';
 
 const OPERATION_VIEWS: Array<{ key: AppView; label: string; href: string }> = [
   { key: 'tuvan', label: 'Tư vấn', href: '/tuvanview' },
@@ -22,6 +22,7 @@ export default function ViewSwitcher({ active }: { active: AppView }) {
         { key: 'dash' as const, label: 'Dash', href: '/dashboard' },
         ...(canOpenCheckin ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }] : []),
         ...(canOpenSms ? [{ key: 'sms' as const, label: 'SMS', href: '/sms' }] : []),
+        { key: 'errors' as const, label: 'Lỗi hệ thống', href: '/admin/system-errors' },
         ...OPERATION_VIEWS,
       ]
     : [
