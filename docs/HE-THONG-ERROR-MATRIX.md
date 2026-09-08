@@ -45,6 +45,62 @@ Nếu bước 7 đúng nhưng App vẫn trống, lỗi nằm ở snapshot, field
 - `STT tiếp theo` phải trả rỗng có chủ đích khi không có dòng hợp lệ, không để
   lỗi Formula lan sang App.
 
+## 0.1. Cách tìm giá trị “đang chờ” trong Base
+
+“Đang chờ” nghĩa là khách đã được điều phối nhưng nhân viên tại khâu đó chưa
+bấm nhận. User không tìm một cột tên “Đang chờ”; cần xem đúng field trạng thái
+theo từng khâu.
+
+### Ví dụ: STT 05 được điều phối vào TV4
+
+Mở bảng `Master_Điều phối`, lọc đúng các điều kiện:
+
+```text
+DS Tư vấn = TV4
+Phân loại = Tư vấn
+STT input = 05
+```
+
+Tại chính dòng này, kiểm tra:
+
+```text
+Status in tư vấn = Chưa tiếp nhận
+Thứ tự bản ghi có giá trị
+```
+
+`Chưa tiếp nhận` là giá trị được tính là đang chờ của khâu Tư vấn. Nếu field
+này là Lookup/Formula, đối chiếu bản ghi nguồn trong `Master_Check in` bằng
+`STT = 05`. Không dùng tên người hoặc chỉ nhìn `STT input` để kết luận khách
+đang chờ.
+
+Sau đó mở bảng `Master_DS`, tìm:
+
+```text
+STT bàn = TV4
+```
+
+Kiểm tra ba field theo thứ tự:
+
+```text
+Sl khách chờ > 0
+TT_min có giá trị
+STT tiếp theo = 05
+```
+
+Nếu `Sl khách chờ > 0` nhưng `STT tiếp theo` trống, lỗi nằm trong chuỗi
+`Master_Điều phối.Status in tư vấn` → `Master_DS.TT_min` → `Master_DS.STT tiếp theo`.
+
+### Bảng giá trị chờ theo khâu
+
+| Khâu | Field cần xem trong `Master_Điều phối` | Giá trị được tính là đang chờ |
+| --- | --- | --- |
+| Tư vấn | `Status in tư vấn` | `Chưa tiếp nhận` |
+| Thu cũ | `Status in thu cũ` | `Chưa tiếp nhận`, `Không thu cũ` |
+| Backup | `Status in backup` | `Chưa tiếp nhận`, `Không backup`, `Cần check backup` |
+
+Các giá trị `Tiếp nhận` và `Hoàn tất` không còn được tính là đang chờ. Với
+Backup, phải dùng đúng chuỗi `Cần check backup`; `Check backup` là chuỗi khác.
+
 ## 1. Quy trình xử lý chung
 
 1. Ghi thời điểm, hostname, workspace, STT và thao tác vừa thực hiện.
