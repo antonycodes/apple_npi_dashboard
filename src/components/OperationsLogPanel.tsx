@@ -130,6 +130,7 @@ export default function OperationsLogPanel({ tables, fields, loading, refresh }:
   loading: boolean;
   refresh: () => void;
 }) {
+  const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -220,12 +221,19 @@ export default function OperationsLogPanel({ tables, fields, loading, refresh }:
     })),
   ], [filteredWarehouseEvents, latestByStt, visible]);
 
+  function handleRefresh(): void {
+    if (refreshing) return;
+    setRefreshing(true);
+    refresh();
+    window.setTimeout(() => setRefreshing(false), 850);
+  }
+
   return (
     <>
       <section className="mt-6 border border-neutral-200 bg-white p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h2 className="text-lg font-black text-neutral-950">Tổng kết vận hành</h2><p className="mt-1 text-sm text-neutral-500">Nguồn: Check-in, Master Điều phối và Master.</p></div>
-          <div className="flex gap-2"><button type="button" onClick={refresh} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50"><RefreshIcon className="h-4 w-4" /> Làm mới</button><button type="button" disabled={!exportRows.length} onClick={() => downloadOperations(exportRows, `nhat-ky-van-hanh-${new Date().toISOString().slice(0, 10)}.xls`)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-neutral-900 px-3 text-sm font-bold text-white hover:bg-neutral-700 disabled:opacity-40"><DownloadIcon className="h-4 w-4" /> Tải báo cáo</button></div>
+          <div className="flex gap-2"><button type="button" onClick={handleRefresh} disabled={refreshing} aria-busy={refreshing} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold transition-colors hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-70"><RefreshIcon className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /> {refreshing ? 'Đang làm mới…' : 'Làm mới'}</button><button type="button" disabled={!exportRows.length} onClick={() => downloadOperations(exportRows, `nhat-ky-van-hanh-${new Date().toISOString().slice(0, 10)}.xls`)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-neutral-900 px-3 text-sm font-bold text-white hover:bg-neutral-700 disabled:opacity-40"><DownloadIcon className="h-4 w-4" /> Tải báo cáo</button></div>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[

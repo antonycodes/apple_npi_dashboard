@@ -22,7 +22,7 @@ export default function ViewSwitcher({ active }: { active: AppView }) {
         { key: 'dash' as const, label: 'Dash', href: '/dashboard' },
         ...(canOpenCheckin ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }] : []),
         ...(canOpenSms ? [{ key: 'sms' as const, label: 'SMS', href: '/sms' }] : []),
-        { key: 'errors' as const, label: 'Kiểm soát hệ thống', href: '/admin/system-errors' },
+        { key: 'errors' as const, label: 'Kiểm soát hệ thống', href: '/system-control' },
         ...OPERATION_VIEWS,
       ]
     : [

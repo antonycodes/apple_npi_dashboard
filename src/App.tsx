@@ -106,7 +106,7 @@ function useAppRoute(): Route {
   if (path === 'check-in' || path.startsWith('check-in/')) return { kind: 'checkin' };
   if (path === 'sms' || path.startsWith('sms/')) return { kind: 'sms' };
   if (path === 'admin/logs/mock') return { kind: 'activityLogsMock' };
-  if (path === 'admin/system-errors' || path === 'admin/errors') return { kind: 'systemErrors' };
+  if (path === 'system-control' || path === 'admin/system-errors' || path === 'admin/errors') return { kind: 'systemErrors' };
   if (path === 'admin/logs' || path === 'admin/activity-logs') return { kind: 'activityLogs' };
   if (path.startsWith('admin')) return { kind: 'app' };
   if (path.startsWith('settings')) return { kind: 'settings' };
