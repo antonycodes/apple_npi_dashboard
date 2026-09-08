@@ -28,6 +28,7 @@ export default function SerialScanButton({ onScan, label = 'Quét Serial Number'
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [manualValue, setManualValue] = useState('');
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -42,6 +43,17 @@ export default function SerialScanButton({ onScan, label = 'Quét Serial Number'
     setOpen(false);
     setBusy(false);
     setError(null);
+    setManualValue('');
+  };
+
+  const submitManualValue = () => {
+    const value = manualValue.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (value.length < 8 || value.length > 20) {
+      setError('Serial Number cần có từ 8 đến 20 ký tự chữ và số.');
+      return;
+    }
+    onScan(value);
+    close();
   };
 
   const readImage = async (file: File) => {
@@ -88,12 +100,29 @@ export default function SerialScanButton({ onScan, label = 'Quét Serial Number'
         return;
       }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+        });
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
         streamRef.current = stream;
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track?.getCapabilities() as MediaTrackCapabilities & { focusMode?: string[] };
+        if (track && capabilities.focusMode?.includes('continuous')) {
+          try {
+            await track.applyConstraints({
+              advanced: [{ focusMode: 'continuous' }],
+            } as unknown as MediaTrackConstraints);
+          } catch {
+            // Some Safari/iOS versions expose focusMode but reject the constraint.
+          }
+        }
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
@@ -134,12 +163,36 @@ export default function SerialScanButton({ onScan, label = 'Quét Serial Number'
             </div>
             <div className="relative overflow-hidden rounded-lg bg-black">
               <video ref={videoRef} className="aspect-[4/3] w-full object-cover" muted playsInline />
-              <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-[30%] w-[90%] -translate-x-1/2 -translate-y-1/2 rounded border-2 border-emerald-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]" />
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-black/30" />
+              <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-[30%] w-[90%] -translate-x-1/2 -translate-y-1/2 rounded border-2 border-emerald-400 bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
+              <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/65 px-2 py-1 text-[11px] font-semibold text-white">Đưa dòng Số sê-ri vào khung</p>
             </div>
             <canvas ref={canvasRef} className="hidden" />
             {error && <p className="mt-2 text-sm font-semibold text-red-600">{error}</p>}
             {busy && <p className="mt-2 text-sm font-semibold text-neutral-700" aria-live="polite">Đang nhận diện. Lần đầu có thể mất vài giây.</p>}
             <button type="button" onClick={() => void capture()} disabled={busy} className="mt-3 min-h-11 w-full rounded-lg bg-neutral-800 px-3 text-sm font-bold text-white transition hover:bg-neutral-700 disabled:opacity-50">{busy ? 'Đang nhận diện…' : 'Chụp và nhận diện S/N'}</button>
+            {error && !busy && (
+              <div className="mt-3 border-t border-neutral-200 pt-3">
+                <label htmlFor="manual-serial-number" className="text-xs font-semibold text-neutral-700">Nhập Serial Number thủ công</label>
+                <div className="mt-1 flex gap-2">
+                  <input
+                    id="manual-serial-number"
+                    value={manualValue}
+                    onChange={(event) => setManualValue(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') submitManualValue();
+                    }}
+                    maxLength={20}
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="Nhập 8–20 ký tự"
+                    className="min-h-11 min-w-0 flex-1 rounded-lg border border-neutral-300 px-3 text-base uppercase text-neutral-800 outline-none focus:border-neutral-600 focus:ring-2 focus:ring-neutral-200"
+                  />
+                  <button type="button" onClick={submitManualValue} className="min-h-11 rounded-lg border border-neutral-300 px-3 text-sm font-bold text-neutral-800 transition hover:bg-neutral-50 active:scale-[0.98]">Dùng mã này</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
