@@ -48,6 +48,7 @@ export interface DeskCustomer {
   /** Mốc `Thời gian` của dòng `Tiếp nhận` trong Master (epoch ms). */
   serviceStartedAt?: number | null;
   productName?: string | null; // SP 1 (join Check in theo tên)
+  oldDeviceQuantity?: number | null; // Số máy khách đăng ký thu cũ (join Check in theo STT)
   paymentNote?: string | null; // Check UD Thanh toán (join Check in theo tên)
   deviceAccepted?: boolean | null; // Đã nghiệm thu thiết bị (join Check in theo tên)
   deviceAcceptedText?: string | null; // Nguyên văn cột Check nghiệm thu

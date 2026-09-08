@@ -109,10 +109,13 @@ function indexCheckinByStt(rows: LarkRecord[], fm: CheckinFieldMap): Map<string,
   for (const r of rows) {
     const stt = cellToString(r.fields[fm.stt]);
     if (!stt) continue;
+    const quantityText = cellToString(r.fields[fm.oldDeviceQuantity]);
+    const quantity = quantityText == null || quantityText.trim() === '' ? null : Number(quantityText);
     m.set(stt, {
       stt,
       name: cellToString(r.fields[fm.name]),
       productName: cellToProducts(r.fields, fm.product),
+      oldDeviceQuantity: Number.isFinite(quantity) ? quantity : null,
       paymentNote: cellToString(r.fields[fm.note]),
       deviceAccepted: cellToBool(r.fields[fm.deviceAccepted]),
       deviceAcceptedText: cellToString(r.fields[fm.deviceAccepted]),
@@ -292,6 +295,7 @@ export function mapStaffDeskView(
   const prevByStt = indexPrevDeviceByStt(tables.master, fields.master);
   const withPrev = (c: StaffCustomer): StaffCustomer => ({
     ...c,
+    oldDeviceQuantity: c.stt ? checkinByStt.get(c.stt)?.oldDeviceQuantity ?? null : null,
     prevDevice: c.stt ? prevByStt.get(c.stt) ?? null : null,
   });
 
@@ -325,7 +329,7 @@ export function mapStaffDeskView(
     checkinCustomers: [...checkinByStt.values()].map(withPrev),
     activeStts,
     waiting: state?.waiting ?? 0,
-    completedHistory: state?.completedCustomers ?? [],
+    completedHistory: (state?.completedCustomers ?? []).map(withPrev),
     pendingDevice,
     deskReceiveUrl: urls?.receive ?? null,
     deskCompleteUrl: urls?.complete ?? null,

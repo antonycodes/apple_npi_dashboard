@@ -37,6 +37,8 @@ export interface CheckinFieldMap {
   /** Số điện thoại khách, dùng để Điều phối xác nhận trước khi gửi SMS. */
   phone: string;
   product: string;
+  /** Số thiết bị khách đăng ký thu cũ tại Check-in. */
+  oldDeviceQuantity: string;
   note: string;
   deviceAccepted: string;
   /**
@@ -184,6 +186,7 @@ export const DEFAULT_CHECKIN_FIELDS: CheckinFieldMap = {
   name: 'Họ và tên',
   phone: 'Số điện thoại',
   product: 'SP 1',
+  oldDeviceQuantity: 'Số lượng thu cũ',
   note: 'Check UD Thanh toán',
   deviceAccepted: 'Check nghiệm thu',
   oldDeviceCheck: 'Thu cũ check',

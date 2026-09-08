@@ -176,7 +176,7 @@ function ElapsedBadge({
  * (đang tiếp nhận / STT tiếp theo) trên màn hình điện thoại; ẩn hẳn khi bàn
  * chưa hoàn tất khách nào.
  */
-function CompletedHistorySection({ customers }: { customers: StaffCustomer[] }) {
+function CompletedHistorySection({ customers, showTradeInQuantity }: { customers: StaffCustomer[]; showTradeInQuantity: boolean }) {
   const [open, setOpen] = useState(false);
   if (customers.length === 0) return null;
 
@@ -208,6 +208,7 @@ function CompletedHistorySection({ customers }: { customers: StaffCustomer[] }) 
                 <div className="mt-1 text-xs">
                   <ProductList value={c.productName} />
                 </div>
+                {showTradeInQuantity && <p className="mt-1 text-xs text-neutral-500">Thu cũ: {c.oldDeviceQuantity == null ? '—' : `${c.oldDeviceQuantity} máy`}</p>}
               </div>
             </div>
           ))}
@@ -239,18 +240,24 @@ function ProductInfo({ value }: { value: string | null | undefined }) {
   );
 }
 
+function TradeInQuantityInfo({ value }: { value: number | null | undefined }) {
+  return <InfoRow label="Số lượng thu cũ" value={value == null ? null : `${value} máy`} />;
+}
+
 function CustomerCard({
   customer,
   tone,
   timer,
   now,
   leadtimeMinutes,
+  showTradeInQuantity,
 }: {
   customer: StaffCustomer;
   tone: 'current' | 'pending';
   timer: TimerEntry | undefined;
   now: number;
   leadtimeMinutes: number;
+  showTradeInQuantity: boolean;
 }) {
   return (
     <div className={tone === 'pending' ? 'opacity-70' : undefined}>
@@ -282,6 +289,7 @@ function CustomerCard({
 
       <div className="mt-3">
         <ProductInfo value={customer.productName} />
+        {showTradeInQuantity && <TradeInQuantityInfo value={customer.oldDeviceQuantity} />}
         <InfoRow label="Ghi chú thanh toán" value={customer.paymentNote} />
         <InfoRow label="Check nghiệm thu" value={customer.deviceAcceptedText} />
       </div>
@@ -906,10 +914,10 @@ export default function StaffDeskScreen({
           </h2>
 
           {primary ? (
-            <CustomerCard customer={primary} tone="current" timer={timerOf(primary.stt)} now={now} leadtimeMinutes={leadtimeMinutes} />
+            <CustomerCard customer={primary} tone="current" timer={timerOf(primary.stt)} now={now} leadtimeMinutes={leadtimeMinutes} showTradeInQuantity={view.cluster === 'tradein'} />
           ) : ghost ? (
             <>
-              <CustomerCard customer={ghost} tone="pending" timer={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} />
+              <CustomerCard customer={ghost} tone="pending" timer={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} showTradeInQuantity={view.cluster === 'tradein'} />
               <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
                 {simulation ? 'Đã ghi nhận trong phòng mô phỏng — đang đồng bộ…' : webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
               </p>
@@ -938,6 +946,7 @@ export default function StaffDeskScreen({
               <div className="mt-2 text-xs">
                 <ProductList value={ghost.productName} />
               </div>
+              {view.cluster === 'tradein' && <p className="mt-1 text-xs text-neutral-500">Thu cũ: {ghost.oldDeviceQuantity == null ? '—' : `${ghost.oldDeviceQuantity} máy`}</p>}
               <p className="mt-1 text-xs font-semibold text-amber-700">
                 {simulation ? 'Đã ghi nhận trong phòng mô phỏng — đang đồng bộ…' : webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
               </p>
@@ -964,6 +973,7 @@ export default function StaffDeskScreen({
                     <div className="mt-2 text-xs">
                       <ProductList value={c.productName} />
                     </div>
+                    {view.cluster === 'tradein' && <p className="mt-1 text-xs text-neutral-500">Thu cũ: {c.oldDeviceQuantity == null ? '—' : `${c.oldDeviceQuantity} máy`}</p>}
                     <button
                       type="button"
                       disabled={!webhookMode || sending}
@@ -996,6 +1006,7 @@ export default function StaffDeskScreen({
               <div className="mt-2 max-w-[210px] text-xs">
                 <ProductList value={view.next?.productName} />
               </div>
+              {view.cluster === 'tradein' && <p className="mt-1 text-xs text-neutral-500">Thu cũ: {view.next?.oldDeviceQuantity == null ? '—' : `${view.next.oldDeviceQuantity} máy`}</p>}
             </div>
             <span className={`text-6xl font-black leading-none ${nextStt ? 'text-amber-500' : 'text-neutral-200'}`}>
               {nextStt ?? '—'}
@@ -1125,7 +1136,7 @@ export default function StaffDeskScreen({
         {deskAlertMessage && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{deskAlertMessage}</p>}
 
         {/* ── Lịch sử khách đã tiếp nhận · hoàn tất (sổ xuống) ─────────── */}
-        <CompletedHistorySection customers={view.completedHistory} />
+        <CompletedHistorySection customers={view.completedHistory} showTradeInQuantity={view.cluster === 'tradein'} />
       </main>
 
       {/* ── Thanh thao tác cố định đáy màn hình ────────────────────────── */}

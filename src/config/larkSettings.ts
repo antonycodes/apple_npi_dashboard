@@ -248,6 +248,7 @@ export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
   name: 'Họ và tên',
   phone: 'Số điện thoại khách (SMS)',
   product: 'Tên sản phẩm (SP 1)',
+  oldDeviceQuantity: 'Số lượng thu cũ',
   note: 'Ghi chú thanh toán',
   deviceAccepted: 'Check nghiệm thu (đã thu máy cũ)',
   oldDeviceCheck: 'Thu cũ check (lựa chọn — hiển thị nguyên văn)',
