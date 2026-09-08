@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const PRODUCT_COLORS = [
   'bg-blue-100 text-blue-700',
   'bg-violet-100 text-violet-700',
@@ -14,20 +16,39 @@ function ProductIcon() {
 }
 
 export default function ProductList({ value }: { value: string | null | undefined }) {
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
   if (!value?.trim()) return <span>—</span>;
   return (
-    <span className="flex w-full flex-col gap-1 text-left">
+    <span className="flex min-w-0 w-full flex-col gap-1 overflow-hidden text-left">
       {value.split('\n').map((line, index) => {
         const match = line.match(/^•\s*(SP[1-4]):\s*(.*)$/i);
-        if (!match) return <span key={`${line}-${index}`}>{line}</span>;
+        if (!match) return <span key={`${line}-${index}`} className="min-w-0 truncate">{line}</span>;
         const number = Number(match[1].slice(2)) - 1;
+        const isExpanded = expanded.has(index);
+        const toggle = () => {
+          setExpanded((current) => {
+            const next = new Set(current);
+            if (next.has(index)) next.delete(index);
+            else next.add(index);
+            return next;
+          });
+        };
         return (
-          <span key={line} className="flex min-w-0 w-full items-center gap-1.5">
-            <span className={`inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-black ${PRODUCT_COLORS[number]}`}>
+          <button
+            key={`${line}-${index}`}
+            type="button"
+            onClick={toggle}
+            aria-expanded={isExpanded}
+            aria-label={`${isExpanded ? 'Thu gọn' : 'Xem chi tiết'} ${match[1].toUpperCase()}`}
+            className="flex min-w-0 w-full items-start gap-1 text-left"
+          >
+            <span className={`inline-flex shrink-0 items-center gap-0.5 rounded-md px-1 py-0.5 text-[9px] font-black ${PRODUCT_COLORS[number]}`}>
               <ProductIcon /> {match[1].toUpperCase()}
             </span>
-            <span className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap">{match[2]}</span>
-          </span>
+            <span className={`min-w-0 flex-1 ${isExpanded ? 'whitespace-normal break-words' : 'truncate whitespace-nowrap'}`}>
+              {match[2]}
+            </span>
+          </button>
         );
       })}
     </span>
