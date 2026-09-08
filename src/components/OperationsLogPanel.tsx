@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 import { DownloadIcon, RefreshIcon } from '@/components/AppShellIcons';
 import type { FieldConfig } from '@/config/larkConfig';
 import type { LarkTables } from '@/services/larkTypes';
@@ -29,12 +29,6 @@ interface WarehouseEvent {
   submitBy: string;
 }
 
-interface PositionLeadtime {
-  position: string;
-  samples: number;
-  averageMs: number;
-}
-
 function dateValue(value: string): number {
   const time = Date.parse(`${value}T00:00:00`);
   return Number.isFinite(time) ? time : 0;
@@ -48,6 +42,24 @@ function formatDuration(value: number | null): string {
   if (!value) return '—';
   const minutes = Math.floor(value / 60000);
   return minutes < 60 ? `${minutes} phút` : `${Math.floor(minutes / 60)} giờ ${minutes % 60} phút`;
+}
+
+function todayInputValue(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function shortDateValue(value: string): string {
+  if (!value) return 'dd/mm';
+  const [, month, day] = value.split('-');
+  return month && day ? `${day}/${month}` : 'dd/mm';
+}
+
+function SortIcon({ order }: { order: 'asc' | 'desc' }): ReactElement {
+  return <svg aria-hidden="true" viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d={order === 'asc' ? 'M5 3l3-2 3 2M8 1v8M11 13l-3 2-3-2M8 15V7' : 'M5 13l3 2 3-2M8 15V7M11 3L8 1 5 3M8 1v8'} strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
 function statusLabel(stage: SmsStageJourney): string {
@@ -124,6 +136,9 @@ export default function OperationsLogPanel({ tables, fields, loading, refresh }:
   const [stage, setStage] = useState<'all' | ReportStage>('all');
   const [position, setPosition] = useState('all');
   const [positionCluster, setPositionCluster] = useState<PositionCluster>('all');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const fromDateRef = useRef<HTMLInputElement>(null);
+  const toDateRef = useRef<HTMLInputElement>(null);
   const journeys = useMemo(() => Array.from(mapSmsJourneys(tables, fields).values()), [tables, fields]);
   const latestByStt = useMemo(() => latestMasterByStt(tables, fields), [tables, fields]);
   const warehouseEvents = useMemo(() => warehouseEventsFromMaster(tables, fields), [tables, fields]);
@@ -151,29 +166,15 @@ export default function OperationsLogPanel({ tables, fields, loading, refresh }:
       const matchesPosition = position === 'all' || STAGES.some(({ key }) => journey.stages[key].deskCode === position);
       const matchesPositionCluster = positionCluster === 'all' || positionCluster === 'warehouse' || Boolean(journey.stages[positionCluster].deskCode);
       return matchesQuery && matchesDate && matchesStage && matchesPosition && matchesPositionCluster;
+    }).sort((left, right) => {
+      const leftStt = Number(left.stt);
+      const rightStt = Number(right.stt);
+      const comparison = Number.isFinite(leftStt) && Number.isFinite(rightStt)
+        ? leftStt - rightStt
+        : left.stt.localeCompare(right.stt, 'vi', { numeric: true });
+      return sortOrder === 'asc' ? comparison : -comparison;
     });
-  }, [from, journeys, position, positionCluster, query, stage, to]);
-  const leadtimeByPosition = useMemo<PositionLeadtime[]>(() => {
-    const grouped = new Map<string, { totalMs: number; samples: number }>();
-    const stageFiltered = stage === 'warehouse' ? [] : stage === 'all' ? STAGES : STAGES.filter((item) => item.key === stage);
-    const activeStages = positionCluster === 'all' || positionCluster === 'warehouse' ? (positionCluster === 'warehouse' ? [] : stageFiltered) : stageFiltered.filter((item) => item.key === positionCluster);
-    visible.forEach((journey) => activeStages.forEach(({ key }) => {
-      const stageJourney = journey.stages[key];
-      if (!stageJourney.deskCode || !stageJourney.elapsedMs) return;
-      const current = grouped.get(stageJourney.deskCode) ?? { totalMs: 0, samples: 0 };
-      grouped.set(stageJourney.deskCode, {
-        totalMs: current.totalMs + stageJourney.elapsedMs,
-        samples: current.samples + 1,
-      });
-    }));
-    return Array.from(grouped.entries())
-      .map(([desk, value]) => ({ position: desk, samples: value.samples, averageMs: value.totalMs / value.samples }))
-      .sort((left, right) => left.position.localeCompare(right.position, 'vi'));
-  }, [positionCluster, stage, visible]);
-  const leadtimeChart = useMemo(() => {
-    const rows = [...leadtimeByPosition].sort((left, right) => left.position.localeCompare(right.position, 'vi', { numeric: true }));
-    return { rows, maxMs: rows.reduce((max, item) => Math.max(max, item.averageMs), 0) };
-  }, [leadtimeByPosition]);
+  }, [from, journeys, position, positionCluster, query, sortOrder, stage, to]);
   const summary = useMemo(() => {
     const stageFiltered = stage === 'warehouse' ? [] : stage === 'all' ? STAGES : STAGES.filter((item) => item.key === stage);
     const activeStages = positionCluster === 'all' || positionCluster === 'warehouse' ? (positionCluster === 'warehouse' ? [] : stageFiltered) : stageFiltered.filter((item) => item.key === positionCluster);
@@ -189,6 +190,7 @@ export default function OperationsLogPanel({ tables, fields, loading, refresh }:
       avgLeadtime: leadtimes.length ? leadtimes.reduce((sum, value) => sum + value, 0) / leadtimes.length : null,
     };
   }, [filteredWarehouseEvents.length, latestByStt, positionCluster, stage, visible]);
+  const isTodayFilter = from === todayInputValue() && to === todayInputValue();
   const exportRows = useMemo(() => [
     ...visible.map((item) => ({
     'Loại dòng': 'Khách hàng',
@@ -236,19 +238,15 @@ export default function OperationsLogPanel({ tables, fields, loading, refresh }:
           <select value={stage} onChange={(event) => setStage(event.target.value as 'all' | ReportStage)} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 text-sm"><option value="all">Tất cả khâu</option>{STAGES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}<option value="warehouse">Kho</option></select>
           <select value={positionCluster} onChange={(event) => { setPositionCluster(event.target.value as PositionCluster); setPosition('all'); }} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 text-sm"><option value="all">Tất cả phân loại vị trí</option>{POSITION_CLUSTERS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select>
           <select value={position} onChange={(event) => setPosition(event.target.value)} className="min-h-11 rounded-lg border border-neutral-300 bg-white px-3 text-sm"><option value="all">Tất cả vị trí</option>{positions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-          <div className="flex gap-2"><input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="min-h-11 min-w-0 flex-1 rounded-lg border border-neutral-300 px-2 text-sm" /><input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="min-h-11 min-w-0 flex-1 rounded-lg border border-neutral-300 px-2 text-sm" /></div>
+          <div className="flex h-11 flex-nowrap items-stretch gap-2"><label onClick={() => fromDateRef.current?.showPicker?.()} className="relative flex h-11 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-lg border border-neutral-300 px-2 text-center text-sm leading-none text-neutral-700"><span aria-hidden="true" className="pointer-events-none">{shortDateValue(from)}</span><input ref={fromDateRef} type="date" lang="vi-VN" aria-label="Từ ngày" value={from} onChange={(event) => setFrom(event.target.value)} className="pointer-events-none absolute inset-0 h-full w-full cursor-pointer opacity-0" /></label><label onClick={() => toDateRef.current?.showPicker?.()} className="relative flex h-11 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-lg border border-neutral-300 px-2 text-center text-sm leading-none text-neutral-700"><span aria-hidden="true" className="pointer-events-none">{shortDateValue(to)}</span><input ref={toDateRef} type="date" lang="vi-VN" aria-label="Đến ngày" value={to} onChange={(event) => setTo(event.target.value)} className="pointer-events-none absolute inset-0 h-full w-full cursor-pointer opacity-0" /></label><button type="button" aria-pressed={isTodayFilter} onClick={() => { const today = todayInputValue(); setFrom(today); setTo(today); }} className={`h-11 shrink-0 whitespace-nowrap rounded-lg border px-2 text-sm font-bold leading-none sm:px-3 ${isTodayFilter ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'}`}>Hôm nay</button></div>
         </div>
       </section>
       {stage !== 'warehouse' && <section className="mt-5 overflow-hidden border border-neutral-200 bg-white">
-        <div className="overflow-x-auto"><table className="min-w-[980px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500"><tr>{['STT / Khách', 'Check-in', 'Tư vấn', 'Thu cũ', 'Backup', 'Cân nhắc giá', 'Kết quả'].map((item) => <th key={item} className="border-b border-neutral-200 px-3 py-3 font-bold">{item}</th>)}</tr></thead><tbody>
+        <div className="overflow-x-auto"><table className="min-w-[980px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500"><tr><th className="border-b border-neutral-200 px-3 py-3 font-bold"><button type="button" onClick={() => setSortOrder((current) => current === 'asc' ? 'desc' : 'asc')} className="inline-flex items-center gap-1.5 rounded-md text-left hover:text-neutral-950" title={sortOrder === 'asc' ? 'Đang sắp xếp STT tăng dần. Bấm để giảm dần.' : 'Đang sắp xếp STT giảm dần. Bấm để tăng dần.'} aria-label={sortOrder === 'asc' ? 'Đổi sang sắp xếp STT giảm dần' : 'Đổi sang sắp xếp STT tăng dần'}>STT / Khách<SortIcon order={sortOrder} /></button></th>{['Check-in', 'Tư vấn', 'Thu cũ', 'Backup', 'Cân nhắc giá', 'Kết quả'].map((item) => <th key={item} className="border-b border-neutral-200 px-3 py-3 font-bold">{item}</th>)}</tr></thead><tbody>
           {visible.map((item: SmsJourney) => { const latest = latestByStt.get(item.stt); return <tr key={item.stt} className="border-b border-neutral-100"><td className="px-3 py-3"><p className="font-black">STT {item.stt}</p><p className="text-xs text-neutral-500">{item.name}</p></td><td className="whitespace-nowrap px-3 py-3 text-xs">{formatDate(item.checkinAt)}</td>{STAGES.map(({ key }) => <td key={key} className="px-3 py-3"><p className="font-semibold">{statusLabel(item.stages[key])}</p><p className="text-xs text-neutral-500">{item.stages[key].deskCode || '—'} · {formatDuration(item.stages[key].elapsedMs)}</p></td>)}<td className="px-3 py-3 font-semibold">{latest?.priceConsideration ? 'Có' : 'Không'}</td><td className="px-3 py-3"><p className="font-bold">{item.endFlow ? 'End flow' : 'Đang xử lý'}</p>{latest?.quickDevice && <p className="text-xs text-amber-700">Thu máy nhanh</p>}</td></tr>; })}
           {!loading && !visible.length && <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-neutral-500">Chưa có dữ liệu vận hành theo bộ lọc.</td></tr>}
         </tbody></table></div>
       </section>}
-      <section className="mt-5 overflow-hidden border border-neutral-200 bg-white">
-        <div className="border-b border-neutral-200 px-4 py-3"><h2 className="font-black text-neutral-950">Leadtime trung bình theo vị trí</h2><p className="mt-1 text-xs text-neutral-500">Tính theo từng lượt xử lý đã có đủ thời gian tại vị trí. Bộ lọc khâu, vị trí và ngày được áp dụng.</p></div>
-        {leadtimeChart.rows.length > 0 ? <div className="overflow-x-auto p-4 sm:p-5"><svg width={Math.max(760, leadtimeChart.rows.length * 64)} height="300" viewBox={`0 0 ${Math.max(760, leadtimeChart.rows.length * 64)} 300`} role="img" aria-label="Biểu đồ line leadtime trung bình theo vị trí" className="min-w-full"><line x1="56" y1="24" x2={Math.max(760, leadtimeChart.rows.length * 64) - 24} y2="24" stroke="#e5e7eb" /><line x1="56" y1="145" x2={Math.max(760, leadtimeChart.rows.length * 64) - 24} y2="145" stroke="#e5e7eb" /><line x1="56" y1="266" x2={Math.max(760, leadtimeChart.rows.length * 64) - 24} y2="266" stroke="#d1d5db" /><text x="4" y="28" className="fill-neutral-500 text-[11px]">{formatDuration(leadtimeChart.maxMs)}</text><text x="4" y="149" className="fill-neutral-500 text-[11px]">{formatDuration(leadtimeChart.maxMs / 2)}</text><text x="4" y="270" className="fill-neutral-500 text-[11px]">0 phút</text><polyline fill="none" stroke="#059669" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" points={leadtimeChart.rows.map((item, index) => `${56 + (index * (Math.max(760, leadtimeChart.rows.length * 64) - 80)) / Math.max(1, leadtimeChart.rows.length - 1)},${266 - (item.averageMs / leadtimeChart.maxMs) * 242}`).join(' ')} />{leadtimeChart.rows.map((item, index) => { const x = 56 + (index * (Math.max(760, leadtimeChart.rows.length * 64) - 80)) / Math.max(1, leadtimeChart.rows.length - 1); const y = 266 - (item.averageMs / leadtimeChart.maxMs) * 242; return <g key={item.position}><circle cx={x} cy={y} r="5" fill="#047857" stroke="white" strokeWidth="2"><title>{`${item.position}: ${formatDuration(item.averageMs)} · ${item.samples} lượt`}</title></circle><text x={x} y="288" textAnchor="end" transform={`rotate(-45 ${x} 288)`} className="fill-neutral-700 text-[11px] font-bold">{item.position}</text></g>; })}</svg></div> : <p className="px-4 py-10 text-center text-sm text-neutral-500">Chưa có leadtime theo vị trí trong bộ lọc.</p>}
-      </section>
       {(stage === 'all' || stage === 'warehouse') && <section className="mt-5 overflow-hidden border border-neutral-200 bg-white">
         <div className="border-b border-neutral-200 px-4 py-3"><h2 className="font-black text-neutral-950">Nhật ký bàn giao Kho</h2><p className="mt-1 text-xs text-neutral-500">Nguồn: Master · Trạng thái “Bàn giao kho”. Các dòng này không có STT khách.</p></div>
         <div className="overflow-x-auto"><table className="min-w-[700px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500"><tr>{['Thời gian', 'Bàn nhận', 'QR máy', 'Người thao tác', 'Kết quả'].map((item) => <th key={item} className="border-b border-neutral-200 px-3 py-3 font-bold">{item}</th>)}</tr></thead><tbody>
