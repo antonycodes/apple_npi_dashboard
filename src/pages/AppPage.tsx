@@ -187,6 +187,7 @@ function AdminHome({ name }: { name: string }) {
     { href: '/check-in', label: 'Check-in khách' },
     { href: '/settings', label: 'Cài đặt' },
     { href: '/admin/logs', label: 'Nhật ký vận hành' },
+    { href: '/system-control', label: 'Kiểm soát hệ thống' },
   ];
 
   return (
