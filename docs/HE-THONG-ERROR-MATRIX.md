@@ -6,6 +6,45 @@ Mục tiêu là tìm đúng lớp gây lỗi trước khi sửa.
 > Quy tắc: HTTP 200 hoặc `code=0` chỉ chứng minh route phản hồi. Phải kiểm tra
 > record đã lưu trong Base, snapshot đã đọc lại và App đã hiển thị đúng.
 
+## 0. Điều kiện cần và đủ để trường hiển thị đúng
+
+Mỗi trường hiển thị phải đi qua đủ bốn lớp: dữ liệu nguồn, khóa nối, điều kiện
+nghiệp vụ và mapper giao diện. Thiếu một lớp thì phải báo lỗi tại lớp đó.
+
+| Trường hiển thị | Nguồn bắt buộc | Khóa nối bắt buộc | Điều kiện đủ để hiển thị | Nếu không đạt, kiểm tra đúng vị trí |
+| --- | --- | --- | --- | --- |
+| `STT tiếp theo` | `Master_DS.STT tiếp theo` | `Master_DS.STT bàn` khớp mã bàn UI | `Sl khách chờ > 0`; Dispatch đúng `DS*` và `Phân loại`; trạng thái còn chờ; `TT_min` tìm được một `Thứ tự bản ghi`; công thức trả về một `STT input` | Base: `Master_DS.TT_min`, `STT tiếp theo`; `Master_Điều phối.DS*`, `Phân loại`, `Status in *`, `Thứ tự bản ghi`; `Master_Check in.Status in *` |
+| `Sl khách chờ` | `Master_DS.Sl khách chờ` | `STT bàn` khớp mã bàn UI | Giá trị là số và lớn hơn hoặc bằng 0; cùng dòng với mã bàn đang hiển thị | Base: `Master_DS.STT bàn`, `Sl khách chờ`; Worker snapshot; `indexWaitingCountByDeskCode()` |
+| Khách hiện tại / `STT khách` | `Master` và `Master_Check in` | `Master.STT Input` khớp `Master_Check in.STT` | Có dòng Master mới nhất với `Trạng thái = Tiếp nhận`; STT Input không rỗng; bản ghi Check-in tồn tại | Base: `Master.Trạng thái`, `STT Input`; `Master_Check in.STT`; `latestByDeskAndName()` |
+| Vị trí bàn | `Master.TV_MãNV`, `Master.Submit by`, `Master_Điều phối` | Mã bàn hoặc MSNV khớp `Master_DS` | Có ít nhất một đường nối xác định được mã `TV/TC/BK`; không chỉ dựa vào tên người bấm form | Base: `Master.TV_MãNV`, `Submit by`; `Master_Điều phối.DS*`; `Master_DS.STT bàn`, `MSNV`; `latestByDeskAndName()` |
+| Trạng thái khâu | `Master.Trạng thái` hoặc `Master_Check in.Status in *` | Cùng STT và cùng khâu | Giá trị thuộc đúng miền trạng thái đã khai báo; không so sánh Lookup list trực tiếp với text nếu chưa chuẩn hóa | Base: field Formula/Lookup tương ứng; `larkMapper.ts`; công thức status |
+| Leadtime | Hai mốc thời gian trong `Master` | Cùng STT, cùng khâu, đúng thứ tự thời gian | Có cặp `Tiếp nhận` và `Hoàn tất`; timezone hợp lệ; thời gian kết thúc không nhỏ hơn bắt đầu | Base: `Master.Thời gian`, `Trạng thái`, `STT Input`; `tinhLeadtimeTuBase()` |
+
+### Quy tắc chẩn đoán `STT tiếp theo`
+
+Không kết luận “App lỗi” chỉ vì ô này trống. Chạy theo thứ tự sau:
+
+1. `Master_DS.STT bàn` có đúng mã bàn đang xem không?
+2. `Sl khách chờ` có lớn hơn 0 không?
+3. `Master_Điều phối` có dòng cùng mã bàn ở đúng cột `DS Tư vấn`, `DS Thu cũ` hoặc `DS Backup` không?
+4. `Phân loại` có khớp đúng khâu không?
+5. `Status in *` có đúng một trong các giá trị chờ không?
+6. `TT_min` có tìm được `Thứ tự bản ghi` không?
+7. `STT tiếp theo` có trả về `STT input` từ chính dòng đó không?
+
+Nếu bước 2 đúng nhưng bước 6 sai, lỗi nằm ở Dispatch/status/formula trong Base.
+Nếu bước 7 đúng nhưng App vẫn trống, lỗi nằm ở snapshot, field map hoặc mapper.
+
+### Các giá trị phải chuẩn hóa
+
+- `Cần check backup` và `Check backup` là hai chuỗi khác nhau. Formula phải dùng
+  một giá trị thống nhất.
+- `TT_min` là Formula Number nhưng không nên trả fallback text như `Unk`.
+- Lookup có thể trả danh sách. Phải chuẩn hóa về một giá trị trước khi so sánh
+  với `Chưa tiếp nhận`, `Không backup` hoặc `Hoàn tất`.
+- `STT tiếp theo` phải trả rỗng có chủ đích khi không có dòng hợp lệ, không để
+  lỗi Formula lan sang App.
+
 ## 1. Quy trình xử lý chung
 
 1. Ghi thời điểm, hostname, workspace, STT và thao tác vừa thực hiện.
