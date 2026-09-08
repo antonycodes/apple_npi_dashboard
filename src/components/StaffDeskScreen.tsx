@@ -25,6 +25,7 @@
  * vòng đọc kế tiếp.
  */
 import { useEffect, useMemo, useState } from 'react';
+import ProductList from './ProductList';
 import { LEADTIME_WARNING_MINUTES, staffActionWebhookUrl, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import { formatElapsed, staffTimerStore, useStaffTimers, type TimerEntry } from '@/config/staffTimers';
@@ -204,6 +205,9 @@ function CompletedHistorySection({ customers }: { customers: StaffCustomer[] }) 
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-neutral-800">{c.name ?? 'Khách'}</p>
+                <div className="mt-1 text-xs">
+                  <ProductList value={c.productName} />
+                </div>
               </div>
             </div>
           ))}
@@ -219,6 +223,17 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
       <span className="shrink-0 text-sm text-neutral-500">{label}</span>
       <span className="min-w-0 break-words text-right text-sm font-semibold text-neutral-800">
         {value && value.trim() ? value : '—'}
+      </span>
+    </div>
+  );
+}
+
+function ProductInfo({ value }: { value: string | null | undefined }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-t border-neutral-100 py-2">
+      <span className="shrink-0 text-sm text-neutral-500">Sản phẩm</span>
+      <span className="min-w-0 max-w-[72%] text-right text-sm font-semibold text-neutral-800">
+        <ProductList value={value} />
       </span>
     </div>
   );
@@ -266,6 +281,7 @@ function CustomerCard({
       </div>
 
       <div className="mt-3">
+        <ProductInfo value={customer.productName} />
         <InfoRow label="Ghi chú thanh toán" value={customer.paymentNote} />
         <InfoRow label="Check nghiệm thu" value={customer.deviceAcceptedText} />
       </div>
@@ -919,6 +935,9 @@ export default function StaffDeskScreen({
                 </span>
                 <ElapsedBadge entry={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} size="sm" />
               </div>
+              <div className="mt-2 text-xs">
+                <ProductList value={ghost.productName} />
+              </div>
               <p className="mt-1 text-xs font-semibold text-amber-700">
                 {simulation ? 'Đã ghi nhận trong phòng mô phỏng — đang đồng bộ…' : webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
               </p>
@@ -941,6 +960,9 @@ export default function StaffDeskScreen({
                         {c.name ?? 'Khách'}
                       </span>
                       <ElapsedBadge entry={timerOf(c.stt)} now={now} leadtimeMinutes={leadtimeMinutes} size="sm" />
+                    </div>
+                    <div className="mt-2 text-xs">
+                      <ProductList value={c.productName} />
                     </div>
                     <button
                       type="button"
@@ -971,6 +993,9 @@ export default function StaffDeskScreen({
               <p className="mt-1 truncate text-base font-bold text-neutral-800">
                 {view.next?.name ?? (nextStt ? 'Khách' : 'Chưa có khách chờ')}
               </p>
+              <div className="mt-2 max-w-[210px] text-xs">
+                <ProductList value={view.next?.productName} />
+              </div>
             </div>
             <span className={`text-6xl font-black leading-none ${nextStt ? 'text-amber-500' : 'text-neutral-200'}`}>
               {nextStt ?? '—'}
