@@ -19,9 +19,8 @@ import { workerBaseUrl } from './adminApi';
 /**
  * Upload 1 ảnh, trả `file_token`.
  *
- * Ném Error với thông báo đọc được cho NV (hiện thẳng trong form) — caller
- * quyết định có chặn submit hay vẫn gửi thiếu ảnh, vì 3 field mới đều KHÔNG
- * bắt buộc (yêu cầu user 2026-08-12).
+ * Ném Error với thông báo đọc được cho NV (hiện thẳng trong form). Với Hoàn
+ * tất ở Thu cũ/Backup, caller phải dừng submit nếu upload ảnh thất bại.
  */
 export async function uploadNghiemThuImage(file: File, signal?: AbortSignal): Promise<string> {
   const form = new FormData();

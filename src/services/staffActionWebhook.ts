@@ -93,8 +93,8 @@ export interface StaffActionPayload {
    * rồi mới gửi kèm ở đây; `/record` bọc thành `[{file_token}, …]` để đưa vào
    * cột đính kèm (xem `larkUpload.ts` + `cloudflare-worker.js`).
    *
-   * Là MẢNG vì NV chọn được nhiều ảnh 1 lần (yêu cầu user 2026-08-12). Không
-   * có ảnh nào thì key này biến mất khỏi payload.
+   * Là MẢNG vì NV chọn được nhiều ảnh 1 lần. Với Hoàn tất ở Thu cũ/Backup,
+   * mảng này phải có ít nhất một token; Worker kiểm tra lại điều kiện đó.
    */
   hinhNghiemThu?: string[];
   /**

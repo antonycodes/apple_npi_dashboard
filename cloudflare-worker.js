@@ -2986,6 +2986,27 @@ export default {
         payload.submitBy = payload.msnv;
       }
 
+      // Hoàn tất ở Thu cũ/Backup chỉ hợp lệ khi có đủ bằng chứng nghiệm thu.
+      // Kiểm tra tại Worker để request tự gọi không thể bỏ qua validation UI.
+      const isDeviceCompletion =
+        String(payload.action ?? '') === 'hoan_tat' &&
+        ['Thu cũ', 'Backup'].includes(String(payload.phanLoai ?? '').trim()) &&
+        String(payload.thuLaiMay ?? '').trim() !== '' &&
+        payload.khachKhongDongYGiaThuCu !== true;
+      if (isDeviceCompletion) {
+        const imageCount = Array.isArray(payload.hinhNghiemThu)
+          ? payload.hinhNghiemThu.filter((token) => String(token ?? '').trim()).length
+          : 0;
+        const missing = [
+          imageCount > 0 ? '' : 'ảnh nghiệm thu',
+          String(payload.scanQr ?? '').trim() ? '' : 'Scan QR máy thu cũ',
+          String(payload.imei ?? '').trim() ? '' : 'Serial Number',
+        ].filter(Boolean);
+        if (missing.length > 0) {
+          return json({ code: -1, msg: `Thiếu dữ liệu nghiệm thu: ${missing.join(', ')}` }, 400);
+        }
+      }
+
       try {
         const bearerToken = await getToken(env, host);
         const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);

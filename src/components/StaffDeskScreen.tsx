@@ -646,6 +646,21 @@ export default function StaffDeskScreen({
   const submitAction = async (values: ReceiveFormValues) => {
     const stt = values.stt.trim();
     if (!stt || sending) return; // `sending` = khoá chống bấm đúp → tránh tạo record trùng
+    const isComplete = formAction === 'hoan_tat';
+    const isDeviceStage = view.cluster === 'tradein' || view.cluster === 'backup';
+    const requiresDeviceEvidence =
+      isComplete && isDeviceStage && values.thuLaiMay.length > 0 && !values.khachKhongDongYGiaThuCu;
+    if (requiresDeviceEvidence) {
+      const missing = [
+        values.anhGiuLai.length + values.hinhNghiemThu.length > 0 ? '' : 'ảnh nghiệm thu',
+        values.scanQr.trim() ? '' : 'Scan QR máy thu cũ',
+        values.imei.trim() ? '' : 'Serial Number',
+      ].filter(Boolean);
+      if (missing.length > 0) {
+        setActionError(`Chưa thể gửi Hoàn tất. Bổ sung: ${missing.join(', ')}.`);
+        return;
+      }
+    }
     setActionError(null);
     setSending(true);
     try {
@@ -661,7 +676,6 @@ export default function StaffDeskScreen({
           setLockedReceiveStt(stt);
         }
         if (formAction === 'hoan_tat') {
-          const isDeviceStage = view.cluster === 'tradein' || view.cluster === 'backup';
           const deviceImages: PrevImage[] = [...values.anhGiuLai];
           if (isDeviceStage && guestSimulation?.roomCode) {
             for (const file of values.hinhNghiemThu.slice(0, Math.max(0, 3 - deviceImages.length))) {
@@ -696,12 +710,10 @@ export default function StaffDeskScreen({
       // Check Backup áp dụng cho MỌI khâu khi Hoàn tất (mở rộng 2026-08-12);
       // cố tình KHÔNG gửi field này khi Tiếp nhận, để automation phân biệt
       // được "không áp dụng" vs "chưa chọn".
-      const isComplete = formAction === 'hoan_tat';
       const checkBackup =
         isComplete && values.checkBackup ? (values.checkBackup as 'Có' | 'Không') : undefined;
 
       // Nhóm "Thu lại máy" + 3 field máy thu cũ: CHỈ Hoàn tất ở Thu cũ/Backup.
-      const isDeviceStage = view.cluster === 'tradein' || view.cluster === 'backup';
       const thuLaiMay =
         isComplete && isDeviceStage && values.thuLaiMay
           ? (values.thuLaiMay as 'Thu máy ngay' | 'Thu máy sau')

@@ -97,19 +97,27 @@ export default function StaffReceiveFormModal({
   const showThuLaiMay = action === 'hoan_tat'
     && (cluster === 'tradein' || cluster === 'backup')
     && !values.khachKhongDongYGiaThuCu;
-  // 3 field chỉ bung ra sau khi chọn 1 trong 2 option (yêu cầu user).
+  // 3 field chỉ bung ra sau khi chọn 1 trong 2 option.
   const showPriceConsideration = action === 'hoan_tat' && cluster === 'tradein';
   const showDeviceFields = showThuLaiMay && values.thuLaiMay.length > 0 && !values.khachKhongDongYGiaThuCu;
+  const deviceImageCount = values.anhGiuLai.length + values.hinhNghiemThu.length;
+  const missingDeviceEvidence = showDeviceFields
+    ? [
+        deviceImageCount === 0 ? 'ảnh nghiệm thu' : '',
+        values.scanQr.trim() ? '' : 'Scan QR máy thu cũ',
+        values.imei.trim() ? '' : 'Serial Number',
+      ].filter(Boolean)
+    : [];
   const photoSlots: PhotoSlot[] = [
     ...values.anhGiuLai.map((image) => ({ kind: 'existing' as const, image })),
     ...values.hinhNghiemThu.map((file) => ({ kind: 'new' as const, file })),
   ];
-  // Check Backup VẪN bắt buộc (quyết định 2026-08-12, giờ áp cho mọi khâu);
-  // riêng "Thu lại máy" + 3 field máy thu cũ thì KHÔNG bắt buộc (yêu cầu user).
+  // Check Backup vẫn bắt buộc; nghiệm thu máy thu cũ cũng phải đủ bằng chứng.
   const canSubmit =
     values.stt.trim().length > 0 &&
     values.maBan.trim().length > 0 &&
     (!showBackupCheck || values.checkBackup.length > 0) &&
+    missingDeviceEvidence.length === 0 &&
     !busy;
 
   return (
@@ -219,8 +227,7 @@ export default function StaffReceiveFormModal({
             </label>
           )}
 
-          {/* 3 field máy thu cũ — bung ra sau khi chọn 1 trong 2 option trên.
-              Đều KHÔNG bắt buộc: NV điền được gì thì điền, thiếu vẫn gửi được. */}
+          {/* 3 field máy thu cũ — đủ cả ảnh, QR và Serial mới được Hoàn tất. */}
           {showDeviceFields && (
             <div className="space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
               <div>
@@ -234,7 +241,9 @@ export default function StaffReceiveFormModal({
                     ? set('anhGiuLai', values.anhGiuLai.filter((_, index) => index !== slot))
                     : set('hinhNghiemThu', values.hinhNghiemThu.filter((_, index) => index !== slot - values.anhGiuLai.length))}
                 />
-                <p className="mt-1 text-xs font-semibold text-neutral-500">Đã có {photoSlots.length}/3 ảnh</p>
+                <p className={`mt-1 text-xs font-semibold ${deviceImageCount > 0 ? 'text-neutral-500' : 'text-red-600'}`}>
+                  Đã có {photoSlots.length}/3 ảnh · bắt buộc ít nhất 1 ảnh
+                </p>
               </div>
 
               <div>
@@ -244,7 +253,7 @@ export default function StaffReceiveFormModal({
                     value={values.scanQr}
                     onChange={(e) => set('scanQr', e.target.value)}
                     placeholder="Quét QR hoặc gõ tay"
-                    className="min-h-11 w-full rounded-xl border border-neutral-300 px-3 text-base"
+                    className={`min-h-11 w-full rounded-xl border px-3 text-base ${values.scanQr.trim() ? 'border-neutral-300' : 'border-red-300'}`}
                   />
                   <QrScanButton onScan={(v) => set('scanQr', v)} label="Quét QR máy thu cũ" />
                 </div>
@@ -258,11 +267,16 @@ export default function StaffReceiveFormModal({
                     onChange={(e) => set('imei', e.target.value)}
                     inputMode="text"
                     placeholder="Quét Serial Number hoặc gõ tay"
-                    className="min-h-11 w-full rounded-xl border border-neutral-300 px-3 text-base"
+                    className={`min-h-11 w-full rounded-xl border px-3 text-base ${values.imei.trim() ? 'border-neutral-300' : 'border-red-300'}`}
                   />
                   <SerialScanButton onScan={(v) => set('imei', v)} />
                 </div>
               </div>
+              {missingDeviceEvidence.length > 0 && (
+                <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+                  Bổ sung: {missingDeviceEvidence.join(', ')} để gửi Hoàn tất.
+                </p>
+              )}
             </div>
           )}
 
