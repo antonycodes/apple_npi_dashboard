@@ -46,6 +46,7 @@ function productList(record: LarkRecord): string[] {
 interface OrderPreview {
   name: string;
   products: string[];
+  orderCount: number;
   paymentNote: string;
 }
 
@@ -57,6 +58,17 @@ function getOrderPhone(record: LarkRecord): string {
   return fieldText(record, 'Số điện thoại_ĐH', 'Số điện thoại_DH', 'SDT');
 }
 
+function getOrderProduct(record: LarkRecord): string {
+  return fieldText(record, 'Tên sản phẩm', 'SP 1');
+}
+
+function getOrderProducts(record: LarkRecord): string[] {
+  const products = ['SP 1', 'SP 2', 'SP 3', 'SP 4']
+    .map((field) => fieldText(record, field))
+    .filter(Boolean);
+  return products.length ? products : [getOrderProduct(record)].filter(Boolean);
+}
+
 function getCheckinPhone(record: LarkRecord): string {
   return normalizePhone(fieldText(record, 'Số điện thoại', 'SDT', 'Số điện thoại_ĐH'));
 }
@@ -66,10 +78,11 @@ function getCheckinOrderCode(record: LarkRecord): string {
 }
 
 function orderPreview(rows: LarkRecord[]): OrderPreview {
-  const products = [...new Set(rows.map((row) => fieldText(row, 'Tên sản phẩm')).filter(Boolean))];
+  const products = rows.flatMap(getOrderProducts).slice(0, 4);
   return {
     name: rows.map((row) => fieldText(row, 'Họ và tên khách hàng')).find(Boolean) ?? '',
     products,
+    orderCount: new Set(rows.map(getOrderCode).filter(Boolean)).size,
     paymentNote: rows.map((row) => fieldText(row, 'Note UDTT')).find(Boolean) ?? '',
   };
 }
@@ -138,10 +151,17 @@ function CheckinForm({
     return orderOptions.filter((value) => !query || value.toLowerCase().includes(query)).slice(0, 24);
   }, [orderOptions, orderSearch]);
   const matchingRows = useMemo(() => {
-    if (orderCode) return orders.filter((row) => getOrderCode(row) === orderCode);
-    const normalized = normalizePhone(phone);
-    return normalized ? orders.filter((row) => normalizePhone(fieldText(row, 'SDT')) === normalized) : [];
-  }, [orderCode, orders, phone]);
+    const selectedRows = orderCode ? orders.filter((row) => getOrderCode(row) === orderCode) : [];
+    const normalized = normalizePhone(orderCode ? orderPhonePreview : phone);
+
+    if (orderCode) {
+      if (!normalized) return selectedRows;
+      const relatedRows = orders.filter((row) => normalizePhone(getOrderPhone(row)) === normalized);
+      return [...selectedRows, ...relatedRows.filter((row) => !selectedRows.includes(row))];
+    }
+
+    return normalized ? orders.filter((row) => normalizePhone(getOrderPhone(row)) === normalized) : [];
+  }, [orderCode, orderPhonePreview, orders, phone]);
   const preview = useMemo(() => orderPreview(matchingRows), [matchingRows]);
   const hasIdentifier = Boolean(phone.trim() || orderCode);
   const validQuantity = /^\d+$/.test(oldDeviceQuantity.trim());
@@ -259,10 +279,16 @@ function CheckinForm({
           <dl className="grid gap-2 sm:grid-cols-2">
             <ReadonlyValue label="Họ và tên" value={preview.name} />
             <ReadonlyValue label="Ghi chú ưu đãi" value={preview.paymentNote} />
-            <div className="grid gap-2 sm:col-span-2 sm:grid-cols-2">
-              {[0, 1, 2, 3].map((index) => (
-                <ReadonlyValue key={index} label={`Sản phẩm ${String(index + 1).padStart(2, '0')}`} value={preview.products[index] ?? '—'} />
-              ))}
+            <div className="rounded-xl bg-neutral-50 px-3 py-2 sm:col-span-2">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-xs font-bold uppercase tracking-wide text-neutral-400">Danh sách đơn hàng</dt>
+                <span className="text-xs font-bold text-neutral-400">{preview.orderCount} mã</span>
+              </div>
+              <dd className="mt-2 grid gap-2 sm:grid-cols-2">
+                {[0, 1, 2, 3].map((index) => (
+                  <ReadonlyValue key={index} label={`Sản phẩm ${String(index + 1).padStart(2, '0')}`} value={preview.products[index] ?? '—'} />
+                ))}
+              </dd>
             </div>
           </dl>
         )}
