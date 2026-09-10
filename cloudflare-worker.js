@@ -1042,7 +1042,12 @@ function checkinRowStts(row) {
 }
 
 function normalizedCheckinPhone(raw) {
-  return cellText(raw).replace(/\D/g, '');
+  const digits = cellText(raw).replace(/\D/g, '');
+  // Base đang lưu SĐT không có số 0 đầu. Quy về cùng khóa 9 số cho cả:
+  // 0901234567, 901234567 và +84901234567.
+  if (digits.startsWith('84')) return digits.slice(2).replace(/^0/, '');
+  if (digits.startsWith('0')) return digits.slice(1);
+  return digits;
 }
 
 function checkinRowPhones(row) {
@@ -1086,7 +1091,9 @@ async function handleCheckinRecord(request, env, ctx) {
   }
 
   const stt = normalizedStt(payload.stt);
-  const phone = String(payload.phone ?? '').trim();
+  // Ghi cùng định dạng với dữ liệu hiện có trong Base, tránh tạo record mới
+  // dạng 10 số trong khi record cũ đang là 9 số không có số 0 đầu.
+  const phone = normalizedCheckinPhone(payload.phone);
   const orderCode = String(payload.orderCode ?? '').trim();
   const paymentConfirmation = String(payload.paymentConfirmation ?? '').trim();
   const quantityText = String(payload.oldDeviceQuantity ?? '').trim();

@@ -133,7 +133,7 @@ export default function PendingDeviceTable({
       >
         <div className="mb-1 flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-neutral-800">
-            Chờ thu máy — máy cũ chưa cầm về ({customers.length})
+            Chờ thu máy ({customers.length})
           </h2>
           <button
             type="button"

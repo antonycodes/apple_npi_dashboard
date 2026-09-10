@@ -21,7 +21,10 @@ function fieldText(record: LarkRecord, ...names: string[]): string {
 }
 
 function normalizePhone(value: string): string {
-  return value.replace(/\D/g, '');
+  const digits = value.replace(/\D/g, '');
+  if (digits.startsWith('84')) return digits.slice(2).replace(/^0/, '');
+  if (digits.startsWith('0')) return digits.slice(1);
+  return digits;
 }
 
 function sttFromRecord(record: LarkRecord): string {
