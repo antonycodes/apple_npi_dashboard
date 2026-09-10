@@ -92,6 +92,115 @@ function SleepModePush({ settings }: { settings: LarkSettings }) {
   );
 }
 
+function DeskActivitySettings({
+  settings,
+  desks,
+  loading,
+  dataError,
+}: {
+  settings: LarkSettings;
+  desks: DeskData[];
+  loading: boolean;
+  dataError: string | null;
+}) {
+  const session = useAdminInfo();
+  const [busyDesk, setBusyDesk] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (session?.role !== 'admin') return null;
+
+  const toggle = async (deskId: string) => {
+    const active = isDeskActive(settings.deskAvailability, deskId);
+    if (active && (loading || dataError)) {
+      setError('Chưa xác định được bàn đang phục vụ. Hãy chờ dữ liệu vận hành cập nhật rồi khóa bàn.');
+      return;
+    }
+    const liveDesk = desks.find((desk) => desk.id === deskId);
+    if (active && liveDesk?.isOccupied) {
+      setError('Bàn ' + deskId + ' đang có khách phục vụ — không thể khóa.');
+      return;
+    }
+
+    setBusyDesk(deskId);
+    setMessage(null);
+    setError(null);
+    const deskAvailability = { ...settings.deskAvailability };
+    if (active) delete deskAvailability[deskId];
+    else deskAvailability[deskId] = false;
+    const next = { ...settings, deskAvailability };
+    try {
+      await pushSharedSettings(toSharedSettings(next));
+      larkSettingsStore.save(next);
+      setMessage((active ? 'Đã mở lại bàn ' : 'Đã khóa bàn ') + deskId + '.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyDesk(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-600">
+        Bàn bị khóa sẽ màu xám trên sơ đồ và vô hiệu hóa trên view mobile. Trạng thái giữ nguyên đến khi Admin mở lại.
+      </div>
+      {dataError && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+          Chưa đọc được trạng thái phục vụ hiện tại. Không thể khóa bàn khi dữ liệu chưa xác định.
+        </p>
+      )}
+      {(['backup', 'tradein', 'consult'] as ClusterKey[]).map((cluster) => (
+        <div key={cluster} className="rounded-lg border border-neutral-200 bg-white p-3">
+          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">{CLUSTER_LABELS[cluster]}</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {ALL_POSITIONS.filter((position) => position.cluster === cluster).map((position) => {
+              const active = isDeskActive(settings.deskAvailability, position.id);
+              const liveDesk = desks.find((desk) => desk.id === position.id);
+              const occupied = Boolean(liveDesk?.isOccupied);
+              const cannotLock = active && (loading || Boolean(dataError) || occupied);
+              return (
+                <button
+                  key={position.id}
+                  type="button"
+                  aria-pressed={active}
+                  aria-label={
+                    active
+                      ? 'Bàn ' + position.id + (occupied ? ' đang phục vụ' : ' đang mở, bấm để khóa')
+                      : 'Bàn ' + position.id + ' đã khóa, bấm để mở lại'
+                  }
+                  disabled={busyDesk !== null || cannotLock}
+                  onClick={() => void toggle(position.id)}
+                  className={[
+                    'flex min-h-14 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left transition-colors',
+                    active
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                      : 'border-neutral-400 bg-neutral-300 text-neutral-700 hover:bg-neutral-400',
+                    cannotLock ? 'cursor-not-allowed opacity-60' : '',
+                  ].join(' ')}
+                >
+                  <span className="text-base font-black">{position.label}</span>
+                  <span className="text-xs font-semibold">
+                    {busyDesk === position.id
+                      ? 'Đang cập nhật…'
+                      : active
+                        ? occupied
+                          ? 'Đang phục vụ'
+                          : 'Đang mở · Bấm để khóa'
+                        : 'Đã khóa · Bấm để mở lại'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      {message && <p className="text-sm font-semibold text-emerald-700">✓ {message}</p>}
+      {error && <p className="text-sm font-semibold text-red-700">✗ {error}</p>}
+    </div>
+  );
+}
+
 function GuestModeSettings({ settings }: { settings: LarkSettings }) {
   const session = useAdminInfo();
   const [busy, setBusy] = useState(false);
@@ -209,9 +318,11 @@ import AdminLoginForm from '@/components/AdminLoginForm';
 import { useAdminInfo } from '@/config/adminSession';
 import { fetchLarkData } from '@/services/larkService';
 import { mapDeskStates } from '@/services/larkMapper';
-import type { ClusterKey } from '@/types/desk';
+import { ALL_POSITIONS, CLUSTER_LABELS } from '@/config/layoutConfig';
+import { isDeskActive, type ClusterKey, type DeskData } from '@/types/desk';
 import QrScanButton from '@/components/QrScanButton';
 import { pushSharedSettings, toSharedSettings } from '@/services/appConfigApi';
+import { useDashboardData } from '@/hooks/useDashboardData';
 
 const clone = (s: LarkSettings): LarkSettings => JSON.parse(JSON.stringify(s));
 
@@ -220,6 +331,7 @@ type TestResult = { ok: true; desks: number; checkIn: number; orders: number } |
 export default function SettingsPage() {
   const saved = useLarkSettings();
   const session = useAdminInfo();
+  const liveDeskData = useDashboardData();
   // Che 3 URL worker khi chưa đăng nhập admin. ĐÂY CHỈ LÀ CHE NHÌN LÉN, KHÔNG
   // PHẢI BẢO MẬT: URL vẫn nằm trong localStorage, vẫn hiện ở tab Network và
   // vẫn đi kèm mọi request — ai mở DevTools là thấy. Thứ thật sự chặn ghi bậy
@@ -455,18 +567,27 @@ export default function SettingsPage() {
           />
         </Section>
 
-        <Section title="5 · Chế độ màn hình nhân viên">
+        <Section title="5 · Trạng thái hoạt động bàn">
+          <DeskActivitySettings
+            settings={saved}
+            desks={liveDeskData.desks}
+            loading={liveDeskData.loading}
+            dataError={liveDeskData.error}
+          />
+        </Section>
+
+        <Section title="6 · Chế độ màn hình nhân viên">
           <div>
             <SleepModePush settings={saved} />
           </div>
         </Section>
 
-        <Section title="6 · Cài đặt Chế độ khách">
+        <Section title="7 · Cài đặt Chế độ khách">
           <GuestModeSettings settings={saved} />
         </Section>
 
         {/* Đồng bộ cấu hình toàn thiết bị — thứ khiến máy nhân viên theo admin */}
-        <Section title="7 · Đồng bộ cấu hình toàn thiết bị">
+        <Section title="8 · Đồng bộ cấu hình toàn thiết bị">
           <SharedSettingsPush settings={saved} dirty={dirty} />
         </Section>
 

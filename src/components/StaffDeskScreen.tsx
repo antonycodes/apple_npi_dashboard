@@ -360,12 +360,15 @@ export default function StaffDeskScreen({
   view,
   actorMsnv,
   simulation = false,
+  deskLocked = false,
 }: {
   view: StaffDeskView;
   /** MSNV từ phiên đăng nhập; roster chỉ là fallback cho link bàn cũ. */
   actorMsnv?: string | null;
   /** Guest giữ nguyên toàn bộ form nhưng không upload và không gọi webhook. */
   simulation?: boolean;
+  /** Admin đã tắt bàn; giữ dữ liệu để xem nhưng khóa toàn bộ thao tác nghiệp vụ. */
+  deskLocked?: boolean;
 }) {
   const submitByMsnv = actorMsnv?.trim() || view.staffId?.trim() || '';
   const guestSimulation = useGuestSimulation();
@@ -423,6 +426,15 @@ export default function StaffDeskScreen({
   const [orderSending, setOrderSending] = useState(false);
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
   const [orderOpen, setOrderOpen] = useState(false);
+
+  useEffect(() => {
+    if (!deskLocked) return;
+    setOrderOpen(false);
+    setThuMayOpen(false);
+    setQuickReceiveOpen(false);
+    setFormAction(null);
+    setFormCustomer(null);
+  }, [deskLocked]);
 
   /**
    * STT vừa thu máy xong trên MÁY NÀY → mốc thời gian. Ẩn khách khỏi danh sách
@@ -511,6 +523,7 @@ export default function StaffDeskScreen({
   const [deskAlertMessage, setDeskAlertMessage] = useState<string | null>(null);
 
   const callCoordinator = () => {
+    if (deskLocked) return;
     if (simulation) {
       guestSimulation?.callCoordinator(
         view.id,
@@ -562,6 +575,10 @@ export default function StaffDeskScreen({
    *   vậy: thao tác này không phải một khâu phục vụ nên không có gì để đo.
    */
   const submitThuMay = async (khach: StaffCustomer, values: ThuMayValues) => {
+    if (deskLocked) {
+      setActionError('Bàn đang bị khóa — không thể thao tác.');
+      return;
+    }
     const stt = khach.stt?.trim();
     if (!stt || sending) return;
     setActionError(null);
@@ -644,6 +661,10 @@ export default function StaffDeskScreen({
    * có record nào.
    */
   const submitAction = async (values: ReceiveFormValues) => {
+    if (deskLocked) {
+      setActionError('Bàn đang bị khóa — không thể thao tác.');
+      return;
+    }
     const stt = values.stt.trim();
     if (!stt || sending) return; // `sending` = khoá chống bấm đúp → tránh tạo record trùng
     const isComplete = formAction === 'hoan_tat';
@@ -813,6 +834,7 @@ export default function StaffDeskScreen({
   };
 
   const openQuickReceive = () => {
+    if (deskLocked) return;
     setQuickReceiveError(null);
     setQuickReceiveOpen(true);
   };
@@ -867,6 +889,7 @@ export default function StaffDeskScreen({
     }
   };
   const sendOrderToWarehouse = async () => {
+    if (deskLocked) return;
     const rawText = orderText.trim();
     if (!rawText || !orderCustomer?.stt || orderSending) return;
     setOrderSending(true);
@@ -909,6 +932,12 @@ export default function StaffDeskScreen({
   return (
     <>
       <main className="mx-auto w-full max-w-[430px] space-y-3 px-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-3">
+        {deskLocked && (
+          <section className="rounded-2xl border border-neutral-400 bg-neutral-200 px-4 py-3 text-neutral-700" role="status">
+            <p className="text-sm font-black uppercase tracking-wide">Bàn đang bị khóa</p>
+            <p className="mt-1 text-sm">Admin chưa mở lại bàn này. Các thao tác đã bị vô hiệu hóa.</p>
+          </section>
+        )}
         {simulationMessage && (
           <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
             ✓ {simulationMessage}
@@ -1034,6 +1063,7 @@ export default function StaffDeskScreen({
             <button
               type="button"
               onClick={() => setOrderOpen((open) => !open)}
+              disabled={deskLocked}
               className="flex w-full items-center justify-between gap-3 text-left"
               aria-expanded={orderOpen}
             >
@@ -1065,7 +1095,7 @@ export default function StaffDeskScreen({
                         setOrderMessage(null);
                       }}
                       className="mt-1 min-h-12 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm font-bold text-neutral-800 outline-none transition-colors focus:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2"
-                      disabled={orderSending}
+                      disabled={deskLocked || orderSending}
                     >
                       <option value="">— Chọn theo STT —</option>
                       {orderCustomers.map((customer) => (
@@ -1086,7 +1116,7 @@ export default function StaffDeskScreen({
                   rows={4}
                   placeholder="Paste nội dung order vào đây…"
                   className="mt-3 w-full resize-y rounded-xl border border-neutral-300 px-3 py-3 text-sm text-neutral-800 outline-none transition-colors focus:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2"
-                  disabled={!orderCustomer?.stt || orderSending}
+                  disabled={deskLocked || !orderCustomer?.stt || orderSending}
                 />
                 <div className="mt-2 flex gap-2">
                   <button
@@ -1100,8 +1130,8 @@ export default function StaffDeskScreen({
                   <button
                     type="button"
                     onClick={() => void sendOrderToWarehouse()}
-                    disabled={!orderCustomer?.stt || !orderText.trim() || orderSending}
-                    className="min-h-12 flex-1 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white transition-colors active:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:bg-neutral-200 disabled:text-neutral-500"
+                    disabled={deskLocked || !orderCustomer?.stt || !orderText.trim() || orderSending}
+                    className="min-h-12 flex-1 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white transition-colors active:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:bg-neutral-200 disabled:text-neutral-700"
                   >
                     {orderSending ? 'Đang gửi…' : 'Gửi'}
                   </button>
@@ -1124,7 +1154,7 @@ export default function StaffDeskScreen({
               setActionError(null);
               setThuMayOpen(true);
             }}
-            disabled={!webhookMode}
+            disabled={deskLocked || !webhookMode}
             className="flex min-h-14 w-full items-center justify-center gap-2 rounded-3xl border-2 border-amber-400 bg-amber-50 text-base font-bold text-amber-800 active:bg-amber-100 disabled:opacity-40"
           >
             Thu máy nhanh
@@ -1139,7 +1169,7 @@ export default function StaffDeskScreen({
         <button
           type="button"
           onClick={callCoordinator}
-          disabled={!simulation && !realtimeApiUrl}
+          disabled={deskLocked || (!simulation && !realtimeApiUrl)}
           className="flex min-h-14 w-full items-center justify-center gap-2 rounded-3xl border-2 border-amber-300 bg-amber-50 text-base font-bold text-amber-800 shadow-sm active:bg-amber-100 disabled:opacity-40"
         >
           <BellIcon />
@@ -1166,8 +1196,8 @@ export default function StaffDeskScreen({
           <ActionButton
             label="Tiếp nhận"
             variant="receive"
-            disabled={!nextStt || !webhookMode || receiveLocked}
-            locked={receiveLocked}
+            disabled={deskLocked || !nextStt || !webhookMode || receiveLocked}
+            locked={deskLocked || receiveLocked}
             onPress={() => {
               setActionError(null);
               setFormCustomer(view.next);
@@ -1180,17 +1210,18 @@ export default function StaffDeskScreen({
             // Có thể nhận nhanh khách kế tiếp ngay cả khi bàn đang phục vụ
             // một khách khác; dashboard hỗ trợ nhiều khách active trên cùng
             // bàn. Việc chặn STT trùng vẫn được kiểm tra trong lookup.
-            disabled={!webhookMode || sending}
+            disabled={deskLocked || !webhookMode || sending}
             aria-label="Tiếp nhận nhanh"
             title="Tiếp nhận nhanh"
-            className="flex min-h-[56px] w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm active:bg-emerald-100 disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400"
+            className="flex min-h-[56px] w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm active:bg-emerald-100 disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-700"
           >
             <LightningIcon />
           </button>
           <ActionButton
             label="Hoàn tất"
             variant="complete"
-            disabled={!busy || !webhookMode}
+            disabled={deskLocked || !busy || !webhookMode}
+            locked={deskLocked}
             onPress={() => {
               const customer = primary ?? ghost;
               if (!customer) return;

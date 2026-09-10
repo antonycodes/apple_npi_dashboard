@@ -23,7 +23,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAdminInfo } from '@/config/adminSession';
 import { dispatchWebhookUrl, useLarkSettings } from '@/config/larkSettings';
 import { sendDispatchForm } from '@/services/dispatchWebhook';
-import type { DeskData, RosterEntry } from '@/types/desk';
+import { isDeskActive, type DeskData, type RosterEntry } from '@/types/desk';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 
 interface DispatchFormModalProps {
@@ -159,20 +159,25 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const loaiChoices = useMemo(() => [...new Set(entries.map((e) => e.loai))], [entries]);
 
   const staffOptions = useMemo(
-    () => (loai ? entries.filter((e) => e.loai === loai) : []),
-    [entries, loai],
+    () => (loai ? entries.filter((e) => e.loai === loai && isDeskActive(settings.deskAvailability, e.deskCode)) : []),
+    [entries, loai, settings.deskAvailability],
   );
 
   const selected = staffOptions.find((e) => e.deskCode === deskId) ?? null;
   const selectedDesk = desks.find((desk) => desk.id === deskId) ?? null;
+  const selectedDeskActive = isDeskActive(settings.deskAvailability, deskId);
   const selectedDeskCustomers = selectedDesk?.receivedCustomers ?? [];
   const selectedDeskBusy = Boolean(selectedDesk?.isOccupied || selectedDeskCustomers.length > 0);
   const staffNameOf = (e: RosterEntry) => e.staffName || liveStaffByDesk.get(e.deskCode) || '';
   const msnv = khachDoiY ? '' : selected?.staffId ?? '';
   const submitBy = coordinatorSubmitBy;
-  const canSubmit = Boolean(stt.trim() && (khachDoiY || (loai && deskId))) && status.kind !== 'sending';
+  const canSubmit = Boolean(stt.trim() && (khachDoiY || (loai && deskId && selected && selectedDeskActive))) && status.kind !== 'sending';
 
   const sendDispatch = async (): Promise<boolean> => {
+    if (!khachDoiY && (!selected || !selectedDeskActive)) {
+      setStatus({ kind: 'error', msg: `Bàn ${deskId || 'đã chọn'} đang bị khóa — không thể điều phối.` });
+      return false;
+    }
     setStatus({ kind: 'sending' });
     try {
       if (simulation) {

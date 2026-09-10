@@ -24,6 +24,7 @@ import {
   type DeskData,
   type WaitingCustomer,
   type RosterEntry,
+  isDeskActive,
 } from '@/types/desk';
 
 interface QueueSidebarState {
@@ -55,7 +56,7 @@ export interface UseQueueBoardDataResult {
 }
 
 function emptyState(id: string, label: string, cluster: ClusterKey): DeskQueueState {
-  return { id, label, cluster, staffName: null, current: [], next: [] };
+  return { id, label, cluster, isActive: true, staffName: null, current: [], next: [] };
 }
 
 export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult {
@@ -82,6 +83,7 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
       const mapped = mapDeskStates(mockLarkTables, DEFAULT_FIELD_CONFIG);
       const allDesks: DeskData[] = ALL_POSITIONS.map((position) => ({
         ...position,
+        isActive: isDeskActive(settings.deskAvailability, position.id),
         ...(mapped.statesById[position.id] ?? { hasData: false }),
       }));
       setStatesById(mapQueueStates(mockLarkTables, DEFAULT_FIELD_CONFIG, mapped));
@@ -113,6 +115,7 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
         const mapped = mapDeskStates(tables, settings.fields);
         const allDesks: DeskData[] = ALL_POSITIONS.map((position) => ({
           ...position,
+          isActive: isDeskActive(settings.deskAvailability, position.id),
           ...(mapped.statesById[position.id] ?? { hasData: false }),
         }));
         setStatesById(mapQueueStates(tables, settings.fields, mapped));
@@ -149,7 +152,10 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
   }, [isMock, sig, nonce]);
 
   const desks = ALL_POSITIONS.filter((p) => p.cluster === cluster).map(
-    (p) => statesById[p.id] ?? emptyState(p.id, p.label, p.cluster),
+    (p) => ({
+      ...(statesById[p.id] ?? emptyState(p.id, p.label, p.cluster)),
+      isActive: isDeskActive(settings.deskAvailability, p.id),
+    }),
   );
 
   return {

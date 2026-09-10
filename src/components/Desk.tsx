@@ -10,6 +10,7 @@ import type { DeskUiStatus } from '@/types/desk';
 export interface DeskProps {
   id: string;
   status: DeskUiStatus;
+  locked?: boolean;
   staffName?: string | null;
   /** `DS Master.STT tiếp theo` — shown as the small badge above the desk. */
   nextWaitingStt?: string | null;
@@ -33,6 +34,7 @@ const TONE: Record<DeskUiStatus, string> = {
 export default function Desk({
   id,
   status,
+  locked = false,
   nextWaitingStt,
   nextWaitingTradeIn = null,
   tradeInFilterActive = false,
@@ -43,14 +45,15 @@ export default function Desk({
   dimmed = false,
   onClick,
 }: DeskProps) {
-  const interactive = Boolean(onClick) && !dimmed;
+  const interactive = Boolean(onClick) && !dimmed && !locked;
+  const tone = locked ? 'bg-neutral-400 border-neutral-500 text-white' : TONE[status];
   return (
     <button
       type="button"
       // Mốc để popup đo đúng vùng node và không bao giờ đè lên nó.
       data-desk-id={id}
-      aria-label={`Bàn ${id} — ${status}`}
-      title={id}
+      aria-label={`Bàn ${id} — ${locked ? 'đang bị khóa' : status}`}
+      title={locked ? `Bàn ${id} đang bị khóa` : id}
       disabled={!interactive}
       onClick={() => interactive && onClick?.(id)}
       style={{ left: `${x}%`, top: `${y}%` }}
@@ -63,12 +66,13 @@ export default function Desk({
         'border shadow-sm transition',
         interactive ? 'cursor-pointer hover:scale-110 hover:shadow-md' : 'cursor-default',
         dimmed ? 'pointer-events-none opacity-15' : '',
+        locked ? 'cursor-not-allowed opacity-90 grayscale' : '',
         selected ? 'z-20 scale-110 ring-2 ring-blue-500 ring-offset-1' : 'z-10',
         alert ? 'ring-2 ring-amber-400 ring-offset-2 shadow-[0_0_14px_rgba(245,158,11,0.7)]' : '',
-        TONE[status],
+        tone,
       ].join(' ')}
     >
-      {alert && (
+      {alert && !locked && (
         <span
           aria-label="HELP — Cần Điều phối hỗ trợ"
           style={{ bottom: 'calc(var(--node) * 0.04 - 1px)' }}
@@ -78,7 +82,12 @@ export default function Desk({
         </span>
       )}
       <span className="relative z-10">{id}</span>
-      {nextWaitingStt && (
+      {locked && (
+        <span className="absolute inset-x-0 bottom-[-1.1em] text-center text-[length:calc(var(--node)*0.18)] font-bold leading-none text-neutral-600">
+          KHÓA
+        </span>
+      )}
+      {!locked && nextWaitingStt && (
         <span
           data-desk-badge=""
           // VÀNG = "STT tiếp theo" (khách đang chờ tới lượt). Giữ nguyên vàng

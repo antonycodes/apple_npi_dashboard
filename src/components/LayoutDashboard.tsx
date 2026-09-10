@@ -87,6 +87,7 @@ export default function LayoutDashboard({
             key={d.id}
             id={d.id}
             status={deskUiStatus(d)}
+            locked={d.isActive === false}
             staffName={d.staffName}
             nextWaitingStt={d.nextWaitingStt}
             nextWaitingTradeIn={d.nextWaitingStt ? tradeInByStt?.get(d.nextWaitingStt) : null}
@@ -104,6 +105,7 @@ export default function LayoutDashboard({
             cách node đúng `--dot-offset` nên không bao giờ chồng lên nhãn bàn
             hay lên hàng bàn phía dưới. */}
         {desks.map((d) => {
+          if (d.isActive === false) return null;
           const list = d.receivedCustomers ?? [];
           if (list.length === 0) return null;
           const shown = list.slice(0, MAX_DESK_DOTS);

@@ -28,6 +28,8 @@ export const LEADTIME_WARNING_MINUTES = 3;
 
 export interface LarkSettings {
   useMock: boolean;
+  /** Bàn bị Admin khóa; thiếu key nghĩa là bàn đang hoạt động. */
+  deskAvailability: Record<string, boolean>;
   /** Khóa các màn hình nhân viên từ xa; máy Điều phối không bị khóa. */
   sleepMode: boolean;
   /** Khóa route Guest trên toàn bộ thiết bị. */
@@ -64,6 +66,7 @@ export interface LarkSettings {
 export function defaultSettings(): LarkSettings {
   return {
     useMock: ENV_DEFAULTS.useMock,
+    deskAvailability: {},
     sleepMode: false,
     guestLock: false,
     guestUsers: {},
@@ -99,6 +102,9 @@ function hydrate(raw: unknown): LarkSettings {
   return {
     ...base,
     ...p,
+    deskAvailability: Object.fromEntries(
+      Object.entries(p.deskAvailability ?? {}).filter(([, value]) => typeof value === 'boolean'),
+    ),
     mode: 'proxy',
     pollSeconds: 5,
     leadtimeMinutes: {

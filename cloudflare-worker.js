@@ -249,6 +249,9 @@ function normalizeAppSettings(input) {
   };
   return {
     useMock: Boolean(s.useMock),
+    deskAvailability: s.deskAvailability && typeof s.deskAvailability === 'object'
+      ? Object.fromEntries(Object.entries(s.deskAvailability).filter(([, value]) => typeof value === 'boolean'))
+      : {},
     sleepMode: Boolean(s.sleepMode),
     guestLock: Boolean(s.guestLock),
     guestUsers: s.guestUsers && typeof s.guestUsers === 'object' ? s.guestUsers : {},
@@ -259,6 +262,24 @@ function normalizeAppSettings(input) {
     // `larkConfig.ts`), giữ nguyên vẹn — đã qua cổng token admin.
     fields: s.fields && typeof s.fields === 'object' ? s.fields : null,
   };
+}
+
+/**
+ * Bàn bị Admin khóa thì mọi đường ghi nghiệp vụ đều phải từ chối. Cấu hình
+ * đọc công khai để các máy NV nhận được cùng trạng thái; chỉ PUT config/app
+ * mới cần token admin.
+ */
+async function isDeskBlocked(env, deskCode) {
+  const id = String(deskCode || '').trim().toUpperCase();
+  if (!id || !env.CONFIG) return false;
+  const raw = await env.CONFIG.get(siteKvKey(env.NPI_SITE, KV_APP_SETTINGS));
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed?.settings?.deskAvailability?.[id] === false;
+  } catch {
+    return false;
+  }
 }
 
 const enc = new TextEncoder();
@@ -2910,6 +2931,9 @@ export default {
         // nói rõ, thay vì đoán bừa một cột — ghi nhầm cột là dashboard đọc sai
         // khâu, tệ hơn là thiếu hẳn.
         const maBan = String(payload.maBan ?? '').trim();
+        if (maBan && await isDeskBlocked(env, maBan)) {
+          return json({ code: -1, msg: 'Bàn ' + maBan + ' đang bị khóa — Admin cần mở lại trước khi điều phối.' }, 423);
+        }
         const deskColumn = DISPATCH_DESK_COLUMN[String(payload.phanLoai ?? '').trim()];
         if (maBan && !deskColumn) {
           skipped.push(`maBan — phân loại "${payload.phanLoai}" không khớp khâu nào`);
@@ -2991,6 +3015,10 @@ export default {
       // Chuẩn hóa một lần trước khi map để cột Master luôn nhận đúng định danh.
       if (payload.submitBy == null || String(payload.submitBy).trim() === '') {
         payload.submitBy = payload.msnv;
+      }
+
+      if (payload.maBan && await isDeskBlocked(env, payload.maBan)) {
+        return json({ code: -1, msg: 'Bàn ' + String(payload.maBan).trim() + ' đang bị khóa — không thể thao tác.' }, 423);
       }
 
       // Hoàn tất ở Thu cũ/Backup chỉ hợp lệ khi có đủ bằng chứng nghiệm thu.

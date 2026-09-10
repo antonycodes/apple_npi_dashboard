@@ -20,6 +20,7 @@ export interface DeskQueueState {
   id: string;
   label: string;
   cluster: ClusterKey;
+  isActive: boolean;
   staffName: string | null;
   /** Khách đang "Tiếp nhận" tại bàn (từ `Master`) — có thể > 1 nếu 1 NV phục vụ nhiều khách cùng lúc. */
   current: DeskCustomer[];
@@ -67,6 +68,7 @@ export function mapQueueStates(
       id: pos.id,
       label: pos.label,
       cluster: pos.cluster,
+      isActive: true,
       staffName: state?.staffName ?? null,
       current,
       next,

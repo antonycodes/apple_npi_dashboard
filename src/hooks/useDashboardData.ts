@@ -25,6 +25,7 @@ import {
   type DeskLiveState,
   type RosterEntry,
   type WaitingCustomer,
+  isDeskActive,
 } from '@/types/desk';
 
 interface RawState {
@@ -189,6 +190,7 @@ export function useDashboardData(options: DashboardDataOptions = {}): UseDashboa
 
   const desks: DeskData[] = ALL_POSITIONS.map((p) => ({
     ...p,
+    isActive: isDeskActive(settings.deskAvailability, p.id),
     ...(raw.statesById[p.id] ?? { hasData: false }),
   }));
   const summary = computeSummary(desks, {

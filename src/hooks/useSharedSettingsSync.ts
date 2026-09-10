@@ -97,6 +97,9 @@ export function useSharedSettingsSync(): void {
 
         larkSettingsStore.save({
           ...current,
+          deskAvailability: Object.fromEntries(
+            Object.entries(env.settings.deskAvailability ?? {}).filter(([, value]) => typeof value === 'boolean'),
+          ),
           // Không kéo Mock từ KV nữa. Mock chỉ có hiệu lực trên /#/mock.
           sleepMode: Boolean(env.settings.sleepMode),
           guestLock: Boolean(env.settings.guestLock),

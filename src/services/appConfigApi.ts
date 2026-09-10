@@ -35,9 +35,10 @@ function sharedConfigWorkerUrl(): string {
   }
 }
 
-/** Đúng phần cấu hình được chia sẻ — KHÔNG gồm thứ riêng của từng máy (bàn/điều phối viên của máy). */
+/** Đúng phần cấu hình được chia sẻ — trạng thái khóa bàn áp dụng toàn event. */
 export interface SharedSettings {
   useMock: boolean;
+  deskAvailability: Record<string, boolean>;
   sleepMode: boolean;
   guestLock: boolean;
   guestUsers: Record<string, string>;
@@ -107,6 +108,7 @@ export function toSharedSettings(s: LarkSettings): SharedSettings {
     // Giữ khóa cũ để Worker phiên bản cũ vẫn đọc được payload; Mock hiện
     // được kích hoạt bằng route /#/mock, không đồng bộ theo cấu hình nữa.
     useMock: false,
+    deskAvailability: { ...s.deskAvailability },
     sleepMode: s.sleepMode,
     guestLock: s.guestLock,
     guestUsers: s.guestUsers,

@@ -152,7 +152,15 @@ export interface DeskLiveState {
 }
 
 /** A position combined with its (optional) live state — one rendered node. */
-export type DeskData = TablePosition & Partial<DeskLiveState>;
+export type DeskData = TablePosition & Partial<DeskLiveState> & {
+  /** false khi Admin đã khóa bàn trong cấu hình dùng chung. */
+  isActive?: boolean;
+};
+
+/** Bàn chỉ hoạt động khi không bị Admin khóa trong cấu hình dùng chung. */
+export function isDeskActive(availability: Record<string, boolean> | undefined, deskId: string): boolean {
+  return availability?.[deskId] !== false;
+}
 
 /**
  * Derive the visual status — chỉ 2 màu, không còn "chưa có dữ liệu" (grey):
@@ -174,7 +182,8 @@ export function deskUiStatus(d: Partial<DeskLiveState> | undefined): DeskUiStatu
 /** Aggregated counts for one cluster. */
 export interface ClusterSummary {
   total: number; // fixed map nodes in this cluster
-  withData: number; // luôn = total (mọi bàn đều được tính state, xem DeskLiveState.hasData)
+  active: number; // bàn đang được Admin mở để vận hành
+  withData: number; // số bàn đang mở có dữ liệu Lark
   occupied: number;
   available: number;
   waiting: number; // sum of khách chờ
@@ -208,7 +217,7 @@ export function computeSummary(
   opts: { totalRegistered?: number; checkedIn?: number } = {},
 ): DashboardSummary {
   const byCluster = Object.fromEntries(
-    CLUSTERS.map((c) => [c, { total: 0, withData: 0, occupied: 0, available: 0, waiting: 0 }]),
+    CLUSTERS.map((c) => [c, { total: 0, active: 0, withData: 0, occupied: 0, available: 0, waiting: 0 }]),
   ) as Record<ClusterKey, ClusterSummary>;
 
   const servedNames = new Set<string>();
@@ -217,6 +226,8 @@ export function computeSummary(
   for (const d of desks) {
     const s = byCluster[d.cluster];
     s.total += 1;
+    if (d.isActive === false) continue;
+    s.active += 1;
     const u = deskUiStatus(d);
     if (d.hasData) {
       s.withData += 1;

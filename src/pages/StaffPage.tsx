@@ -30,6 +30,7 @@ import SleepOverlay from '@/components/SleepOverlay';
 import { logoutToApp, useAdminInfo, useAdminToken } from '@/config/adminSession';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import { useLarkSettings } from '@/config/larkSettings';
+import { isDeskActive } from '@/types/desk';
 import { applyLinkConfigFromHash, deskLinkFor } from '@/config/staffLink';
 import { staffDeskStore, useStaffDeskId } from '@/config/staffDeskIdentity';
 import { useStaffDeskData } from '@/hooks/useStaffDeskData';
@@ -110,6 +111,7 @@ export default function StaffPage({
   const guestDeskCode = guestMode && deskId ? deskId.replace(/^Guest_/, '').toUpperCase() : '';
   const guestDisplayName = guestDeskCode ? settings.guestUsers[guestDeskCode]?.trim() : '';
   const { view, loading, error, lastUpdated, isMock, refresh } = useStaffDeskData(deskId, guestMode);
+  const deskLocked = Boolean(view && !isDeskActive(settings.deskAvailability, view.id));
   const larkConnected = !isMock && !error && Boolean(lastUpdated);
 
   // ── 1. Đăng nhập (admin không mật khẩu; nhân viên có mật khẩu) ───────────
@@ -169,7 +171,7 @@ export default function StaffPage({
                 </span>
               </div>
               <p className="mt-0.5 truncate text-sm font-semibold text-neutral-600">
-                {view?.staffName ?? 'Chưa có tên NV'}
+                  {deskLocked ? 'Bàn đang bị khóa' : view?.staffName ?? 'Chưa có tên NV'}
               </p>
             </div>
             {(!locked || onChangeDesk) && (
@@ -253,7 +255,7 @@ export default function StaffPage({
 
       {view ? (
         <>
-          <StaffDeskScreen view={view} actorMsnv={session?.msnv} simulation={guestMode} />
+          <StaffDeskScreen view={view} actorMsnv={session?.msnv} simulation={guestMode} deskLocked={deskLocked} />
           <SleepOverlay />
         </>
       ) : (

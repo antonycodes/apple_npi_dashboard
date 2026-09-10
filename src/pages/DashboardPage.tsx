@@ -21,7 +21,7 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { formatElapsed } from '@/config/staffTimers';
-import type { WaitingZoneKey } from '@/types/desk';
+import { isDeskActive, type WaitingZoneKey } from '@/types/desk';
 import { isTradeInCustomer } from '@/utils/tradeInFilter';
 import { acknowledgeDeskAlert, resetDeskAlerts, subscribeDeskAlerts } from '@/services/dashboardRealtime';
 import { deskAlertStatus, type DeskAlert } from '@/services/deskAlerts';
@@ -149,6 +149,10 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   const [showDispatchForm, setShowDispatchForm] = useState(false);
   /** STT điền sẵn khi mở form từ nút "DP" trong popup khách chờ ('' = mở tay từ nút trên thanh lọc). */
   const [dispatchStt, setDispatchStt] = useState('');
+
+  useEffect(() => {
+    if (selectedId && !isDeskActive(settings.deskAvailability, selectedId)) setSelectedId(null);
+  }, [selectedId, settings.deskAvailability]);
 
   /** Nút "DP" trong popup: đóng popup khách, mở form với STT của khách đó. */
   const handleDispatchWaiting = useCallback((customer: { stt: string | null }) => {
