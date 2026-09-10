@@ -82,14 +82,22 @@ export default function StaffReceiveFormModal({
 }) {
   const [values, setValues] = useState<ReceiveFormValues>(defaults);
   const [staffDetailsOpen, setStaffDetailsOpen] = useState(false);
+  const [confirmThuMaySau, setConfirmThuMaySau] = useState(false);
   const set = <K extends keyof ReceiveFormValues>(key: K, v: ReceiveFormValues[K]) =>
     setValues((p) => ({ ...p, [key]: v }));
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || busy) return;
+      if (confirmThuMaySau) {
+        setConfirmThuMaySau(false);
+        return;
+      }
+      onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [busy, onClose]);
+  }, [busy, confirmThuMaySau, onClose]);
 
   // Khi chưa đánh dấu khách cân nhắc giá, giữ nguyên đầy đủ luồng cũ.
   // Đánh dấu sẽ ẩn toàn bộ lựa chọn Backup/thu máy và phần nhập máy.
@@ -182,7 +190,8 @@ export default function StaffReceiveFormModal({
                       key={opt}
                       type="button"
                       disabled={khoa}
-                      onClick={() => set('thuLaiMay', opt)}
+                      onClick={() => set('thuLaiMay', values.thuLaiMay === opt ? '' : opt)}
+                      aria-pressed={values.thuLaiMay === opt}
                       className={`min-h-11 flex-1 rounded-xl border px-2 text-sm font-bold ${
                         khoa
                           ? 'cursor-not-allowed border-neutral-200 bg-neutral-100 text-neutral-400'
@@ -333,13 +342,57 @@ export default function StaffReceiveFormModal({
           </button>
           <button
             type="button"
-            onClick={() => onSubmit(values)}
+            onClick={() => {
+              if (cluster === 'backup' && action === 'hoan_tat' && values.thuLaiMay === 'Thu máy sau') {
+                setConfirmThuMaySau(true);
+                return;
+              }
+              onSubmit(values);
+            }}
             disabled={!canSubmit}
             className={`min-h-[56px] flex-[2] rounded-2xl text-base font-bold text-white shadow-sm active:opacity-80 disabled:bg-neutral-200 disabled:text-neutral-900 ${action === 'tiep_nhan' ? 'bg-emerald-600' : 'bg-red-600'}`}
           >
             {busy ? 'Đang gửi…' : action === 'tiep_nhan' ? 'Gửi Tiếp nhận' : 'Gửi Hoàn tất'}
           </button>
         </div>
+
+        {confirmThuMaySau && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/35 px-4" role="presentation">
+            <div
+              className="w-full max-w-[360px] rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="confirm-thu-may-sau-title"
+            >
+              <h3 id="confirm-thu-may-sau-title" className="text-center text-base font-extrabold tracking-tight text-neutral-900 sm:text-lg">
+                XÁC NHẬN <span className="text-red-600">THU MÁY SAU</span>
+              </h3>
+              <p className="mt-2 text-left text-pretty text-xs leading-5 text-neutral-500">
+                Kiểm tra trạng thái <span className="whitespace-nowrap font-bold text-red-600">THU CŨ</span> của khách, xác nhận khách có <span className="whitespace-nowrap font-bold text-red-600">THU CŨ</span> hay không.<br />
+                Nếu khách có <span className="whitespace-nowrap font-bold text-red-600">THU CŨ</span> nhưng chưa có hình ảnh nghiệm thu và thông tin <span className="whitespace-nowrap font-bold text-red-600">S/N</span>, báo <span className="whitespace-nowrap font-bold text-red-600">ĐIỀU PHỐI</span> hỗ trợ.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmThuMaySau(false)}
+                  className="min-h-11 flex-1 rounded-xl border border-neutral-300 text-sm font-bold text-neutral-700 active:bg-neutral-100"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmThuMaySau(false);
+                    onSubmit(values);
+                  }}
+                  className="min-h-11 flex-1 rounded-xl bg-red-600 text-sm font-bold text-white active:bg-red-700"
+                >
+                  Xác nhận
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
