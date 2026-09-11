@@ -238,7 +238,7 @@ export default function OperationsLogPanel({ tables, fields, loading, refresh }:
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
             ['Tổng khách', summary.total], ['End flow', summary.completed], ['Có thu cũ', summary.tradein], ['Có Backup', summary.backup],
-            ['Cân nhắc giá', summary.price], ['Thu máy nhanh', summary.quickDevice], ['Bàn giao Kho', summary.warehouse], ['Leadtime TB', formatDuration(summary.avgLeadtime)],
+            ['Cân nhắc giá', summary.price], ['Thu máy nhanh', summary.quickDevice], ['Bàn giao Kho', summary.warehouse], ['Thời gian phục vụ TB', formatDuration(summary.avgLeadtime)],
           ].map(([label, value]) => <div key={String(label)} className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-3"><p className="text-xs font-bold text-neutral-500">{label}</p><p className="mt-1 text-xl font-black text-neutral-950">{value}</p></div>)}
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-5">

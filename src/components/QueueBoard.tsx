@@ -9,7 +9,6 @@
  */
 import { useEffect, useState } from 'react';
 import { formatElapsed } from '@/config/staffTimers';
-import { LEADTIME_WARNING_MINUTES } from '@/config/larkSettings';
 import type { DeskQueueState } from '@/services/queueMapper';
 import { tradeInTone } from '@/utils/tradeInFilter';
 
@@ -26,11 +25,11 @@ function useNow(active: boolean): number {
   return now;
 }
 
-function ServiceTimer({ startedAt, now, leadtimeMinutes }: { startedAt: number | null | undefined; now: number; leadtimeMinutes: number }) {
+function ServiceTimer({ startedAt, now, leadtimeMinutes, warningMinutesBefore }: { startedAt: number | null | undefined; now: number; leadtimeMinutes: number; warningMinutesBefore: number }) {
   if (!startedAt || !Number.isFinite(startedAt)) return null;
   const elapsed = Math.max(0, now - startedAt);
   const leadtime = Math.max(1, leadtimeMinutes) * 60_000;
-  const warningAt = Math.max(0, leadtimeMinutes - LEADTIME_WARNING_MINUTES) * 60_000;
+  const warningAt = Math.max(0, leadtimeMinutes - warningMinutesBefore) * 60_000;
   const tone = elapsed >= leadtime ? 'bg-red-100 text-red-700' : elapsed >= warningAt ? 'bg-amber-100 text-amber-700' : 'bg-neutral-100 text-neutral-700';
 
   return (
@@ -40,7 +39,7 @@ function ServiceTimer({ startedAt, now, leadtimeMinutes }: { startedAt: number |
   );
 }
 
-function DeskQueueCard({ desk, leadtimeMinutes, tradeInFilterActive }: { desk: DeskQueueState; leadtimeMinutes: number; tradeInFilterActive: boolean }) {
+function DeskQueueCard({ desk, leadtimeMinutes, warningMinutesBefore, tradeInFilterActive }: { desk: DeskQueueState; leadtimeMinutes: number; warningMinutesBefore: number; tradeInFilterActive: boolean }) {
   const busy = desk.current.length > 0;
   const currentPrimary = desk.current[0]?.stt ?? null;
   const extraCurrent = desk.current.slice(1);
@@ -66,7 +65,7 @@ function DeskQueueCard({ desk, leadtimeMinutes, tradeInFilterActive }: { desk: D
         {busy && (
           <div className="flex items-center gap-1.5 text-xs text-neutral-400">
             <span>Thời gian phục vụ</span>
-            <ServiceTimer startedAt={desk.current[0]?.serviceStartedAt} now={now} leadtimeMinutes={leadtimeMinutes} />
+            <ServiceTimer startedAt={desk.current[0]?.serviceStartedAt} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} />
           </div>
         )}
         {extraCurrent.length > 0 && (
@@ -89,11 +88,11 @@ function DeskQueueCard({ desk, leadtimeMinutes, tradeInFilterActive }: { desk: D
   );
 }
 
-export default function QueueBoard({ desks, leadtimeMinutes = 20, tradeInFilterActive = false }: { desks: DeskQueueState[]; leadtimeMinutes?: number; tradeInFilterActive?: boolean }) {
+export default function QueueBoard({ desks, leadtimeMinutes = 20, warningMinutesBefore = 3, tradeInFilterActive = false }: { desks: DeskQueueState[]; leadtimeMinutes?: number; warningMinutesBefore?: number; tradeInFilterActive?: boolean }) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {desks.map((d) => (
-        <DeskQueueCard key={d.id} desk={d} leadtimeMinutes={leadtimeMinutes} tradeInFilterActive={tradeInFilterActive} />
+        <DeskQueueCard key={d.id} desk={d} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} tradeInFilterActive={tradeInFilterActive} />
       ))}
     </div>
   );

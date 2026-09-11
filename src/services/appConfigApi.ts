@@ -46,6 +46,7 @@ export interface SharedSettings {
   dispatchWebhookUrl: string;
   staffActionWebhookUrl: string;
   leadtimeMinutes: LarkSettings['leadtimeMinutes'];
+  warningMinutesBefore: number;
   fields: LarkSettings['fields'] | null;
 }
 
@@ -116,6 +117,7 @@ export function toSharedSettings(s: LarkSettings): SharedSettings {
     dispatchWebhookUrl: s.dispatchWebhookUrl.trim(),
     staffActionWebhookUrl: s.staffActionWebhookUrl.trim(),
     leadtimeMinutes: s.leadtimeMinutes,
+    warningMinutesBefore: s.warningMinutesBefore,
     fields: s.fields,
   };
 }

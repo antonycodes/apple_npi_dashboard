@@ -26,7 +26,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import ProductList from './ProductList';
-import { LEADTIME_WARNING_MINUTES, staffActionWebhookUrl, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
+import { staffActionWebhookUrl, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import { formatElapsed, staffTimerStore, useStaffTimers, type TimerEntry } from '@/config/staffTimers';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
@@ -132,17 +132,19 @@ function ElapsedBadge({
   entry,
   now,
   leadtimeMinutes,
+  warningMinutesBefore,
   size = 'lg',
 }: {
   entry: TimerEntry | undefined;
   now: number;
   leadtimeMinutes: number;
+  warningMinutesBefore: number;
   size?: 'sm' | 'lg';
 }) {
   if (!entry) return null;
   const elapsed = Math.max(0, now - entry.startedAt);
   const leadtimeMs = Math.max(1, leadtimeMinutes) * 60_000;
-  const warningMs = Math.max(0, leadtimeMinutes - LEADTIME_WARNING_MINUTES) * 60_000;
+  const warningMs = Math.max(0, leadtimeMinutes - warningMinutesBefore) * 60_000;
   const tone =
     elapsed >= leadtimeMs
       ? 'bg-red-100 text-red-700'
@@ -250,6 +252,7 @@ function CustomerCard({
   timer,
   now,
   leadtimeMinutes,
+  warningMinutesBefore,
   showTradeInQuantity,
 }: {
   customer: StaffCustomer;
@@ -257,6 +260,7 @@ function CustomerCard({
   timer: TimerEntry | undefined;
   now: number;
   leadtimeMinutes: number;
+  warningMinutesBefore: number;
   showTradeInQuantity: boolean;
 }) {
   return (
@@ -270,7 +274,7 @@ function CustomerCard({
             <span className="min-w-0 truncate text-xl font-bold leading-tight text-neutral-900">
               {customer.name ?? 'Khách'}
             </span>
-            <ElapsedBadge entry={timer} now={now} leadtimeMinutes={leadtimeMinutes} />
+            <ElapsedBadge entry={timer} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} />
           </div>
           <div className="mt-1 flex flex-wrap gap-1">
             {customer.oldDeviceCheck && (
@@ -509,6 +513,7 @@ export default function StaffDeskScreen({
   const realtimeApiUrl = toRuntimeConfig(settings).apiUrl;
   const warehouseOrders = useWarehouseOrders(realtimeApiUrl, view.cluster === 'consult' && !simulation);
   const leadtimeMinutes = settings.leadtimeMinutes[view.cluster];
+  const warningMinutesBefore = settings.warningMinutesBefore;
   const webhookUrl = staffActionWebhookUrl(settings);
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -955,10 +960,10 @@ export default function StaffDeskScreen({
           </h2>
 
           {primary ? (
-            <CustomerCard customer={primary} tone="current" timer={timerOf(primary.stt)} now={now} leadtimeMinutes={leadtimeMinutes} showTradeInQuantity={view.cluster === 'tradein'} />
+            <CustomerCard customer={primary} tone="current" timer={timerOf(primary.stt)} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} showTradeInQuantity={view.cluster === 'tradein'} />
           ) : ghost ? (
             <>
-              <CustomerCard customer={ghost} tone="pending" timer={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} showTradeInQuantity={view.cluster === 'tradein'} />
+              <CustomerCard customer={ghost} tone="pending" timer={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} showTradeInQuantity={view.cluster === 'tradein'} />
               <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
                 {simulation ? 'Đã ghi nhận trong phòng mô phỏng — đang đồng bộ…' : webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
               </p>
@@ -982,7 +987,7 @@ export default function StaffDeskScreen({
                 <span className="min-w-0 truncate text-sm font-bold text-neutral-800">
                   {ghost.name ?? 'Khách'}
                 </span>
-                <ElapsedBadge entry={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} size="sm" />
+                <ElapsedBadge entry={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} size="sm" />
               </div>
               <div className="mt-2 text-xs">
                 <ProductList value={ghost.productName} />
@@ -1009,7 +1014,7 @@ export default function StaffDeskScreen({
                       <span className="min-w-0 truncate text-sm font-bold text-neutral-800">
                         {c.name ?? 'Khách'}
                       </span>
-                      <ElapsedBadge entry={timerOf(c.stt)} now={now} leadtimeMinutes={leadtimeMinutes} size="sm" />
+                      <ElapsedBadge entry={timerOf(c.stt)} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} size="sm" />
                     </div>
                     <div className="mt-2 text-xs">
                       <ProductList value={c.productName} />

@@ -111,6 +111,12 @@ export function useSharedSettingsSync(): void {
             ...current.leadtimeMinutes,
             ...(env.settings.leadtimeMinutes ?? {}),
           },
+          warningMinutesBefore:
+            typeof env.settings.warningMinutesBefore === 'number'
+              && Number.isFinite(env.settings.warningMinutesBefore)
+              && env.settings.warningMinutesBefore >= 0
+              ? env.settings.warningMinutesBefore
+              : current.warningMinutesBefore,
           fields: mergedFields,
         });
         markApplied(env.updatedAt);

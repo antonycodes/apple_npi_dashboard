@@ -217,7 +217,7 @@ export default function FilterBar({
             style={overtimePosition}
           >
             <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
-              BÀN VƯỢT LEADTIME
+              BÀN VƯỢT ĐỊNH MỨC
             </p>
             {overtimeDesks.length > 0 ? (
               overtimeDesks.map((desk) => (

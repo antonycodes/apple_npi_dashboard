@@ -10,7 +10,7 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
     setError(null);
     try {
       await pushSharedSettings(toSharedSettings(settings));
-      setMessage('Đã đồng bộ cấu hình toàn thiết bị. Máy NV sẽ áp dụng tối đa trong 5 giây.');
+      setMessage('Đã đồng bộ lại cấu hình toàn thiết bị.');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -34,7 +34,7 @@ function SharedSettingsPush({ settings, dirty }: { settings: LarkSettings; dirty
         disabled={busy || dirty || !settings.apiUrl.trim()}
         className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40"
       >
-        {busy ? 'Đang đồng bộ…' : 'Đồng bộ cấu hình toàn thiết bị'}
+        {busy ? 'Đang đồng bộ…' : 'Đồng bộ lại cấu hình toàn thiết bị'}
       </button>
       {message && <p className="text-sm text-emerald-700">✓ {message}</p>}
       {error && <p className="text-sm text-red-600">✗ {error}</p>}
@@ -333,7 +333,6 @@ import {
   type LarkSettings,
 } from '@/config/larkSettings';
 import type { CheckinFieldMap, DsMasterFieldMap, MasterFieldMap } from '@/config/larkConfig';
-import { LEADTIME_WARNING_MINUTES } from '@/config/larkSettings';
 import AdminLoginForm from '@/components/AdminLoginForm';
 import { useAdminInfo } from '@/config/adminSession';
 import { fetchLarkData } from '@/services/larkService';
@@ -360,6 +359,8 @@ export default function SettingsPage() {
   const locked = session?.role !== 'admin';
   const [draft, setDraft] = useState<LarkSettings>(() => clone(saved));
   const [savedTick, setSavedTick] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
 
@@ -404,10 +405,28 @@ export default function SettingsPage() {
       },
     }));
 
-  const save = () => {
-    larkSettingsStore.save(clone(draft));
-    setSavedTick(true);
-    setTimeout(() => setSavedTick(false), 1500);
+  const setWarningMinutes = (value: string) =>
+    setDraft((d) => ({
+      ...d,
+      warningMinutesBefore: Math.max(0, Number(value) || 0),
+    }));
+
+  const save = async () => {
+    setSaving(true);
+    setSaveError(null);
+    const next = clone(draft);
+    try {
+      // Lưu trung tâm trước. Chỉ cập nhật runtime sau khi Worker KV xác nhận,
+      // để trạng thái trên máy Admin không báo thành công giả.
+      await pushSharedSettings(toSharedSettings(next));
+      larkSettingsStore.save(next);
+      setSavedTick(true);
+      setTimeout(() => setSavedTick(false), 1500);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const resetDefaults = () => setDraft(defaultSettings());
@@ -536,31 +555,38 @@ export default function SettingsPage() {
           </Section>
         </SettingsLockContext.Provider>
 
-        <Section title="3 · Thiết lập leadtime theo khâu" disabled={locked}>
+        <Section title="3 · Thiết lập định mức thời gian phục vụ theo khâu" disabled={locked}>
           <p className="text-sm text-neutral-500">
-            Timer chuyển vàng trước leadtime {LEADTIME_WARNING_MINUTES} phút và chuyển đỏ khi chạm hoặc vượt leadtime.
-            Giá trị áp dụng cho cả màn hình nhân viên và màn hình STT.
+            Đồng hồ chuyển vàng trước số phút cài bên dưới và chuyển đỏ khi chạm hoặc vượt định mức.
+            Cấu hình áp dụng chung cho màn hình nhân viên, màn hình STT và màn hình SMS.
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Input
-              label="Thu cũ (phút)"
+              label="Định mức Thu cũ (phút)"
               type="number"
               value={String(draft.leadtimeMinutes.tradein)}
               onChange={(v) => setLeadtime('tradein', v)}
               locked={locked}
             />
             <Input
-              label="Tư vấn (phút)"
+              label="Định mức Tư vấn (phút)"
               type="number"
               value={String(draft.leadtimeMinutes.consult)}
               onChange={(v) => setLeadtime('consult', v)}
               locked={locked}
             />
             <Input
-              label="Backup (phút)"
+              label="Định mức Backup (phút)"
               type="number"
               value={String(draft.leadtimeMinutes.backup)}
               onChange={(v) => setLeadtime('backup', v)}
+              locked={locked}
+            />
+            <Input
+              label="Chuyển vàng trước (phút)"
+              type="number"
+              value={String(draft.warningMinutesBefore)}
+              onChange={setWarningMinutes}
               locked={locked}
             />
           </div>
@@ -606,8 +632,8 @@ export default function SettingsPage() {
           <GuestModeSettings settings={saved} />
         </Section>
 
-        {/* Đồng bộ cấu hình toàn thiết bị — thứ khiến máy nhân viên theo admin */}
-        <Section title="8 · Đồng bộ cấu hình toàn thiết bị">
+        {/* Nút dự phòng nếu cần gửi lại bản cấu hình hiện tại lên Worker KV. */}
+        <Section title="8 · Đồng bộ lại cấu hình toàn thiết bị">
           <SharedSettingsPush settings={saved} dirty={dirty} />
         </Section>
 
@@ -615,11 +641,11 @@ export default function SettingsPage() {
         <div className="sticky bottom-0 flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 bg-white/95 p-3 shadow-sm backdrop-blur">
           <button
             type="button"
-            onClick={save}
-            disabled={!dirty}
+            onClick={() => void save()}
+            disabled={!dirty || saving}
             className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-40"
           >
-            Lưu &amp; đồng bộ
+            {saving ? 'Đang lưu…' : 'Lưu & đồng bộ toàn thiết bị'}
           </button>
           <button
             type="button"
@@ -640,6 +666,7 @@ export default function SettingsPage() {
           </button>
 
           {savedTick && <span className="text-sm font-medium text-emerald-600">✓ Đã lưu</span>}
+          {saveError && <span className="max-w-md truncate text-sm font-medium text-red-600" title={saveError}>✗ Chưa lưu: {saveError}</span>}
           {test?.ok && (
             <span className="text-sm text-emerald-700">
               ✓ OK — {test.desks} bàn · {test.checkIn} check-in · {test.orders} đơn

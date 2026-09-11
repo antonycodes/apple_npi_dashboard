@@ -29,6 +29,7 @@ function sttTone(
   journey: SmsJourney | undefined,
   now: number,
   leadtimeMinutes: Record<ClusterKey, number>,
+  warningMinutesBefore: number,
   onlyPendingConsult: boolean,
 ) {
   if (onlyPendingConsult) {
@@ -43,7 +44,7 @@ function sttTone(
   const elapsed = Math.max(0, now - stage.startedAt);
   const targetMinutes = Math.max(1, leadtimeMinutes[stage.key]);
   if (elapsed >= targetMinutes * 60_000) return 'bg-red-500 text-white hover:bg-red-600';
-  if (elapsed >= Math.max(0, targetMinutes - 3) * 60_000) return 'bg-amber-400 text-black hover:bg-amber-500';
+  if (elapsed >= Math.max(0, targetMinutes - warningMinutesBefore) * 60_000) return 'bg-amber-400 text-black hover:bg-amber-500';
   return 'bg-emerald-500 text-white hover:bg-emerald-600';
 }
 
@@ -111,8 +112,8 @@ function SmsBoard({ allowSmsSend }: { allowSmsSend: boolean }) {
                 <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-neutral-400" aria-hidden="true" />Chưa check-in</span>
                 <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-blue-500" aria-hidden="true" />Đã check-in / đang chờ</span>
                 <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden="true" />Đang phục vụ</span>
-                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-400" aria-hidden="true" />Gần leadtime</span>
-                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />Quá leadtime</span>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-amber-400" aria-hidden="true" />Gần định mức</span>
+                <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />Quá định mức</span>
                 <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-violet-500" aria-hidden="true" />End Flow</span>
                 <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-blue-800" aria-hidden="true" />Đã yêu cầu SMS</span>
               </>
@@ -159,7 +160,7 @@ function SmsBoard({ allowSmsSend }: { allowSmsSend: boolean }) {
                 onClick={() => setSelected(stt)}
                 aria-label={`STT ${stt.padStart(2, '0')}${journey ? ' — mở hành trình' : ' — chưa check-in'}${smsNotification ? ` — ${smsNotification}` : smsRequested ? ' — đã yêu cầu SMS' : ''}`}
                 title={smsNotification ?? (smsRequested ? 'Đã yêu cầu SMS, đang chờ kết quả từ Base' : undefined)}
-                className={`relative aspect-square min-h-12 rounded-xl text-lg font-black shadow-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:cursor-not-allowed sm:min-h-14 sm:text-xl ${sttTone(journey, now, settings.leadtimeMinutes, onlyPendingConsult)} ${smsNotification ? (smsSuccess ? 'ring-2 ring-emerald-500 ring-offset-1' : 'ring-2 ring-red-500 ring-offset-1') : smsRequested ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}
+              className={`relative aspect-square min-h-12 rounded-xl text-lg font-black shadow-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:cursor-not-allowed sm:min-h-14 sm:text-xl ${sttTone(journey, now, settings.leadtimeMinutes, settings.warningMinutesBefore, onlyPendingConsult)} ${smsNotification ? (smsSuccess ? 'ring-2 ring-emerald-500 ring-offset-1' : 'ring-2 ring-red-500 ring-offset-1') : smsRequested ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}
               >
                 {stt.padStart(2, '0')}
                 {smsRequested && <span className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ${smsDotTone}`} aria-hidden="true" />}
@@ -173,6 +174,7 @@ function SmsBoard({ allowSmsSend }: { allowSmsSend: boolean }) {
         <SmsJourneyModal
           journey={{ ...selectedJourney, smsRequested: selectedJourney.smsRequested || requestedLocally.has(selectedJourney.stt) }}
           leadtimeMinutes={settings.leadtimeMinutes}
+          warningMinutesBefore={settings.warningMinutesBefore}
           canSendSms={allowSmsSend}
           onClose={() => setSelected(null)}
           onConfirm={() => sendSmsDispatchRecord(dispatchWebhookUrl(settings), selectedJourney.stt)}

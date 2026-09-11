@@ -229,11 +229,24 @@ const KV_COORDINATORS = 'coordinators';
  * máy nên admin bật Live Base ở máy mình thì máy NV vẫn chạy dữ liệu mẫu.
  */
 const KV_APP_SETTINGS = 'app-settings';
+const DEFAULT_WARNING_MINUTES_BEFORE = 3;
 
 /** Chỉ nhận đúng các khoá này — client gửi thừa gì cũng không lọt vào KV. */
 function normalizeAppSettings(input) {
   const s = input && typeof input === 'object' ? input : {};
   const str = (v) => (typeof v === 'string' ? v.trim() : '');
+  const warningMinutesBefore = Number(s.warningMinutesBefore);
+  const normalizeLeadtimeMinutes = (value) => {
+    if (!value || typeof value !== 'object') return {};
+    return Object.fromEntries(
+      ['consult', 'tradein', 'backup'].flatMap((key) => {
+        const minutes = Number(value[key]);
+        return Number.isFinite(minutes) && minutes >= 1
+          ? [[key, minutes]]
+          : [];
+      }),
+    );
+  };
   const endpoint = (value) => {
     const raw = str(value);
     if (!raw) return '';
@@ -258,6 +271,12 @@ function normalizeAppSettings(input) {
     apiUrl: str(s.apiUrl),
     dispatchWebhookUrl: endpoint(s.dispatchWebhookUrl),
     staffActionWebhookUrl: endpoint(s.staffActionWebhookUrl),
+    // Mốc cảnh báo theo từng khâu, tính bằng phút. Chỉ nhận ba khâu nghiệp vụ
+    // để không đưa khóa lạ vào cấu hình dùng chung trong KV.
+    leadtimeMinutes: normalizeLeadtimeMinutes(s.leadtimeMinutes),
+    warningMinutesBefore: Number.isFinite(warningMinutesBefore) && warningMinutesBefore >= 0
+      ? warningMinutesBefore
+      : DEFAULT_WARNING_MINUTES_BEFORE,
     // Ánh xạ tên cột: cấu trúc lồng nhau do client định nghĩa (xem
     // `larkConfig.ts`), giữ nguyên vẹn — đã qua cổng token admin.
     fields: s.fields && typeof s.fields === 'object' ? s.fields : null,

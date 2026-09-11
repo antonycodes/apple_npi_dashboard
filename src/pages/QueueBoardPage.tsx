@@ -103,7 +103,7 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
 
       <main className="flex flex-col items-start gap-4 px-3 py-4 md:px-6 md:py-6 lg:min-h-0 lg:flex-1 lg:flex-row">
         <div className="min-w-0 flex-1 lg:h-full lg:overflow-y-auto lg:pr-1">
-          <QueueBoard desks={desks} leadtimeMinutes={settings.leadtimeMinutes[cluster]} tradeInFilterActive={onlyTradeIn} />
+          <QueueBoard desks={desks} leadtimeMinutes={settings.leadtimeMinutes[cluster]} warningMinutesBefore={settings.warningMinutesBefore} tradeInFilterActive={onlyTradeIn} />
         </div>
         <div className="w-full shrink-0 lg:h-full lg:w-auto">
           <Sidebar

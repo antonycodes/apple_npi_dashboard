@@ -48,9 +48,9 @@ function statusTone(status: SmsStageStatus) {
   return 'bg-amber-100 text-amber-700';
 }
 
-function leadtimeTone(elapsedMs: number, targetMinutes: number) {
+function leadtimeTone(elapsedMs: number, targetMinutes: number, warningMinutesBefore: number) {
   const target = Math.max(1, targetMinutes) * 60_000;
-  const warning = Math.max(0, targetMinutes - 3) * 60_000;
+  const warning = Math.max(0, targetMinutes - warningMinutesBefore) * 60_000;
   if (elapsedMs >= target) return 'bg-red-100 text-red-700';
   if (elapsedMs >= warning) return 'bg-amber-100 text-amber-700';
   return 'bg-neutral-100 text-neutral-700';
@@ -60,10 +60,12 @@ function StageCard({
   stage,
   now,
   targetMinutes,
+  warningMinutesBefore,
 }: {
   stage: SmsStageJourney;
   now: number;
   targetMinutes: number;
+  warningMinutesBefore: number;
 }) {
   const elapsed = stage.status === 'active' && stage.startedAt
     ? Math.max(0, now - stage.startedAt)
@@ -77,7 +79,7 @@ function StageCard({
             {STATUS_LABEL[stage.status]}
           </span>
           {elapsed !== null && (
-            <span className={`rounded-full px-2.5 py-1 text-xs font-black ${leadtimeTone(elapsed, targetMinutes)}`}>
+            <span className={`rounded-full px-2.5 py-1 text-xs font-black ${leadtimeTone(elapsed, targetMinutes, warningMinutesBefore)}`}>
               {formatElapsed(elapsed)} / {targetMinutes}p
             </span>
           )}
@@ -105,6 +107,7 @@ function Value({ label, value }: { label: string; value: string | null | undefin
 export default function SmsJourneyModal({
   journey,
   leadtimeMinutes,
+  warningMinutesBefore,
   onConfirm,
   onClose,
   onRequested,
@@ -112,6 +115,7 @@ export default function SmsJourneyModal({
 }: {
   journey: SmsJourney;
   leadtimeMinutes: Record<ClusterKey, number>;
+  warningMinutesBefore: number;
   onConfirm: () => Promise<DispatchSendResult>;
   onClose: () => void;
   onRequested: () => void;
@@ -207,7 +211,7 @@ export default function SmsJourneyModal({
 
           <div className="mt-4 space-y-3">
             {(['consult', 'tradein', 'backup'] as ClusterKey[]).map((key) => (
-              <StageCard key={key} stage={journey.stages[key]} now={now} targetMinutes={leadtimeMinutes[key]} />
+              <StageCard key={key} stage={journey.stages[key]} now={now} targetMinutes={leadtimeMinutes[key]} warningMinutesBefore={warningMinutesBefore} />
             ))}
           </div>
 
