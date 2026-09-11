@@ -104,6 +104,11 @@ export default function CustomerPopover({ desk, customer, onClose }: CustomerPop
             tone={customer.deviceAccepted ? 'red' : undefined}
           />
           <Row
+            label="Thu cũ check"
+            value={customer.oldDeviceCheck ?? null}
+            tone={oldDeviceCheckTone(customer.oldDeviceCheck)}
+          />
+          <Row
             label="Backup check"
             value={customer.backupStatus ?? customer.backupCheck ?? null}
             tone={oldDeviceCheckTone(customer.backupStatus ?? customer.backupCheck)}
