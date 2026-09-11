@@ -82,11 +82,6 @@ export default function Desk({
         </span>
       )}
       <span className="relative z-10">{id}</span>
-      {locked && (
-        <span className="absolute inset-x-0 bottom-[-1.1em] text-center text-[length:calc(var(--node)*0.18)] font-bold leading-none text-neutral-600">
-          KHÓA
-        </span>
-      )}
       {!locked && nextWaitingStt && (
         <span
           data-desk-badge=""

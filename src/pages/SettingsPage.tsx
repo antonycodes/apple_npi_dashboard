@@ -126,8 +126,8 @@ function DeskActivitySettings({
     setMessage(null);
     setError(null);
     const deskAvailability = { ...settings.deskAvailability };
-    if (active) delete deskAvailability[deskId];
-    else deskAvailability[deskId] = false;
+    if (active) deskAvailability[deskId] = false;
+    else delete deskAvailability[deskId];
     const next = { ...settings, deskAvailability };
     try {
       await pushSharedSettings(toSharedSettings(next));
@@ -150,6 +150,16 @@ function DeskActivitySettings({
           Chưa đọc được trạng thái phục vụ hiện tại. Không thể khóa bàn khi dữ liệu chưa xác định.
         </p>
       )}
+      {message && (
+        <p role="status" aria-live="polite" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+          ✓ {message}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+          ✗ {error}
+        </p>
+      )}
       {(['backup', 'tradein', 'consult'] as ClusterKey[]).map((cluster) => (
         <div key={cluster} className="rounded-lg border border-neutral-200 bg-white p-3">
           <div className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">{CLUSTER_LABELS[cluster]}</div>
@@ -169,6 +179,7 @@ function DeskActivitySettings({
                       ? 'Bàn ' + position.id + (occupied ? ' đang phục vụ' : ' đang mở, bấm để khóa')
                       : 'Bàn ' + position.id + ' đã khóa, bấm để mở lại'
                   }
+                  title={occupied ? `Bàn ${position.id} đang phục vụ — không thể khóa` : undefined}
                   disabled={busyDesk !== null || cannotLock}
                   onClick={() => void toggle(position.id)}
                   className={[
@@ -185,7 +196,7 @@ function DeskActivitySettings({
                       ? 'Đang cập nhật…'
                       : active
                         ? occupied
-                          ? 'Đang phục vụ'
+                          ? 'Đang phục vụ · Không thể khóa'
                           : 'Đang mở · Bấm để khóa'
                         : 'Đã khóa · Bấm để mở lại'}
                   </span>
@@ -195,8 +206,6 @@ function DeskActivitySettings({
           </div>
         </div>
       ))}
-      {message && <p className="text-sm font-semibold text-emerald-700">✓ {message}</p>}
-      {error && <p className="text-sm font-semibold text-red-700">✗ {error}</p>}
     </div>
   );
 }
