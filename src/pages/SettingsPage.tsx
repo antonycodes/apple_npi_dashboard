@@ -105,7 +105,7 @@ function DeskActivitySettings({
 }) {
   const session = useAdminInfo();
   const [busyDesk, setBusyDesk] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; locked: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (session?.role !== 'admin') return null;
@@ -132,7 +132,10 @@ function DeskActivitySettings({
     try {
       await pushSharedSettings(toSharedSettings(next));
       larkSettingsStore.save(next);
-      setMessage((active ? 'Đã mở lại bàn ' : 'Đã khóa bàn ') + deskId + '.');
+      setMessage({
+        text: (active ? 'Đã khóa bàn ' : 'Đã mở lại bàn ') + deskId + '.',
+        locked: active,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -144,6 +147,10 @@ function DeskActivitySettings({
     <div className="space-y-4">
       <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-600">
         Bàn bị khóa sẽ màu xám trên sơ đồ và vô hiệu hóa trên view mobile. Trạng thái giữ nguyên đến khi Admin mở lại.
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold">
+          <span className="text-emerald-700">Xanh: đang mở</span>
+          <span className="text-neutral-700">Xám: đã khóa</span>
+        </div>
       </div>
       {dataError && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
@@ -151,8 +158,12 @@ function DeskActivitySettings({
         </p>
       )}
       {message && (
-        <p role="status" aria-live="polite" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
-          ✓ {message}
+        <p
+          role="status"
+          aria-live="polite"
+          className={`rounded-lg px-3 py-2 text-sm font-semibold ${message.locked ? 'bg-neutral-200 text-neutral-700' : 'bg-emerald-50 text-emerald-700'}`}
+        >
+          ✓ {message.text}
         </p>
       )}
       {error && (
