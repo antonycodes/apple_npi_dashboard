@@ -602,6 +602,9 @@ function indexMasterByDeskCode(
         dsTuVan: dd?.dsTuVan ?? null,
         dsThuCu: dd?.dsThuCu ?? null,
         dsBackup: dd?.dsBackup ?? null,
+        dsTuVanReceived: dd?.dsTuVanReceived ?? false,
+        dsThuCuReceived: dd?.dsThuCuReceived ?? false,
+        dsBackupReceived: dd?.dsBackupReceived ?? false,
       },
     });
   }
@@ -647,6 +650,9 @@ interface DispatchDetail {
   dsTuVan: string | null;
   dsThuCu: string | null;
   dsBackup: string | null;
+  dsTuVanReceived: boolean;
+  dsThuCuReceived: boolean;
+  dsBackupReceived: boolean;
 }
 
 /**
@@ -676,7 +682,14 @@ function indexDispatchDetailByName(rows: LarkRecord[], fm: DispatchFieldMap): Ma
   for (const r of rows) {
     const name = cellToString(fieldValue(r.fields, fm.name));
     if (!name) continue;
-    const previous = result.get(name) ?? { dsTuVan: null, dsThuCu: null, dsBackup: null };
+    const previous = result.get(name) ?? {
+      dsTuVan: null,
+      dsThuCu: null,
+      dsBackup: null,
+      dsTuVanReceived: false,
+      dsThuCuReceived: false,
+      dsBackupReceived: false,
+    };
     const dsTuVan = cellToString(fieldValue(r.fields, fm.deskField.consult));
     const dsThuCu = cellToString(fieldValue(r.fields, fm.deskField.tradein));
     const dsBackup = backupDisplayCode(cellToString(fieldValue(r.fields, fm.backupDeskField)));
@@ -684,6 +697,9 @@ function indexDispatchDetailByName(rows: LarkRecord[], fm: DispatchFieldMap): Ma
       dsTuVan: dsTuVan ?? previous.dsTuVan,
       dsThuCu: dsThuCu ?? previous.dsThuCu,
       dsBackup: dsBackup ?? previous.dsBackup,
+      dsTuVanReceived: previous.dsTuVanReceived,
+      dsThuCuReceived: previous.dsThuCuReceived,
+      dsBackupReceived: previous.dsBackupReceived,
     });
   }
   return result;
@@ -730,13 +746,21 @@ function mergeReceivedDetailByName(
       normalizeDeskCode(rawDeskCode) ??
       (msnv ? deskCodeByStaffId.get(msnv) ?? null : null) ??
       normalizeDeskCode(deskCodeFromDispatch(dispatchDetails.get(name), stage));
-    const previous = result.get(name) ?? { dsTuVan: null, dsThuCu: null, dsBackup: null };
+    const previous = result.get(name) ?? {
+      dsTuVan: null,
+      dsThuCu: null,
+      dsBackup: null,
+      dsTuVanReceived: false,
+      dsThuCuReceived: false,
+      dsBackupReceived: false,
+    };
 
     // BK.X/BK.X2 are standalone Backup nodes. Once Master records the
     // actual reception code, it must override the dispatch-side value so the
     // popup shows the real Backup node instead of an empty/old assignment.
     if (primaryDeskCode === 'BK.X' || primaryDeskCode === 'BK.X2') {
       previous.dsBackup = primaryDeskCode;
+      previous.dsBackupReceived = true;
     }
 
     // A standalone Backup node must still be shown even if the stage field is
@@ -746,9 +770,21 @@ function mergeReceivedDetailByName(
       continue;
     }
 
-    if (stage === 'consult' && primaryDeskCode?.startsWith('TV')) previous.dsTuVan = primaryDeskCode;
-    if (stage === 'tradein' && primaryDeskCode?.startsWith('TC')) previous.dsThuCu = primaryDeskCode;
-    if (stage === 'backup') previous.dsBackup = backupDisplayCode(rawDeskCode) ?? backupDisplayCode(primaryDeskCode);
+    if (stage === 'consult' && primaryDeskCode?.startsWith('TV')) {
+      previous.dsTuVan = primaryDeskCode;
+      previous.dsTuVanReceived = true;
+    }
+    if (stage === 'tradein' && primaryDeskCode?.startsWith('TC')) {
+      previous.dsThuCu = primaryDeskCode;
+      previous.dsThuCuReceived = true;
+    }
+    if (stage === 'backup') {
+      const receivedDeskCode = backupDisplayCode(rawDeskCode) ?? backupDisplayCode(primaryDeskCode);
+      if (receivedDeskCode) {
+        previous.dsBackup = receivedDeskCode;
+        previous.dsBackupReceived = true;
+      }
+    }
     result.set(name, previous);
   }
   return result;
@@ -905,6 +941,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
   const completedByDeskCode = new Map<string, DeskCustomer[]>();
   for (const row of completedRows) {
     const ci = checkinByName.get(row.name);
+    const dd = personnelDetailByName.get(row.name);
     const list = completedByDeskCode.get(row.deskCode) ?? [];
     list.push({
       stt: ci?.stt ?? null,
@@ -918,6 +955,12 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       oldDeviceCheck: ci?.oldDeviceCheck ?? null,
       backupCheck: ci?.backupCheck ?? null,
       backupStatus: ci?.backupStatus ?? null,
+      dsTuVan: dd?.dsTuVan ?? null,
+      dsThuCu: dd?.dsThuCu ?? null,
+      dsBackup: dd?.dsBackup ?? null,
+      dsTuVanReceived: dd?.dsTuVanReceived ?? false,
+      dsThuCuReceived: dd?.dsThuCuReceived ?? false,
+      dsBackupReceived: dd?.dsBackupReceived ?? false,
     });
     completedByDeskCode.set(row.deskCode, list);
   }
@@ -982,6 +1025,9 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       dsTuVan: dd?.dsTuVan ?? null,
       dsThuCu: dd?.dsThuCu ?? null,
       dsBackup: dd?.dsBackup ?? null,
+      dsTuVanReceived: dd?.dsTuVanReceived ?? false,
+      dsThuCuReceived: dd?.dsThuCuReceived ?? false,
+      dsBackupReceived: dd?.dsBackupReceived ?? false,
       fromCluster: clusterFromDeskCode(row.deskCode),
       tradeInConsideration: tradeInConsiderationByName.has(row.name),
       doneInFlow: ci?.doneInFlow ?? null,
@@ -1025,6 +1071,9 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       dsTuVan: dd?.dsTuVan ?? null,
       dsThuCu: dd?.dsThuCu ?? null,
       dsBackup: dd?.dsBackup ?? null,
+      dsTuVanReceived: dd?.dsTuVanReceived ?? false,
+      dsThuCuReceived: dd?.dsThuCuReceived ?? false,
+      dsBackupReceived: dd?.dsBackupReceived ?? false,
     });
   }
 
@@ -1047,6 +1096,9 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       dsTuVan: dd?.dsTuVan ?? null,
       dsThuCu: dd?.dsThuCu ?? null,
       dsBackup: dd?.dsBackup ?? null,
+      dsTuVanReceived: dd?.dsTuVanReceived ?? false,
+      dsThuCuReceived: dd?.dsThuCuReceived ?? false,
+      dsBackupReceived: dd?.dsBackupReceived ?? false,
       doneInFlow: ci.doneInFlow,
       endFlowTime: ci.endFlowTime,
       deviceReceipt: deviceReceiptByStt.get(ci.stt ?? '') ?? null,

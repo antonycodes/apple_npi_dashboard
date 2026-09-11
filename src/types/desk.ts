@@ -61,6 +61,10 @@ export interface DeskCustomer {
   dsTuVan?: string | null; // Cột "DS Tư vấn"
   dsThuCu?: string | null; // Cột "DS Thu cũ"
   dsBackup?: string | null; // Cột "DS Backup"
+  /** Khâu đã có bản ghi tiếp nhận/thực tế trong `Master`. */
+  dsTuVanReceived?: boolean;
+  dsThuCuReceived?: boolean;
+  dsBackupReceived?: boolean;
 }
 
 /**

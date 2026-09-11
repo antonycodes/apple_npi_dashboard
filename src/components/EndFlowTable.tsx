@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
 import type { WaitingCustomer } from '@/types/desk';
+import DispatchSummary from '@/components/DispatchSummary';
 
 interface EndFlowTableProps {
   customers: WaitingCustomer[];
@@ -14,16 +15,9 @@ interface EndFlowTableProps {
 }
 
 /**
- * Cột "Nhân sự" — nguyên văn 3 cột mã bàn Điều phối (DS Tư vấn/DS Thu
- * cũ/DS Backup, 2026-08-06), cùng cú pháp với `WaitingPopover` — khách đã
- * "End flow" không gắn cố định với 1 NV cụ thể nào trong dữ liệu hiện có
- * (có thể đã qua nhiều bàn/khâu), nên hiện đủ cả 3 mã bàn từng điều phối tới
- * thay vì chỉ 1 tên NV.
+ * Cột "Nhân sự" giữ đủ ba mã bàn. `Master` thay mã điều phối bằng bàn tiếp
+ * nhận cuối cùng và tô màu đỏ.
  */
-function dispatchSummary(c: WaitingCustomer): string {
-  return `(${c.dsTuVan ?? ''})(${c.dsThuCu ?? ''})(${c.dsBackup ?? ''})`;
-}
-
 function DeviceReceiptModal({ customer, onClose }: { customer: WaitingCustomer; onClose: () => void }) {
   const receipt = customer.deviceReceipt;
   useEffect(() => {
@@ -128,7 +122,7 @@ export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) 
                     </td>
                     <td className="py-2 pr-3 text-neutral-600">{c.doneInFlow ?? '—'}</td>
                     <td className="py-2 pr-3 text-neutral-600">{c.endFlowTime ?? '—'}</td>
-                    <td className="py-2 text-neutral-600">{dispatchSummary(c)}</td>
+                    <td className="py-2 text-neutral-900"><DispatchSummary customer={c} /></td>
                   </tr>
                 ))}
               </tbody>

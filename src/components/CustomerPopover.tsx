@@ -6,14 +6,13 @@
  * không bao giờ che chính bàn/chấm vừa bấm — kể cả khi phải lật lên trên.
  * Đóng bằng cách bấm vào card, nút ×, hoặc Escape.
  *
- * Dòng "Nhân sự" (2026-08-06, chốt lại sau vài lượt sửa qua lại): LUÔN hiện
- * nguyên văn mã Điều phối "(DS Tư vấn)(DS Thu cũ)(DS Backup)" — CÙNG định
- * dạng với `WaitingPopover`/`EndFlowTable`, không đổi sang tên NV dù khách đã
- * tiếp nhận (tên NV đã có sẵn ở dòng "Nhân viên" ngay phía trên).
+ * Dòng "Nhân sự" luôn giữ định dạng "(TV)(TC)(BK)". Mã ban đầu lấy từ
+ * `Master Điều phối`; mã đã tiếp nhận lấy từ `Master` và được tô đỏ.
  */
 import { useEffect, useRef } from 'react';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import type { DeskCustomer, DeskData } from '@/types/desk';
+import DispatchSummary from '@/components/DispatchSummary';
 import { deskAnchorRect, useAnchoredPlacement } from './popoverPlacement';
 import ProductList from './ProductList';
 
@@ -36,11 +35,7 @@ function oldDeviceCheckTone(value: string | null | undefined): 'red' | 'amber' |
   return undefined;
 }
 
-/** Dòng "Nhân sự" — nguyên văn 3 cột mã bàn Điều phối, cùng cú pháp với `WaitingPopover`/`EndFlowTable`. */
-function dispatchSummary(customer: DeskCustomer): string {
-  return `(${customer.dsTuVan ?? ''})(${customer.dsThuCu ?? ''})(${customer.dsBackup ?? ''})`;
-}
-
+/** Dòng "Nhân sự" giữ nguyên ba ô mã bàn, tô đỏ mã đã được `Master` tiếp nhận. */
 export default function CustomerPopover({ desk, customer, onClose }: CustomerPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -113,7 +108,10 @@ export default function CustomerPopover({ desk, customer, onClose }: CustomerPop
             value={customer.backupStatus ?? customer.backupCheck ?? null}
             tone={oldDeviceCheckTone(customer.backupStatus ?? customer.backupCheck)}
           />
-          <Row label="Nhân sự" value={dispatchSummary(customer)} />
+          <dt className="text-right leading-5 text-neutral-500">Nhân sự</dt>
+          <dd className="min-w-0 break-words text-left font-medium leading-5 text-neutral-900">
+            <DispatchSummary customer={customer} />
+          </dd>
         </dl>
       </div>
     </div>
