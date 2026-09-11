@@ -50,7 +50,9 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   );
   const endFlowDeviceAlerts = useMemo<EndFlowDeviceAlert[]>(
     () => endFlow.flatMap((customer) => {
-      if (!customer.stt || customer.deviceAccepted) return [];
+      // Chỉ nhắc khi khách thật sự đăng ký "CÓ THU CŨ". Khách "Không thu cũ"
+      // không có máy cũ để nghiệm thu, nên không được tạo cảnh báo End flow.
+      if (!customer.stt || customer.deviceAccepted || !isTradeInCustomer(customer)) return [];
       return [{
         id: `end-flow-device-${customer.stt}`,
         stt: customer.stt,

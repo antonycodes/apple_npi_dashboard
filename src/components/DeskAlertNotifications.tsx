@@ -70,7 +70,7 @@ function EndFlowDeviceNotification({
       <div className="flex items-start gap-3">
         <span aria-hidden="true" className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-neutral-900">Khách đã End flow nhưng chưa nghiệm thu máy</p>
+          <p className="text-sm font-bold text-neutral-900">KHÁCH ENDFLOW CHƯA NGHIỆM THU MÁY, KIỂM TRA NGAY</p>
           <p className="mt-1 truncate text-xs font-semibold text-red-700">
             {[`STT ${alert.stt}`, alert.customerName].filter(Boolean).join(' · ')}
           </p>
