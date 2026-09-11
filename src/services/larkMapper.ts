@@ -215,6 +215,7 @@ export interface MappedData {
 }
 
 const END_FLOW_DONE = 'end flow';
+const STATUS_QUICK_TRADEIN = 'Thu máy nhanh';
 
 /** Check-in "End flow" — "End flow" (đã xong toàn bộ) vs "In flow" (đang trong luồng). */
 function isEndFlowValue(v: LarkCellValue): boolean {
@@ -325,6 +326,41 @@ function indexMasterHyperlinkByName(rows: LarkRecord[], fm: MasterFieldMap): Map
     if (name && url) result.set(name, url);
   }
   return result;
+}
+
+/**
+ * Giữ cờ cân nhắc Thu cũ độc lập với ứng viên Chờ điều phối mới nhất.
+ *
+ * Một khách có thể đã cân nhắc ở khâu Thu cũ, sau đó hoàn tất khâu Tư vấn.
+ * Nếu chỉ lấy status của dòng Master mới nhất theo tên khách, dòng Tư vấn sẽ
+ * xoá mất tag Cân nhắc Thu cũ dù khâu Thu cũ vẫn chưa hoàn tất. Ở đây chỉ
+ * nhìn các dòng Master thuộc khâu Thu cũ, rồi lấy trạng thái mới nhất của
+ * riêng khâu đó.
+ */
+function indexTradeInConsiderationByName(rows: LarkRecord[], fm: MasterFieldMap): Set<string> {
+  const latest = new Map<string, { time: number; status: string }>();
+  for (const row of rows) {
+    const name = cellToString(fieldValue(row.fields, fm.name));
+    const stage = normalizedStage(cellToString(fieldValue(row.fields, fm.stage)));
+    const status = cellToString(fieldValue(row.fields, fm.status));
+    if (!name || stage !== 'tradein' || !status) continue;
+    if (
+      status !== STATUS_RECEIVED &&
+      status !== STATUS_COMPLETED &&
+      status !== STATUS_TRADEIN_CONSIDERATION &&
+      status !== STATUS_QUICK_TRADEIN
+    ) continue;
+
+    const time = cellToNumber(fieldValue(row.fields, fm.time));
+    const previous = latest.get(name);
+    if (!previous || time >= previous.time) latest.set(name, { time, status });
+  }
+
+  return new Set(
+    [...latest.entries()]
+      .filter(([, entry]) => entry.status === STATUS_TRADEIN_CONSIDERATION)
+      .map(([name]) => name),
+  );
 }
 
 /**
@@ -820,6 +856,7 @@ function buildRoster(rows: LarkRecord[], fm: DsMasterFieldMap): RosterEntry[] {
 export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldConfig()): MappedData {
   const { checkin, master, dispatch, dsMaster } = fields;
   const checkinByName = indexCheckinByName(tables.checkin, checkin);
+  const tradeInConsiderationByName = indexTradeInConsiderationByName(tables.master, master);
   const deviceReceiptByStt = indexDeviceReceiptByStt(tables.master, master);
   const hyperlinkByName = indexMasterHyperlinkByName(tables.master, master);
   const staffNameByDeskCode = indexStaffNameByDeskCode(tables.dsMaster, dsMaster);
@@ -946,7 +983,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       dsThuCu: dd?.dsThuCu ?? null,
       dsBackup: dd?.dsBackup ?? null,
       fromCluster: clusterFromDeskCode(row.deskCode),
-      tradeInConsideration: row.status === STATUS_TRADEIN_CONSIDERATION,
+      tradeInConsideration: tradeInConsiderationByName.has(row.name),
       doneInFlow: ci?.doneInFlow ?? null,
     });
   }
