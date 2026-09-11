@@ -24,7 +24,7 @@ import { formatElapsed } from '@/config/staffTimers';
 import { isDeskActive, type WaitingZoneKey } from '@/types/desk';
 import { isTradeInCustomer } from '@/utils/tradeInFilter';
 import { acknowledgeDeskAlert, resetDeskAlerts, subscribeDeskAlerts } from '@/services/dashboardRealtime';
-import { deskAlertStatus, type DeskAlert } from '@/services/deskAlerts';
+import { deskAlertStatus, type DeskAlert, type EndFlowDeviceAlert } from '@/services/deskAlerts';
 import { SITE_BRAND } from '@/config/siteBrand';
 
 export default function DashboardPage({ readOnly = false, simulation = false, onGuestBack }: { readOnly?: boolean; simulation?: boolean; onGuestBack?: () => void } = {}) {
@@ -38,6 +38,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   const [guestQrDataUrl, setGuestQrDataUrl] = useState<string | null>(null);
   const [deskAlerts, setDeskAlerts] = useState<DeskAlert[]>([]);
   const [deskAlertNotifications, setDeskAlertNotifications] = useState<DeskAlert[]>([]);
+  const [dismissedEndFlowDeviceAlertIds, setDismissedEndFlowDeviceAlertIds] = useState<Set<string>>(() => new Set());
   const previousAlertIds = useRef<Set<string>>(new Set());
   const visibleDeskAlerts = useMemo(
     () => simulation ? guestRoom?.alerts ?? [] : deskAlerts,
@@ -46,6 +47,25 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
   const pendingDeskAlerts = useMemo(
     () => visibleDeskAlerts.filter((alert) => deskAlertStatus(alert) === 'pending'),
     [visibleDeskAlerts],
+  );
+  const endFlowDeviceAlerts = useMemo<EndFlowDeviceAlert[]>(
+    () => endFlow.flatMap((customer) => {
+      if (!customer.stt || customer.deviceAccepted) return [];
+      return [{
+        id: `end-flow-device-${customer.stt}`,
+        stt: customer.stt,
+        customerName: customer.name,
+      }];
+    }),
+    [endFlow],
+  );
+  const endFlowDeviceAlertIds = useMemo(
+    () => new Set(endFlowDeviceAlerts.map((alert) => alert.id)),
+    [endFlowDeviceAlerts],
+  );
+  const visibleEndFlowDeviceAlerts = useMemo(
+    () => endFlowDeviceAlerts.filter((alert) => !dismissedEndFlowDeviceAlertIds.has(alert.id)),
+    [dismissedEndFlowDeviceAlertIds, endFlowDeviceAlerts],
   );
   const realtimeApiUrl = toRuntimeConfig(settings).apiUrl;
   const displayedDesks = useMemo(
@@ -94,8 +114,24 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
     });
   }, [visibleDeskAlerts]);
 
+  useEffect(() => {
+    setDismissedEndFlowDeviceAlertIds((current) => {
+      const next = new Set([...current].filter((id) => endFlowDeviceAlertIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [endFlowDeviceAlertIds]);
+
   const dismissDeskAlertNotification = useCallback((alertId: string) => {
     setDeskAlertNotifications((current) => current.filter((alert) => alert.id !== alertId));
+  }, []);
+
+  const dismissEndFlowDeviceAlert = useCallback((alertId: string) => {
+    setDismissedEndFlowDeviceAlertIds((current) => {
+      if (current.has(alertId)) return current;
+      const next = new Set(current);
+      next.add(alertId);
+      return next;
+    });
   }, []);
 
   const acknowledgeAlert = useCallback((alert: DeskAlert) => {
@@ -313,7 +349,12 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
         )}
       </header>
 
-      <DeskAlertNotifications alerts={deskAlertNotifications} onDismiss={dismissDeskAlertNotification} />
+      <DeskAlertNotifications
+        alerts={deskAlertNotifications}
+        onDismiss={dismissDeskAlertNotification}
+        endFlowDeviceAlerts={visibleEndFlowDeviceAlerts}
+        onDismissEndFlowDeviceAlert={dismissEndFlowDeviceAlert}
+      />
 
       {simulation && showGuestQr && guestRoom?.joinUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Mã QR phòng mô phỏng" onClick={() => setShowGuestQr(false)}>

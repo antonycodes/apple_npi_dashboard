@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
-import type { DeskAlert } from '@/services/deskAlerts';
+import type { DeskAlert, EndFlowDeviceAlert } from '@/services/deskAlerts';
 
 interface DeskAlertNotificationsProps {
   alerts: DeskAlert[];
   onDismiss: (alertId: string) => void;
+  endFlowDeviceAlerts?: EndFlowDeviceAlert[];
+  onDismissEndFlowDeviceAlert?: (alertId: string) => void;
 }
 
 function DeskAlertNotification({ alert, onDismiss }: { alert: DeskAlert; onDismiss: (alertId: string) => void }) {
@@ -52,11 +54,59 @@ function DeskAlertNotification({ alert, onDismiss }: { alert: DeskAlert; onDismi
   );
 }
 
-export default function DeskAlertNotifications({ alerts, onDismiss }: DeskAlertNotificationsProps) {
-  if (!alerts.length) return null;
+function EndFlowDeviceNotification({
+  alert,
+  onDismiss,
+}: {
+  alert: EndFlowDeviceAlert;
+  onDismiss: (alertId: string) => void;
+}) {
+  return (
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-red-200 bg-white px-4 py-3 text-left shadow-[0_8px_24px_rgba(127,29,29,0.14)]"
+    >
+      <div className="flex items-start gap-3">
+        <span aria-hidden="true" className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-neutral-900">Khách đã End flow nhưng chưa nghiệm thu máy</p>
+          <p className="mt-1 truncate text-xs font-semibold text-red-700">
+            {[`STT ${alert.stt}`, alert.customerName].filter(Boolean).join(' · ')}
+          </p>
+          <p className="mt-2 text-xs font-medium text-neutral-500">Kiểm tra trong Chờ điều phối</p>
+        </div>
+        <button
+          type="button"
+          aria-label={`Tắt cảnh báo STT ${alert.stt}`}
+          onClick={() => onDismiss(alert.id)}
+          className="-mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded text-lg leading-none text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function DeskAlertNotifications({
+  alerts,
+  onDismiss,
+  endFlowDeviceAlerts = [],
+  onDismissEndFlowDeviceAlert,
+}: DeskAlertNotificationsProps) {
+  if (!alerts.length && !endFlowDeviceAlerts.length) return null;
 
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-[60] flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2 md:right-6 md:top-6" aria-label="Thông báo gọi điều phối">
+    <div className="pointer-events-none fixed right-4 top-4 z-[60] flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2 md:right-6 md:top-6" aria-label="Thông báo điều phối">
+      {endFlowDeviceAlerts.map((alert) => (
+        <div key={alert.id} className="pointer-events-auto">
+          <EndFlowDeviceNotification
+            alert={alert}
+            onDismiss={onDismissEndFlowDeviceAlert ?? (() => undefined)}
+          />
+        </div>
+      ))}
       {alerts.map((alert) => (
         <div key={alert.id} className="pointer-events-auto">
           <DeskAlertNotification alert={alert} onDismiss={onDismiss} />
