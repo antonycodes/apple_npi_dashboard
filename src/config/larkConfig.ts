@@ -244,6 +244,7 @@ export const PRIMARY_DESK_LOAI = new Set(['Tư vấn', 'Thu cũ']);
 
 /** Giá trị `Master.Trạng thái` nghĩa là NV vừa xong 1 khách — nguồn "Chờ điều phối". */
 export const STATUS_COMPLETED = 'Hoàn tất';
+export const STATUS_TRADEIN_CONSIDERATION = 'Cân nhắc thu cũ';
 
 /** Bitable table ids, one per logical table (direct mode). */
 export type TableIdMap = Record<TableKey, string | undefined>;

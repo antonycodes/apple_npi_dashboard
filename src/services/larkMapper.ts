@@ -15,7 +15,7 @@
  *     nhưng CHƯA có dòng "Tiếp nhận" tương ứng trong `Master` → đếm vào
  *     `waiting` của đúng bàn đó (badge cam).
  * "Chờ điều phối" (2026-08-05, tiếp) đọc TRỰC TIẾP `Master.Trạng thái` =
- * "Hoàn tất" (không còn qua Check-in's "Status in <cụm>" — formula riêng, có
+ * "Hoàn tất" hoặc "Cân nhắc thu cũ" (không còn qua Check-in's "Status in <cụm>" — formula riêng, có
  * thể lệch nhịp với Master) — theo yêu cầu rõ của user. Chi tiết khách (SP,
  * ghi chú, nghiệm thu…) vẫn join theo TÊN từ `Master_Check in` như cũ.
  *
@@ -57,6 +57,7 @@ import {
   PRIMARY_DESK_LOAI,
   STATUS_COMPLETED,
   STATUS_RECEIVED,
+  STATUS_TRADEIN_CONSIDERATION,
   type CheckinFieldMap,
   type DispatchFieldMap,
   type DsMasterFieldMap,
@@ -480,7 +481,11 @@ function latestByDeskAndName(
     // đã hoàn tất) — bug thật user báo 2026-08-19: TC1 hoàn tất 1 khách nhưng
     // màn hình Kho không hiện. Dòng trạng thái rỗng cũng bị loại vì cùng lý do.
     const rowStatus = cellToString(fieldValue(r.fields, fm.status));
-    if (rowStatus !== STATUS_RECEIVED && rowStatus !== STATUS_COMPLETED) continue;
+    if (
+      rowStatus !== STATUS_RECEIVED &&
+      rowStatus !== STATUS_COMPLETED &&
+      rowStatus !== STATUS_TRADEIN_CONSIDERATION
+    ) continue;
     const stage = normalizedStage(cellToString(fieldValue(r.fields, fm.stage)));
     const msnv = cellToString(fieldValue(r.fields, fm.submitBy))?.trim().toUpperCase();
     const deskCode =
@@ -917,7 +922,11 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
   // kịp với Master).
   const completedCandidates: WaitingCustomer[] = [];
   for (const row of latestMasterRows
-    .filter((candidate) => candidate.status === STATUS_COMPLETED)
+    .filter(
+      (candidate) =>
+        candidate.status === STATUS_COMPLETED ||
+        candidate.status === STATUS_TRADEIN_CONSIDERATION,
+    )
     .sort((a, b) => b.time - a.time)) {
     const ci = checkinByName.get(row.name);
     const dd = personnelDetailByName.get(row.name);
@@ -937,6 +946,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       dsThuCu: dd?.dsThuCu ?? null,
       dsBackup: dd?.dsBackup ?? null,
       fromCluster: clusterFromDeskCode(row.deskCode),
+      tradeInConsideration: row.status === STATUS_TRADEIN_CONSIDERATION,
       doneInFlow: ci?.doneInFlow ?? null,
     });
   }

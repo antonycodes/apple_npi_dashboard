@@ -100,7 +100,14 @@ export default function WaitingPopover({ zoneLabel, zone, customer, index, onDis
             <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">
               {customer.stt ?? '•'}
             </span>
-            <div className="min-w-0 truncate text-sm font-bold text-neutral-800">{customer.name ?? 'Khách'}</div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="min-w-0 truncate text-sm font-bold text-neutral-800">{customer.name ?? 'Khách'}</div>
+              {customer.tradeInConsideration && (
+                <span className="shrink-0 whitespace-nowrap rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-bold leading-4 text-orange-700">
+                  Cân nhắc thu cũ
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {onDispatch && (
@@ -137,11 +144,6 @@ export default function WaitingPopover({ zoneLabel, zone, customer, index, onDis
             label="Check thu máy cũ"
             value={customer.deviceAcceptedText}
             tone={customer.deviceAccepted ? 'red' : undefined}
-          />
-          <Row
-            label="Thu cũ check"
-            value={customer.oldDeviceCheck ?? null}
-            tone={oldDeviceCheckTone(customer.oldDeviceCheck)}
           />
           <Row
             label="Backup check"
