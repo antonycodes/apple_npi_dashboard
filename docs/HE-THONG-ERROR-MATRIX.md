@@ -6,6 +6,22 @@ Mục tiêu là tìm đúng lớp gây lỗi trước khi sửa.
 > Quy tắc: HTTP 200 hoặc `code=0` chỉ chứng minh route phản hồi. Phải kiểm tra
 > record đã lưu trong Base, snapshot đã đọc lại và App đã hiển thị đúng.
 
+## Cập nhật mới nhất cần kiểm soát
+
+Đối chiếu theo mã nguồn hiện tại đến commit `6cc63f0` ngày 11/09/2026. Các thay
+đổi dưới đây đã có điểm kiểm tra trong tab `Kiểm soát hệ thống` hoặc trong ma
+trận bên dưới.
+
+| Thay đổi | Điểm kiểm soát bắt buộc |
+| --- | --- |
+| Khóa/mở bàn theo từng mã bàn (`44d782c`, `ab10682`, `2064f03`) | Admin ghi `deskAvailability` vào `/config/app`; cấu hình dùng chung áp cho mọi máy; không khóa bàn đang `Tiếp nhận`; Worker từ chối `/dispatch-record` và `/record` bằng HTTP `423` khi bàn bị khóa. |
+| Đồng bộ ngưỡng leadtime toàn thiết bị (`e7376a8`) | Kiểm tra `leadtimeMinutes`, `warningMinutesBefore`, `updatedAt` và phản hồi thật của `/config/app`; không chỉ nhìn cài đặt ở máy Admin. |
+| Chuẩn hóa SĐT và xem trước nhiều sản phẩm cùng số (`9b2ce64`, `57ac4f3`) | `090...`, `90...` và `+8490...` phải cùng khóa 9 số; API phải chặn trùng bằng `409`; `SP 1`–`SP 4` và mã đơn cùng số phải hiện đúng trước khi gửi. |
+| Bắt buộc bằng chứng Thu cũ/Backup (`5a027e9`, `1ffc0b5`) | Hoàn tất có thu máy phải có ít nhất 1 ảnh, `Scan QR máy thu cũ`, `Serial Number`; ngoại lệ là `Khách không đồng ý giá thu cũ`; `Thu máy sau` phải có xác nhận đúng phạm vi Backup. |
+| Giữ tag cân nhắc Thu cũ qua nhiều khâu (`c1dc38a`, `06fad5c`, `175bf5c`) | Lấy trạng thái mới nhất riêng của khâu Thu cũ; không để dòng Tư vấn hoặc khâu sau xóa tag `Khách đang cân nhắc giá thu cũ`. |
+| Cảnh báo End flow thiếu nghiệm thu (`5edc82b`, `6cc63f0`) | Chỉ cảnh báo khi `End flow` và khách thật sự `CÓ THU CŨ`; cảnh báo không thay thế kiểm tra Base và không phải cảnh báo toàn bộ khách `Không thu cũ`. |
+| Hiển thị mã bàn đã tiếp nhận bằng màu đỏ (`907f81e`) | Mã trong `Master` là mã thực tế cuối cùng; mã chỉ có trong `Master Điều phối` giữ màu đen; kiểm tra đủ ba ô Tư vấn/Thu cũ/Backup. |
+
 ## 0. Điều kiện cần và đủ để trường hiển thị đúng
 
 Mỗi trường hiển thị phải đi qua đủ bốn lớp: dữ liệu nguồn, khóa nối, điều kiện
@@ -154,6 +170,11 @@ Backup, phải dùng đúng chuỗi `Cần check backup`; `Check backup` là chu
 | FLOW-08 | Khách xuất hiện hai bàn | `Master`, `Master_Điều phối`, trạng thái mới nhất | Các dòng cùng STT, bàn và thời gian | Xác định dòng mới nhất; không xóa lịch sử trước khi chốt record sai | P0 |
 | FLOW-09 | Khách đã xong nhưng vẫn hiện đang xử lý | `Master.Trạng thái`, `Master_Check in.End flow` | Dòng `Hoàn tất` mới nhất và End flow | Sửa record nguồn/formula; không sửa riêng màu giao diện | P1 |
 | FLOW-10 | Bàn có khách chờ nhưng không có STT tiếp theo | `Master_DS.STT tiếp theo`, `Sl khách chờ` | Kiểm tra queue và snapshot | Kiểm tra Dispatch chưa nhận, STT Input và mapper next waiting | P1 |
+| FLOW-11 | SĐT cùng khách bị coi là khác nhau hoặc bị chặn nhầm | `Master_Check in.Số điện thoại`, `Số điện thoại_ĐH`, `SDT` | So sánh khóa 9 số sau khi bỏ ký tự, `0` đầu hoặc tiền tố `84`; kiểm tra phản hồi `409` | Dùng cùng hàm chuẩn hóa ở UI và Worker; không tạo bản ghi mới khi API đã báo trùng | P1 |
+| FLOW-12 | Chọn mã đơn nhưng thiếu sản phẩm hoặc đơn cùng SĐT | `Danh sách đơn hàng.MĐH_Selection`, `SP 1`–`SP 4`, `Số điện thoại_ĐH` | Kiểm tra preview trước submit, số mã đơn duy nhất và ghi nhận SĐT được tra từ đơn | Sửa mapping field; không suy sản phẩm từ một dòng đơn duy nhất nếu cùng SĐT có nhiều dòng | P1 |
+| FLOW-13 | End flow có máy cũ nhưng không hiện cảnh báo hoặc bị cảnh báo sai | `Master_Check in.End flow`, `Thu cũ check`, `Check nghiệm thu` | Chỉ khách `CÓ THU CŨ` mới cảnh báo; kiểm tra `deviceAccepted`, STT và danh sách End Flow | Xử lý ảnh/QR/Serial trong Base; dismiss chỉ ẩn ở Dashboard hiện tại, không ghi đã nghiệm thu | P0 |
+| FLOW-14 | Mã bàn điều phối không đổi sang mã bàn đã tiếp nhận | `Master Điều phối.DS Tư vấn/DS Thu cũ/DS Backup`, `Master.TV_MãNV`, `Loại 2` | So sánh mã đen (điều phối) với mã đỏ (đã tiếp nhận) ở từng khâu | Kiểm tra `mergeReceivedDetailByName()` và record Master mới nhất; không sửa màu để che sai mapping | P1 |
+| FLOW-15 | Tag cân nhắc giá Thu cũ biến mất sau khi qua khâu khác | `Master.Trạng thái`, `Loại 2 = Thu cũ`, `Master_Check in.Done in Flow` | Tìm dòng Thu cũ mới nhất riêng theo tên khách; đối chiếu trạng thái `Khách không đồng ý giá thu cũ` | Giữ index riêng theo khâu Thu cũ; không lấy duy nhất dòng Master mới nhất toàn khách | P1 |
 
 ## 5. Lỗi luồng nhân viên, Thu cũ, Backup và Kho
 
@@ -168,6 +189,8 @@ Backup, phải dùng đúng chuỗi `Cần check backup`; `Check backup` là chu
 | STAFF-07 | QR Kho báo bàn không tồn tại | `Master_DS.STT bàn` | `KhoHandoverForm.tsx`, route QR/roster-check | QR phải là `TV` + số; kiểm tra roster mới nhất và đúng vùng | P0 |
 | STAFF-08 | Bàn giao Kho hiện sai STT hoặc sai trạng thái | `Master.Trạng thái`, `Loại 2`, `STT Input` | payload `action=ban_giao` và record raw | Kho để STT/Loại 2 rỗng; trạng thái phải là `Bàn giao kho`; QR là bàn TV nhận máy | P0 |
 | STAFF-09 | Nhân viên không nhận được cảnh báo hỗ trợ | WebSocket `/realtime`, Durable Object `desk-alerts` | kết nối socket, `acknowledgedAt`, status pending | Kiểm tra replay pending và log sau delivery; không chỉ kiểm tra localStorage | P1 |
+| STAFF-10 | Hoàn tất Thu cũ/Backup bị từ chối vì thiếu bằng chứng | Worker `/record`; `Master.Hình nghiệm thu máy cũ`, `Scan QR máy thu cũ`, `Serial Number` | Payload `action=hoan_tat`, `phanLoai`, `thuLaiMay`, `hinhNghiemThu`, `scanQr`, `imei`; đọc `msg` HTTP `400` | Bổ sung đủ ảnh đã có `file_token`, QR và Serial; nếu khách không đồng ý giá thì gửi đúng cờ ngoại lệ | P0 |
+| STAFF-11 | Thu máy sau không xuất hiện ở danh sách Chờ thu máy | `Master.Thu lại máy`, `STT Input`, `Master_Check in.STT` | Dòng Master mới nhất có `Thu máy sau`; ảnh/QR/IMEI cũ được join theo STT; không lọc theo bàn | Kiểm tra `indexPrevDeviceByStt()` và `mapPendingDevices()`; không tạo thêm record chỉ vì bảng chưa refresh | P1 |
 
 ## 6. Lỗi quyền, Worker và bảo mật
 
@@ -182,6 +205,9 @@ Backup, phải dùng đúng chuỗi `Cần check backup`; `Check backup` là chu
 | SEC-07 | Người không đủ quyền gọi route ghi | `/record`, `/dispatch-record`, `/upload` | Authorization matrix hiện tại và `verifyToken` | Bổ sung/enforce auth ở Worker trước khi coi là lỗi frontend | P0 |
 | SEC-08 | CORS hoặc preflight lỗi | Worker `OPTIONS`, CORS headers | status OPTIONS, `Access-Control-Allow-*` | Sửa CORS Worker; không dùng `no-cors` để che lỗi | P1 |
 | SEC-09 | Token hết hạn giữa phiên | `src/config/adminSession.ts`, Worker `verifyToken()` | `expiresAt`, response 401/403 | Đăng nhập lại; không kéo dài TTL bằng frontend | P1 |
+| SEC-10 | Bàn đã khóa nhưng request ghi vẫn thành công | KV `CONFIG.deskAvailability`, `/dispatch-record`, `/record` | Response phải là HTTP `423`; đối chiếu cấu hình Worker với máy đang thao tác | Kiểm tra binding KV, `isDeskBlocked()` và deployment Worker; không chỉ dựa vào nút bị disabled trên UI | P0 |
+| SEC-11 | Cấu hình dùng chung chỉ cập nhật ở máy Admin | `/config/app`, `useSharedSettingsSync`, `updatedAt` | Máy nhân viên phải nhận bản mới trong chu kỳ 5 giây; kiểm tra endpoint và cache | Sửa quyền PUT/admin hoặc Worker URL; không sửa localStorage từng máy như giải pháp chính | P1 |
+| SEC-12 | Ngưỡng leadtime giữa các màn hình không giống nhau | KV `leadtimeMinutes`, `warningMinutesBefore`, Queue/SMS/Staff | So sánh giá trị sau đồng bộ ở Queue, SMS, Staff và Operations Log | Ghi lại cấu hình chung rồi chờ `updatedAt`; không chỉnh ngưỡng riêng ở từng máy | P1 |
 
 ## 7. Lỗi báo cáo và Nhật ký vận hành
 
@@ -193,6 +219,8 @@ Backup, phải dùng đúng chuỗi `Cần check backup`; `Check backup` là chu
 | REPORT-04 | Nhật ký thiếu sự kiện vừa ghi | snapshot cache/polling | `lastUpdated`, cache age, record raw | Làm mới một lần; kiểm tra cache invalidation Worker; không tạo lại record ngay | P1 |
 | REPORT-05 | Export khác dữ liệu đang xem | filter state và `exportRows` | query, stage, position, date range | Giữ nguyên bộ lọc trước export; kiểm tra row count và header | P2 |
 | REPORT-06 | Kiểm soát hệ thống báo bình thường nhưng vận hành sai | phạm vi kiểm tra hiện tại | Base raw, formulas, Worker logs, route write | Xem tab chỉ là cảnh báo tự động; chạy checklist smoke test và đối chiếu Base | P1 |
+| REPORT-07 | Tab Kiểm soát không báo bàn khóa còn khách | `SystemErrorsPage.tsx`, `DeskData.isActive`, `waiting`, `isOccupied` | Kiểm tra riêng bàn `isActive = false` với khách đang phục vụ hoặc còn STT chờ | Xử lý cấu hình và queue trước khi mở lại vận hành; không bỏ qua vì sơ đồ đã xám | P0 |
+| REPORT-08 | Tab Kiểm soát bỏ sót End flow thiếu nghiệm thu | `SystemErrorsPage.tsx`, `endFlow`, `isTradeInCustomer()` | Lọc `End flow` + `CÓ THU CŨ` + `deviceAccepted = false` | Mở đúng bản ghi và xử lý bằng chứng; cảnh báo đỏ là tín hiệu cần kiểm tra, không phải bằng chứng lưu thành công | P0 |
 
 ## 8. Bảng vị trí kiểm tra nhanh
 
@@ -207,6 +235,9 @@ Backup, phải dùng đúng chuỗi `Cần check backup`; `Check backup` là chu
 | Sai Kho? | `KhoHandoverForm.tsx`, `khoMapper.ts` | QR `TV...`, `Master_DS`, record `Bàn giao kho` |
 | Cảnh báo không hiện? | `dashboardRealtime.ts`, `deskAlerts.ts` | WebSocket `/realtime`, Durable Object `desk-alerts`, `acknowledgedAt` |
 | Vừa deploy nhưng vẫn lỗi? | `src/App.tsx`, Vercel deployment | remote SHA, alias, Worker deployment và API URL theo vùng |
+| Bàn bị khóa nhưng vẫn có thao tác? | `SettingsPage.tsx`, `appConfigApi.ts` | KV `/config/app`, HTTP `423`, Worker `isDeskBlocked()` |
+| Hoàn tất bị từ chối? | `StaffDeskScreen.tsx`, `StaffReceiveFormModal.tsx` | `file_token`, QR, Serial, cờ `Khách không đồng ý giá thu cũ` |
+| End flow có cảnh báo đỏ? | `SystemErrorsPage.tsx`, `DashboardPage.tsx` | `Master_Check in.End flow`, `Thu cũ check`, `Check nghiệm thu`, record Master |
 
 ## 9. Evidence tối thiểu khi báo lỗi
 
