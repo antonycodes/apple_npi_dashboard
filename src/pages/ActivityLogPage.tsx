@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from '@/components/AppShellIcons';
+import { ArrowLeftIcon, RefreshIcon } from '@/components/AppShellIcons';
 import { canViewAll, useAdminInfo, logoutToApp } from '@/config/adminSession';
 import { DEFAULT_FIELD_CONFIG, useLarkSettings } from '@/config/larkSettings';
 import { useDashboardData } from '@/hooks/useDashboardData';
@@ -19,10 +19,11 @@ export default function ActivityLogPage({ mock = false }: { mock?: boolean }) {
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-200 pb-5">
           <div><a href={mock ? '/admin/logs' : '/app'} className="inline-flex items-center gap-2 text-sm font-bold text-neutral-500 hover:text-neutral-900"><ArrowLeftIcon className="h-4 w-4" /> {mock ? 'Nhật ký thật' : 'Quản trị'}</a><h1 className="mt-4 text-2xl font-black tracking-tight text-neutral-950">Nhật ký vận hành{mock ? ' · Mock data' : ''}</h1><p className="mt-1 text-sm text-neutral-500">Theo dõi hành trình khách qua tất cả các khâu.</p></div>
-          {!mock && <button type="button" onClick={logoutToApp} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold text-red-700 hover:bg-red-50">Đăng xuất</button>}
+          {!mock && <div className="flex items-center gap-2"><button type="button" onClick={refresh} disabled={loading} aria-busy={loading} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-70"><RefreshIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> {loading ? 'Đang làm mới…' : 'Làm mới'}</button><button type="button" onClick={logoutToApp} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold text-red-700 hover:bg-red-50">Đăng xuất</button></div>}
         </header>
+        <nav aria-label="Nội dung nhật ký vận hành" className="mt-5 flex w-fit gap-1 rounded-lg bg-neutral-100 p-1"><a href="#operations-summary" className="rounded-md bg-white px-3 py-2 text-sm font-bold text-neutral-950 shadow-sm">Tổng quan</a><a href="#customer-log" className="rounded-md px-3 py-2 text-sm font-bold text-neutral-700 hover:text-neutral-950">Nhật ký khách hàng</a><a href="#warehouse-log" className="rounded-md px-3 py-2 text-sm font-bold text-neutral-700 hover:text-neutral-950">Bàn giao Kho</a></nav>
         {mock && <p className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Đây là dữ liệu mẫu. Không đọc hoặc ghi dữ liệu Lark.</p>}
-        <OperationsLogPanel tables={pageTables} fields={pageFields} loading={mock ? false : loading} refresh={mock ? () => undefined : refresh} />
+        <OperationsLogPanel tables={pageTables} fields={pageFields} loading={mock ? false : loading} />
       </div>
     </main>
   );
