@@ -202,8 +202,8 @@ function AdminHome({ name, canConfigure }: { name: string; canConfigure: boolean
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-black text-neutral-900">{SITE_BRAND}</h1>
-            <p className="mt-1 text-sm text-neutral-500">
-              {name || (canConfigure ? 'Quản trị' : 'Nhân sự')} · {canConfigure ? 'toàn quyền' : 'xem toàn bộ view · không có quyền Cài đặt'}
+            <p className={canConfigure ? 'mt-1 text-sm text-neutral-500' : 'mt-1 text-lg font-black tracking-tight text-neutral-900'}>
+              {canConfigure ? `${name || 'Quản trị'} · toàn quyền` : (name || 'Nhân sự')}
             </p>
           </div>
           <button
