@@ -20,7 +20,7 @@ const LS_KEY = 'npievent-admin-token-v1';
 
 export type SessionRole = 'admin' | 'adminViewer' | 'staff' | 'kho' | 'dieuphoi' | 'checkin';
 
-const SMS_SENDER_IDS = new Set(['S12196', 'S02791']);
+const SMS_SENDER_IDS = new Set(['S12196', 'S12434']);
 
 /**
  * Một CHỖ LÀM VIỆC của tài khoản — mỗi dòng roster trong `Master_DS` là một

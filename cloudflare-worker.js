@@ -380,7 +380,7 @@ function canViewAdminSurfaces(session) {
   return session?.role === 'admin' || session?.role === 'adminViewer';
 }
 
-const SMS_SENDER_IDS = new Set(['S12196', 'S02791']);
+const SMS_SENDER_IDS = new Set(['S12196', 'S12434']);
 
 function canSendSms(session) {
   if (!session) return false;
