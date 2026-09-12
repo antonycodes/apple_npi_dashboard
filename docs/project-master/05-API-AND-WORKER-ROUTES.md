@@ -88,7 +88,7 @@ Request:
 }
 ```
 
-Response thành công gồm token, TTL, role, desks, workspaces, username, MSNV và tên. Mật khẩu không được trả về hoặc lưu phía frontend.
+Response thành công gồm token, TTL, role, `canViewAll`, desks, workspaces, username, MSNV và tên. Tài khoản roster có `Master_DS.Loại = ADMIN` nhận role `adminViewer`; mật khẩu không được trả về hoặc lưu phía frontend.
 
 Worker thử theo thứ tự:
 

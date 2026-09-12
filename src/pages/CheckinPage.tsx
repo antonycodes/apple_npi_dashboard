@@ -350,7 +350,7 @@ function AccessDenied() {
   );
 }
 
-function CheckinBoard() {
+function CheckinBoard({ readOnly = false }: { readOnly?: boolean }) {
   const { checkin, orders, loading, error, lastUpdated, refresh } = useCheckinData();
   const [page, setPage] = useState(0);
   const [formStt, setFormStt] = useState<string | null>(null);
@@ -377,7 +377,7 @@ function CheckinBoard() {
       if (record) setDetail({ stt, record });
       return;
     }
-    setFormStt(stt);
+    if (!readOnly) setFormStt(stt);
   };
 
   return (
@@ -388,7 +388,9 @@ function CheckinBoard() {
             <img src="/cellphones-logo.png" alt="CellphoneS" className="h-7 w-auto md:h-8" />
             <div className="min-w-0">
               <h1 className="truncate text-lg font-black md:text-xl">{SITE_BRAND} · Check-in</h1>
-              <p className="text-xs font-semibold text-neutral-500">Chọn STT để mở form khách hàng</p>
+              <p className="text-xs font-semibold text-neutral-500">
+                {readOnly ? 'Chế độ xem — chỉ mở được STT đã check-in' : 'Chọn STT để mở form khách hàng'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs">
@@ -433,8 +435,9 @@ function CheckinBoard() {
                 type="button"
                 aria-label={`STT ${stt.padStart(2, '0')} — ${checked ? 'đã check-in' : 'chưa check-in'}`}
                 aria-pressed={checked}
+                disabled={readOnly && !checked}
                 onClick={() => handleClick(stt)}
-                className={`aspect-square min-h-12 rounded-xl text-lg font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 sm:min-h-14 sm:text-xl ${checked ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                className={`aspect-square min-h-12 rounded-xl text-lg font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 disabled:cursor-default disabled:opacity-45 disabled:hover:translate-y-0 disabled:hover:shadow-sm sm:min-h-14 sm:text-xl ${checked ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
               >
                 {stt.padStart(2, '0')}
               </button>
@@ -452,6 +455,6 @@ function CheckinBoard() {
 export default function CheckinPage() {
   const session = useAdminInfo();
   if (!session) return <AppLogin fixedUsername="checkin" title={`${SITE_BRAND} · Check-in`} subtitle="Đăng nhập khu vực tiếp nhận khách" />;
-  if (session.role !== 'checkin' && session.role !== 'admin') return <AccessDenied />;
-  return <CheckinBoard />;
+  if (session.role !== 'checkin' && session.role !== 'admin' && session.role !== 'adminViewer') return <AccessDenied />;
+  return <CheckinBoard readOnly={session.role === 'adminViewer'} />;
 }

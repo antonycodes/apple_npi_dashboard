@@ -88,6 +88,7 @@ Nguồn phân quyền là bảng `Master_DS`. Sau đăng nhập, Worker trả v�
 | `staff` | `Loại` Tư vấn/Thu cũ/Backup hoặc mã bàn tương ứng | `StaffPage` khóa theo workspace |
 | `kho` | `Loại = Kho` hoặc mã `KHO...` | `KhoAppPage` |
 | `dieuphoi` | `Loại = Điều phối` hoặc mã `DP...` | Dashboard Điều phối |
+| `adminViewer` | `Master_DS.Loại = ADMIN` | Xem toàn bộ view, không Cài đặt |
 | `admin` | Tài khoản admin | Danh mục mở toàn bộ module |
 
 Một tài khoản có thể có nhiều workspace. Khi đó AIO hiện **Chọn khu vực**, chỉ liệt kê các workspace thuộc chính tài khoản đó. Người dùng có thể đổi khu vực hoặc đăng xuất.

@@ -51,6 +51,7 @@ export async function login(username: string, password: string): Promise<StoredS
     token: string;
     ttlMs: number;
     role?: SessionRole;
+    canViewAll?: boolean;
     desk?: string;
     desks?: string[];
     workspaces?: Workspace[];
@@ -61,6 +62,7 @@ export async function login(username: string, password: string): Promise<StoredS
   adminSessionStore.set(data.token, data.ttlMs, data.role ?? 'admin', data.desk ?? '', {
     desks: data.desks,
     workspaces: data.workspaces,
+    canViewAll: data.canViewAll,
     username: data.username,
     msnv: data.msnv,
     name: data.name,

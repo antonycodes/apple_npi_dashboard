@@ -42,17 +42,19 @@ Tài liệu mô tả đúng trạng thái hiện tại và các rủi ro cần x
 | `staff` | Màn hình bàn TV/TC/BK được chọn |
 | `kho` | Bàn giao và Bảng Kho |
 | `dieuphoi` | Dashboard Điều phối |
+| `adminViewer` | Xem toàn bộ view vận hành, gồm Kiểm soát hệ thống và Nhật ký vận hành; không Cài đặt |
 | `admin` | Danh mục toàn bộ module và PUT cấu hình |
 
-Nếu `Loại` trống, Worker có thể suy role từ tiền tố workspace. Theo quyết định dự án, các dòng DP trống `Loại` được giữ nguyên.
+`adminViewer` được suy từ đúng field `Master_DS.Loại = ADMIN`. Đây là quyền xem, không phải quyền ghi cấu hình. Nếu `Loại` trống, Worker có thể suy role từ tiền tố workspace. Theo quyết định dự án, các dòng DP trống `Loại` được giữ nguyên.
 
 ## 5. Authorization server hiện tại
 
 ### Đã enforce
 
-- PUT `/config/app`: admin token.
+- PUT `/config/app`: chỉ admin token, không chấp nhận `adminViewer`.
 - PUT `/config/coordinators`: admin token.
 - Login: credential check và generic error.
+- GET `/audit/logs`: admin hoặc `adminViewer`; DELETE `/audit/logs`: chỉ admin.
 
 ### Chưa enforce đầy đủ
 

@@ -541,6 +541,7 @@ async function readRoster(env, host) {
  */
 function roleFromRosterRow(loai, desk) {
   const l = normalizeLoai(loai);
+  if (l === 'admin') return 'adminViewer';
   if (l === 'kho') return 'kho';
   if (l.startsWith('dieu phoi')) return 'dieuphoi';
   const code = String(desk || '').toUpperCase();

@@ -24,6 +24,7 @@ Mỗi lần test lưu:
 | AUTH-02 | Login nhiều workspace | Hiện Chọn khu vực |
 | AUTH-03 | Login Kho | Vào KhoAppPage |
 | AUTH-04 | Login DP có `Loại` trống | Suy role từ DP và vào Dashboard |
+| AUTH-05 | Login tài khoản có `Master_DS.Loại = ADMIN` | Vào được toàn bộ view; không thấy Cài đặt; không ghi được config hoặc xóa log |
 | AUTH-05 | Sai user/password | Một thông báo chung, không tạo session |
 | AUTH-06 | Đổi password Base | Có hiệu lực sau cache, không deploy |
 | AUTH-07 | Token hết hạn | 401, logout, yêu cầu login |

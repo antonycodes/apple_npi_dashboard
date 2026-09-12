@@ -1,4 +1,4 @@
-import { useAdminInfo } from '@/config/adminSession';
+import { canViewAll, useAdminInfo } from '@/config/adminSession';
 
 export type AppView = 'main' | 'dash' | 'checkin' | 'sms' | 'errors' | 'tuvan' | 'tradein' | 'backup' | 'kho';
 
@@ -11,12 +11,12 @@ const OPERATION_VIEWS: Array<{ key: AppView; label: string; href: string }> = [
 
 export default function ViewSwitcher({ active }: { active: AppView }) {
   const session = useAdminInfo();
-  const isAdmin = session?.role === 'admin';
-  const canOpenCheckin = isAdmin || session?.role === 'checkin';
-  const canOpenSms = isAdmin || session?.role === 'dieuphoi' || session?.workspaces.some((workspace) => workspace.role === 'dieuphoi');
+  const hasAllViewAccess = canViewAll(session);
+  const canOpenCheckin = hasAllViewAccess || session?.role === 'checkin';
+  const canOpenSms = hasAllViewAccess || session?.role === 'dieuphoi' || session?.workspaces.some((workspace) => workspace.role === 'dieuphoi');
   const views = session?.role === 'checkin'
     ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }]
-    : isAdmin
+    : hasAllViewAccess
     ? [
         { key: 'main' as const, label: 'Main', href: '/app' },
         { key: 'dash' as const, label: 'Dash', href: '/dashboard' },

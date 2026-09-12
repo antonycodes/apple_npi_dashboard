@@ -18,7 +18,7 @@ import { useSyncExternalStore } from 'react';
 
 const LS_KEY = 'npievent-admin-token-v1';
 
-export type SessionRole = 'admin' | 'staff' | 'kho' | 'dieuphoi' | 'checkin';
+export type SessionRole = 'admin' | 'adminViewer' | 'staff' | 'kho' | 'dieuphoi' | 'checkin';
 
 const SMS_SENDER_IDS = new Set(['S12196', 'S02791']);
 
@@ -47,6 +47,8 @@ export interface StoredSession {
   token: string;
   expiresAt: number;
   role: SessionRole;
+  /** `true` khi `Master_DS.Loại = ADMIN`; chỉ cấp quyền xem toàn bộ view. */
+  canViewAll: boolean;
   /** Bàn ĐANG mở. Rỗng với admin và kho. */
   desk: string;
   /** Mọi bàn tài khoản này được vào — nhiều hơn 1 thì app hỏi chọn chỗ. */
@@ -66,6 +68,11 @@ export function canSendSms(session: StoredSession | null): boolean {
   if (!session) return false;
   if (session.role === 'admin') return true;
   return SMS_SENDER_IDS.has(String(session.msnv || session.username || '').trim().toUpperCase());
+}
+
+/** Quyền xem toàn bộ module vận hành, không bao gồm quyền Cài đặt. */
+export function canViewAll(session: StoredSession | null): boolean {
+  return session?.role === 'admin' || session?.role === 'adminViewer' || session?.canViewAll === true;
 }
 
 /** Tên cũ, giữ cho code đang import. */
@@ -90,6 +97,7 @@ function load(): StoredSession | null {
       token: t.token,
       expiresAt: t.expiresAt,
       role,
+      canViewAll: t.canViewAll === true || t.role === 'adminViewer',
       desk,
       desks,
       workspaces:
@@ -98,7 +106,7 @@ function load(): StoredSession | null {
           : desks.map((d) => ({
               desk: d,
               loai: '',
-              role: role === 'admin' || role === 'checkin' ? 'staff' : role,
+              role: role === 'admin' || role === 'adminViewer' || role === 'checkin' ? 'staff' : role,
               name: t.name ?? '',
               msnv: t.msnv ?? '',
             })),
@@ -147,6 +155,7 @@ export const adminSessionStore = {
     extra: {
       desks?: string[];
       workspaces?: Workspace[];
+      canViewAll?: boolean;
       username?: string;
       msnv?: string;
       name?: string;
@@ -160,7 +169,7 @@ export const adminSessionStore = {
             ({
               desk: d,
               loai: '',
-              role: role === 'admin' || role === 'checkin' ? 'staff' : role,
+              role: role === 'admin' || role === 'adminViewer' || role === 'checkin' ? 'staff' : role,
               name: extra.name ?? '',
               msnv: extra.msnv ?? '',
             }) as Workspace,
@@ -171,7 +180,8 @@ export const adminSessionStore = {
     current = {
       token,
       expiresAt: Date.now() + ttlMs,
-      role: only ? only.role : role,
+      role: role === 'adminViewer' ? role : only ? only.role : role,
+      canViewAll: extra.canViewAll === true || role === 'adminViewer' || role === 'admin',
       desk: only ? only.desk : '',
       desks,
       workspaces,

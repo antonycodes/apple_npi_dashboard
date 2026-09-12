@@ -52,7 +52,7 @@ export default function AppLogin({
       const session = await login(account, password);
       recordAuditEvent({
         action: 'Đăng nhập',
-        stage: session.role === 'admin' ? 'Admin' : session.role === 'kho' ? 'Kho' : session.role === 'dieuphoi' ? 'Điều phối' : session.workspaces[0]?.loai || 'Nhân sự',
+        stage: session.role === 'admin' || session.role === 'adminViewer' ? 'Admin' : session.role === 'kho' ? 'Kho' : session.role === 'dieuphoi' ? 'Điều phối' : session.workspaces[0]?.loai || 'Nhân sự',
         deskCode: session.desk,
         msnv: session.msnv,
         staffName: session.name,

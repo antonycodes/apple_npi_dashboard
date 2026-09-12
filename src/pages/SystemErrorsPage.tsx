@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeftIcon, RefreshIcon } from '@/components/AppShellIcons';
-import { useAdminInfo, logoutToApp } from '@/config/adminSession';
+import { canViewAll, useAdminInfo, logoutToApp } from '@/config/adminSession';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { isTradeInCustomer } from '@/utils/tradeInFilter';
 import errorMatrixMarkdown from '../../docs/HE-THONG-ERROR-MATRIX.md?raw';
@@ -83,7 +83,7 @@ export default function SystemErrorsPage() {
   const matrix = useMemo(() => parseMatrix(errorMatrixMarkdown), []);
   const visible = filter === 'all' ? issues : issues.filter((issue) => issue.severity === filter);
   const count = (severity: Severity) => issues.filter((issue) => issue.severity === severity).length;
-  if (session?.role !== 'admin') return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Bạn không có quyền xem Kiểm soát hệ thống.</p></main>;
+  if (!canViewAll(session)) return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Bạn không có quyền xem Kiểm soát hệ thống.</p></main>;
 
   return <main className="min-h-screen bg-[#f7f6f3] px-4 py-6 text-neutral-800 sm:px-6"><div className="mx-auto max-w-6xl">
     <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-200 pb-5"><div><a href="/app" className="inline-flex items-center gap-2 text-sm font-bold text-neutral-700 hover:text-neutral-900"><ArrowLeftIcon className="h-4 w-4" /> Quản trị</a><h1 className="mt-4 text-2xl font-black tracking-tight text-neutral-950">Kiểm soát hệ thống</h1><p className="mt-1 max-w-2xl text-sm text-neutral-700">Phát hiện lỗi đang tồn tại và tra cứu hướng xử lý theo từng vị trí.</p></div><div className="flex items-center gap-2"><button type="button" onClick={data.refresh} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50"><RefreshIcon className="h-4 w-4" /> Kiểm tra lại</button><button type="button" onClick={logoutToApp} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold text-red-700 hover:bg-red-50">Đăng xuất</button></div></header>

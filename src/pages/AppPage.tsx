@@ -8,6 +8,7 @@
  *   - `staff` ≥2 bàn → hỏi chọn bàn 1 lần, nhớ trong phiên, có nút đổi lại;
  *   - `kho`          → module kho (`KhoAppPage`): bàn giao máy + bảng kho;
  *   - `admin`        → danh mục các màn hình quản trị và vận hành chính.
+ *   - `adminViewer`  → xem toàn bộ màn hình, không có đường vào Cài đặt.
  *
  * **Các route cũ không đụng tới**: dashboard điều phối (`#/`), 3 màn hình STT
  * chiếu ngoài hội trường và `/khoview` vẫn mở-là-chạy, KHÔNG qua cổng đăng
@@ -180,14 +181,19 @@ function SessionBar({
   );
 }
 
-/** Danh mục của admin — chỉ giữ các màn hình quản trị/vận hành chính. */
-function AdminHome({ name }: { name: string }) {
+/** Danh mục toàn bộ view; chỉ tài khoản `admin` mới thấy Cài đặt. */
+function AdminHome({ name, canConfigure }: { name: string; canConfigure: boolean }) {
   const links: Array<{ href: string; label: string }> = [
     { href: '/dashboard', label: 'Dashboard Admin' },
     { href: '/check-in', label: 'Check-in khách' },
-    { href: '/settings', label: 'Cài đặt' },
+    { href: '/tuvanview', label: 'View Tư vấn' },
+    { href: '/thucuview', label: 'View Thu cũ' },
+    { href: '/backupview', label: 'View Backup' },
+    { href: '/khoview', label: 'View Kho' },
+    { href: '/sms', label: 'Điều phối SMS' },
     { href: '/admin/logs', label: 'Nhật ký vận hành' },
     { href: '/system-control', label: 'Kiểm soát hệ thống' },
+    ...(canConfigure ? [{ href: '/settings', label: 'Cài đặt' }] : []),
   ];
 
   return (
@@ -196,7 +202,9 @@ function AdminHome({ name }: { name: string }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-black text-neutral-900">{SITE_BRAND}</h1>
-            <p className="mt-1 text-sm text-neutral-500">{name || 'Quản trị'} · toàn quyền</p>
+            <p className="mt-1 text-sm text-neutral-500">
+              {name || (canConfigure ? 'Quản trị' : 'Nhân sự')} · {canConfigure ? 'toàn quyền' : 'xem toàn bộ view · không có quyền Cài đặt'}
+            </p>
           </div>
           <button
             type="button"
@@ -235,8 +243,8 @@ export default function AppPage() {
   // bên dưới cũng đi qua đúng đường này, nên giao diện xem trước là giao diện
   // thật chứ không phải một bản mô phỏng riêng.
   if (session) {
-    if (session.role === 'admin') {
-      return <AdminHome name={session.name} />;
+    if (session.role === 'admin' || session.role === 'adminViewer') {
+      return <AdminHome name={session.name} canConfigure={session.role === 'admin'} />;
     }
 
     if (session.role === 'checkin') {

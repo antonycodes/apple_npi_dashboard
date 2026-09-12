@@ -1,5 +1,5 @@
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
-import { useAdminInfo, logoutToApp } from '@/config/adminSession';
+import { canViewAll, useAdminInfo, logoutToApp } from '@/config/adminSession';
 import { DEFAULT_FIELD_CONFIG, useLarkSettings } from '@/config/larkSettings';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { operationsLogMockTables } from '@/data/operationsLogMockData';
@@ -12,7 +12,7 @@ export default function ActivityLogPage({ mock = false }: { mock?: boolean }) {
   const pageTables = mock ? operationsLogMockTables : tables;
   const pageFields = mock ? DEFAULT_FIELD_CONFIG : settings.fields;
 
-  if (!mock && session?.role !== 'admin') return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Bạn không có quyền xem nhật ký vận hành.</p></main>;
+  if (!mock && !canViewAll(session)) return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Bạn không có quyền xem nhật ký vận hành.</p></main>;
 
   return (
     <main className="min-h-screen bg-[#f7f6f3] px-4 py-6 text-neutral-800 sm:px-6">
