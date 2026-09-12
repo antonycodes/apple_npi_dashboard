@@ -21,11 +21,14 @@ import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
 import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 import type { WarehouseInboxOrder, WarehouseOrderClaims } from '@/types/warehouse';
-import { warehouseClaimantFull } from '@/utils/warehouseClaimant';
+import { warehouseClaimantFull, warehouseClaimedAt } from '@/utils/warehouseClaimant';
+import { warehouseClaimMatchesCustomer } from '@/utils/warehouseClaim';
 import ProductList from './ProductList';
 
 interface ProductOrderDetails {
   orderCode: string;
+  stt: string | null;
+  customerName: string | null;
   productLabel: string;
   product: string;
 }
@@ -201,7 +204,10 @@ function CustomerCard({
   claims: WarehouseOrderClaims;
 }) {
   const hasOrder = orders.length > 0;
-  const hasClaim = customer.productOrders?.some((item) => item.orderCode && claims[item.orderCode.trim().toUpperCase()]) ?? false;
+  const hasClaim = customer.productOrders?.some((item) => {
+    const claim = item.orderCode ? claims[item.orderCode.trim().toUpperCase()] : undefined;
+    return warehouseClaimMatchesCustomer(claim, customer);
+  }) ?? false;
   return (
     <li
       role="button"
@@ -258,13 +264,17 @@ function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, 
             <dt className="mb-1 text-neutral-500">Sản phẩm · Mã đơn hàng</dt>
             <dd className="space-y-1 rounded-lg bg-neutral-50 p-2 font-semibold text-neutral-800">
               {customer.productOrders?.length ? customer.productOrders.map((item) => {
-                const claim = item.orderCode ? claims[item.orderCode.trim().toUpperCase()] : undefined;
+                const rawClaim = item.orderCode ? claims[item.orderCode.trim().toUpperCase()] : undefined;
+                const claim = rawClaim && warehouseClaimMatchesCustomer(rawClaim, customer) ? rawClaim : undefined;
+                const claimConflict = Boolean(rawClaim && !claim);
                 return item.orderCode ? (
                   <button
                     key={item.label}
                     type="button"
                     onClick={() => onInspectProduct({
                       orderCode: item.orderCode!,
+                      stt: customer.stt,
+                      customerName: customer.name,
                       productLabel: item.label,
                       product: item.product,
                     })}
@@ -274,6 +284,7 @@ function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, 
                     <span className="shrink-0 text-right">
                       <span className="block text-neutral-500">{item.orderCode}</span>
                       {claim && <span className="mt-0.5 block text-[11px] font-bold text-red-700">Đã nhận · {warehouseClaimantFull(claim)}</span>}
+                      {claimConflict && <span className="mt-0.5 block text-[11px] font-bold text-amber-700">Mã đơn trùng khách</span>}
                     </span>
                   </button>
                 ) : (
@@ -376,7 +387,7 @@ function ProductOrderDetailsModal({ order, claim, onUnlock, onUnlocked, onClose 
           <button type="button" onClick={onClose} aria-label="Đóng" className="rounded-lg px-2 text-2xl leading-none text-neutral-400 hover:bg-neutral-100">×</button>
         </header>
         <p className={['mt-3 rounded-xl px-3 py-2 text-sm font-bold', claim ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'].join(' ')}>
-          {claim ? `Đã nhận · ${warehouseClaimantFull(claim)}` : 'Mã đơn chưa bị khóa.'}
+          {claim ? `Đã nhận · ${warehouseClaimantFull(claim)}${warehouseClaimedAt(claim) ? ` · ${warehouseClaimedAt(claim)}` : ''}` : 'Mã đơn chưa bị khóa.'}
         </p>
         {claim && onUnlock && (
           <button
@@ -537,7 +548,10 @@ function DeskColumn({
   const completed = desk.customers.filter((c) => c.status === 'completed');
   const deskOrders = inboxOrders.filter((order) => desk.customers.some((customer) => customer.stt === order.stt));
   const hasOrder = deskOrders.length > 0;
-  const hasClaim = active.some((customer) => customer.productOrders?.some((item) => item.orderCode && claims[item.orderCode.trim().toUpperCase()]) ?? false);
+  const hasClaim = active.some((customer) => customer.productOrders?.some((item) => {
+    const claim = item.orderCode ? claims[item.orderCode.trim().toUpperCase()] : undefined;
+    return warehouseClaimMatchesCustomer(claim, customer);
+  }) ?? false);
   const deskTone = active.length === 0 ? 'neutral' : hasClaim ? 'red' : hasOrder ? 'green' : 'neutral';
   // Bàn Thu cũ / Backup MỞ SẴN danh sách đã hoàn tất: máy cũ đã thu nằm hết ở
   // đó, kho phải đối chiếu IMEI/QR/ảnh nên không bắt bấm mở từng cột. Tư vấn
@@ -808,7 +822,10 @@ export default function KhoBoard({
       />}
       {productOrderDetails && <ProductOrderDetailsModal
         order={productOrderDetails}
-        claim={claims[productOrderDetails.orderCode.trim().toUpperCase()]}
+        claim={(() => {
+          const claim = claims[productOrderDetails.orderCode.trim().toUpperCase()];
+          return warehouseClaimMatchesCustomer(claim, { stt: productOrderDetails.stt, name: productOrderDetails.customerName }) ? claim : undefined;
+        })()}
         onUnlock={onUnlockOrder}
         onUnlocked={() => {
           setUnlockSuccess(true);

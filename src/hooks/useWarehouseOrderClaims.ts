@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
+import type { WarehouseOrderClaims, WarehouseOrderInput } from '@/types/warehouse';
 import { claimWarehouseOrder, claimWarehouseOrders, fetchWarehouseOrderClaims, unlockWarehouseOrder } from '@/services/warehouseOrderClaims';
 
 export function useWarehouseOrderClaims(apiUrl: string | undefined, enabled: boolean) {
@@ -40,7 +40,7 @@ export function useWarehouseOrderClaims(apiUrl: string | undefined, enabled: boo
     return () => window.clearInterval(timer);
   }, [enabled, refresh]);
 
-  const claim = useCallback(async (order: Omit<WarehouseOrderClaim, 'claimedAt'>) => {
+  const claim = useCallback(async (order: WarehouseOrderInput) => {
     if (!apiUrl) return false;
     mutationVersion.current += 1;
     const result = await claimWarehouseOrder(apiUrl, order);
@@ -49,7 +49,7 @@ export function useWarehouseOrderClaims(apiUrl: string | undefined, enabled: boo
     return result.won;
   }, [apiUrl]);
 
-  const claimAll = useCallback(async (orders: Array<Omit<WarehouseOrderClaim, 'claimedAt'>>) => {
+  const claimAll = useCallback(async (orders: WarehouseOrderInput[]) => {
     if (!apiUrl) return false;
     mutationVersion.current += 1;
     const result = await claimWarehouseOrders(apiUrl, orders);

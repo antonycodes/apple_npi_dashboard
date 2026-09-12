@@ -14,3 +14,13 @@ export function warehouseClaimantFull(claim: WarehouseOrderClaim) {
   const parts = uniqueParts([claim.claimedDesk, claim.claimedName, claim.claimedMsnv]);
   return parts.length ? parts.join(' · ') : warehouseClaimantShort(claim);
 }
+
+/** Thời điểm nhận theo giờ Việt Nam để đối soát thao tác trong ngày. */
+export function warehouseClaimedAt(claim: WarehouseOrderClaim) {
+  if (!Number.isFinite(claim.claimedAt)) return null;
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(claim.claimedAt));
+}

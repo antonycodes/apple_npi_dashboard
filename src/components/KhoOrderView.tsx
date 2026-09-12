@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 import type { WarehouseInboxOrder, WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
-import { warehouseClaimantFull, warehouseClaimantShort } from '@/utils/warehouseClaimant';
+import { warehouseClaimantFull, warehouseClaimantShort, warehouseClaimedAt } from '@/utils/warehouseClaimant';
+import { warehouseClaimMatchesCustomer } from '@/utils/warehouseClaim';
 
 function claimKey(orderCode: string) {
   return orderCode.trim().toUpperCase();
@@ -50,7 +51,9 @@ function CustomerOrders({
   return (
     <div className="space-y-1 px-2 pb-2">
       {previews.map((item) => {
-        const current = item.productLabel === 'ORDER' ? undefined : claims[claimKey(item.orderCode)];
+        const rawClaim = item.productLabel === 'ORDER' ? undefined : claims[claimKey(item.orderCode)];
+        const current = rawClaim && warehouseClaimMatchesCustomer(rawClaim, customer) ? rawClaim : undefined;
+        const claimConflict = Boolean(rawClaim && !current);
         return (
           <button key={item.id} type="button" onClick={() => onInspect(previews, item.id)} className={['flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left', current ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'].join(' ')}>
             {item.productLabel === 'ORDER' ? <span className="shrink-0 text-base" aria-label="Có order">📦</span> : <span className={['shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black', current ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'].join(' ')}>{item.productLabel}</span>}
@@ -59,6 +62,7 @@ function CustomerOrders({
               <p className="truncate text-[10px] text-neutral-500">Mã đơn: {item.orderCode}</p>
             </div>
             {current && <span className="shrink-0 rounded-lg bg-red-100 px-2 py-1.5 text-[10px] font-bold text-red-700">Đã nhận · {warehouseClaimantShort(current)}</span>}
+            {claimConflict && <span className="shrink-0 rounded-lg bg-amber-100 px-2 py-1.5 text-[10px] font-bold text-amber-800">Mã đơn trùng khách</span>}
           </button>
         );
       })}
@@ -81,8 +85,8 @@ export default function KhoOrderView({
 }: {
   desks: DeskKhoState[];
   claims: WarehouseOrderClaims;
-  onClaim: (claim: Omit<WarehouseOrderClaim, 'claimedAt'>) => Promise<boolean>;
-  onClaimAll: (claims: Array<Omit<WarehouseOrderClaim, 'claimedAt'>>) => Promise<boolean>;
+  onClaim: (claim: Omit<WarehouseOrderClaim, 'eventId' | 'claimedAt'>) => Promise<boolean>;
+  onClaimAll: (claims: Array<Omit<WarehouseOrderClaim, 'eventId' | 'claimedAt'>>) => Promise<boolean>;
   claimedBy: string;
   claimedDesk?: string;
   claimedName?: string;
@@ -202,7 +206,9 @@ export default function KhoOrderView({
             </div>
             <div className="mt-3 max-h-72 space-y-2 overflow-auto">
               {inspectOrders.orders.map((order) => {
-                const currentClaim = order.productLabel === 'ORDER' ? undefined : claims[claimKey(order.orderCode)];
+                const rawClaim = order.productLabel === 'ORDER' ? undefined : claims[claimKey(order.orderCode)];
+                const currentClaim = rawClaim && warehouseClaimMatchesCustomer(rawClaim, { stt: order.stt, name: order.customerName }) ? rawClaim : undefined;
+                const claimConflict = Boolean(rawClaim && !currentClaim);
                 return (
                 <div key={order.id} className="rounded-xl bg-neutral-50 p-3">
                   {order.productLabel === 'ORDER' ? (
@@ -215,7 +221,8 @@ export default function KhoOrderView({
                     <>
                       <p className="text-sm font-bold text-neutral-900">{order.orderCode}</p>
                       <p className="mt-2 whitespace-pre-wrap text-xs text-neutral-800">{order.product}</p>
-                      {currentClaim && <p className="mt-2 rounded-lg bg-red-50 px-2 py-1.5 text-xs font-bold text-red-700">Đã nhận · {warehouseClaimantFull(currentClaim)}</p>}
+                      {currentClaim && <p className="mt-2 rounded-lg bg-red-50 px-2 py-1.5 text-xs font-bold text-red-700">Đã nhận · {warehouseClaimantFull(currentClaim)}{warehouseClaimedAt(currentClaim) ? ` · ${warehouseClaimedAt(currentClaim)}` : ''}</p>}
+                      {claimConflict && <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1.5 text-xs font-bold text-amber-800">Mã đơn này đang gắn với khách khác.</p>}
                     </>
                   )}
                 </div>
@@ -225,10 +232,14 @@ export default function KhoOrderView({
             {(() => {
               const productItems = inspectOrders.orders.filter((item) => item.productLabel !== 'ORDER');
               const selected = inspectOrders.orders.find((item) => item.id === inspectOrders.selectedId) ?? inspectOrders.orders[0];
-              const productClaims = Array.from(new Map(productItems.map((item) => [claimKey(item.orderCode), item])).values()).map((item) => ({ orderCode: item.orderCode, stt: item.stt, productLabel: item.productLabel, product: item.product, claimedBy, claimedDesk, claimedName, claimedMsnv }));
+              const productClaims = Array.from(new Map(productItems.map((item) => [claimKey(item.orderCode), item])).values()).map((item) => ({ orderCode: item.orderCode, stt: item.stt, customerName: item.customerName, productLabel: item.productLabel, product: item.product, claimedBy, claimedDesk, claimedName, claimedMsnv }));
               const productKey = `popup-products-${productClaims.map((item) => item.orderCode).join('|')}`;
               const productBusy = claiming === productKey;
-              const selectedClaim = selected?.productLabel !== 'ORDER' && selected ? claims[claimKey(selected.orderCode)] : undefined;
+              const selectedRawClaim = selected?.productLabel !== 'ORDER' && selected ? claims[claimKey(selected.orderCode)] : undefined;
+              const selectedClaim = selectedRawClaim && warehouseClaimMatchesCustomer(selectedRawClaim, {
+                stt: selected.stt,
+                name: selected.customerName,
+              }) ? selectedRawClaim : undefined;
               const selectedKey = selected
                 ? selected.productLabel !== 'ORDER'
                   ? `popup-selected-${selected.id}`
@@ -240,7 +251,7 @@ export default function KhoOrderView({
                 setClaiming(selectedKey);
                 setClaimFeedback(null);
                 try {
-                  const won = await onClaim({ orderCode: selected.orderCode, stt: selected.stt, productLabel: selected.productLabel, product: selected.product, claimedBy, claimedDesk, claimedName, claimedMsnv });
+                  const won = await onClaim({ orderCode: selected.orderCode, stt: selected.stt, customerName: selected.customerName, productLabel: selected.productLabel, product: selected.product, claimedBy, claimedDesk, claimedName, claimedMsnv });
                   if (won) {
                     setClaimFeedback({ kind: 'success', message: 'Tiếp nhận thành công' });
                     setInspectOrders(null);
@@ -254,13 +265,18 @@ export default function KhoOrderView({
                 }
               };
               const allUnclaimed = [
-                ...productClaims.filter((item) => !claims[claimKey(item.orderCode)]),
+                ...productClaims.filter((item) => {
+                  const claim = claims[claimKey(item.orderCode)];
+                  return !claim || !warehouseClaimMatchesCustomer(claim, { stt: item.stt, name: item.customerName });
+                }),
               ];
               if (!allUnclaimed.length) {
                 const selectedMessage = selected?.productLabel === 'ORDER'
                   ? 'Order chỉ để xem thông tin.'
                   : selectedClaim
-                    ? `Đã nhận · ${warehouseClaimantFull(selectedClaim)}`
+                    ? `Đã nhận · ${warehouseClaimantFull(selectedClaim)}${warehouseClaimedAt(selectedClaim) ? ` · ${warehouseClaimedAt(selectedClaim)}` : ''}`
+                    : selectedRawClaim
+                      ? 'Mã đơn này đang gắn với khách khác.'
                     : 'Đã khóa toàn bộ mã đơn của STT này.';
                 return <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{selectedMessage}</p>;
               }

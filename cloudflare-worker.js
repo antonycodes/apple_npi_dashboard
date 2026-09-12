@@ -88,6 +88,33 @@ function siteFromHostname(hostname) {
   return SITE_BY_HOSTNAME[String(hostname || '').trim().toLowerCase()] ?? null;
 }
 
+/** Event vận hành theo ngày Việt Nam, tránh lệch event quanh 00:00 UTC. */
+function currentWarehouseEventId(site, now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const prefix = SITE_TABLE_PREFIX[site] || String(site || 'NPI').toUpperCase();
+  return `${prefix}-${values.year}-${values.month}-${values.day}`;
+}
+
+function normalizeWarehouseIdentity(value) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN');
+}
+
+function warehouseClaimMatchesOrder(claim, order) {
+  const claimStt = normalizeWarehouseIdentity(claim?.stt);
+  const orderStt = normalizeWarehouseIdentity(order?.stt);
+  if (claimStt && orderStt && claimStt !== orderStt) return false;
+  const claimCustomerName = normalizeWarehouseIdentity(claim?.customerName);
+  const orderCustomerName = normalizeWarehouseIdentity(order?.customerName);
+  if (claimCustomerName && orderCustomerName && claimCustomerName !== orderCustomerName) return false;
+  return true;
+}
+
 function siteSecret(env, site, name, { hcmFallback = true } = {}) {
   const prefixed = env[`${SITE_TABLE_PREFIX[site]}_${name}`];
   if (prefixed) return prefixed;
@@ -343,6 +370,10 @@ async function verifyToken(env, token) {
   return { role, desk, subject };
 }
 
+function canViewAdminSurfaces(session) {
+  return session?.role === 'admin' || session?.role === 'adminViewer';
+}
+
 const SMS_SENDER_IDS = new Set(['S12196', 'S02791']);
 
 function canSendSms(session) {
@@ -547,9 +578,12 @@ function matchRosterAccount(rows, username, password) {
   // vào là rơi thẳng vào dashboard điều phối, không bao giờ thấy bàn TV3 của
   // mình. Tài khoản là CON NGƯỜI, không phải từng dòng bàn.
   const matched = sameUser;
+  const canViewAll = matched.some((r) => normalizeLoai(r.loai) === 'admin');
 
   const workspaces = [];
   for (const r of matched) {
+    // `Loại = ADMIN` là quyền xem toàn bộ view, không phải một workspace/bàn.
+    if (normalizeLoai(r.loai) === 'admin') continue;
     // Dấu phẩy là ký tự phân tách trong token nên mã bàn không được chứa nó.
     const desk = r.desk.replace(/,/g, '');
     if (!desk || workspaces.some((w) => w.desk === desk)) continue;
@@ -573,6 +607,7 @@ function matchRosterAccount(rows, username, password) {
     // chọn thì app dùng tên/MSNV của chính chỗ đó.
     msnv: withInfo.msnv || withInfo.user,
     name: withInfo.name,
+    canViewAll,
   };
 }
 
@@ -1993,9 +2028,9 @@ async function notifyWarehouseInboxOrder(env, order) {
 }
 
 /**
- * Khóa nhận order của Kho dùng chung cho mọi thiết bị.
- * Durable Object serialize toàn bộ request theo một namespace duy nhất, nên
- * hai máy bấm cùng lúc chỉ một máy thắng; order đã nhận vẫn được trả về.
+ * Khóa nhận order của Kho dùng chung cho mọi thiết bị trong cùng event.
+ * Durable Object serialize request theo hostname và event ngày hiện tại.
+ * Hai máy bấm cùng lúc chỉ một máy thắng; order đã nhận vẫn được trả về.
  */
 export class WarehouseOrderClaims extends DurableObject {
   constructor(ctx, env) {
@@ -2003,10 +2038,12 @@ export class WarehouseOrderClaims extends DurableObject {
     this.ctx = ctx;
     this.env = env;
     this.site = 'hcm';
+    this.eventId = null;
     this.state = null;
     this.ready = ctx.blockConcurrencyWhile(async () => {
-      const values = await ctx.storage.get(['claims', 'site']);
+      const values = await ctx.storage.get(['claims', 'site', 'eventId']);
       this.site = values.get('site') || 'hcm';
+      this.eventId = values.get('eventId') || null;
       this.state = values.get('claims') || {};
     });
   }
@@ -2018,8 +2055,13 @@ export class WarehouseOrderClaims extends DurableObject {
       this.site = requestedSite;
       await this.ctx.storage.put('site', this.site);
     }
+    const requestedEventId = request.headers.get('X-NPI-Event-ID');
+    if (requestedEventId && requestedEventId !== this.eventId) {
+      this.eventId = requestedEventId;
+      await this.ctx.storage.put('eventId', this.eventId);
+    }
     if (request.method === 'GET') {
-      return json({ code: 0, msg: 'success', data: { claims: this.state } });
+      return json({ code: 0, msg: 'success', data: { eventId: this.eventId, claims: this.state } });
     }
     if (request.method === 'DELETE') {
       const body = await request.json();
@@ -2027,13 +2069,24 @@ export class WarehouseOrderClaims extends DurableObject {
       if (!orderCode) return json({ code: -1, msg: 'Thiếu mã đơn hàng.' }, 400);
       delete this.state[orderCode.toUpperCase()];
       await this.ctx.storage.put('claims', this.state);
-      return json({ code: 0, msg: 'success', data: { claims: this.state } });
+      return json({ code: 0, msg: 'success', data: { eventId: this.eventId, claims: this.state } });
     }
     if (request.method !== 'POST') return json({ code: -1, msg: 'Method không được hỗ trợ.' }, 405);
     const body = await request.json();
     if (Array.isArray(body?.orders)) {
       const validOrders = body.orders.filter((item) => item && typeof item.orderCode === 'string');
       if (!validOrders.length) return json({ code: -1, msg: 'Thiếu danh sách mã đơn hàng.' }, 400);
+      const conflicts = validOrders.filter((item) => {
+        const key = item.orderCode.trim().slice(0, 120).toUpperCase();
+        return this.state[key] && !warehouseClaimMatchesOrder(this.state[key], item);
+      });
+      if (conflicts.length) {
+        return json({
+          code: -2,
+          msg: `Mã đơn đã gắn với khách khác: ${conflicts.map((item) => item.orderCode).join(', ')}`,
+          data: { eventId: this.eventId, claims: this.state },
+        }, 409);
+      }
       let wonAll = true;
       const createdClaims = [];
       for (const item of validOrders) {
@@ -2042,9 +2095,11 @@ export class WarehouseOrderClaims extends DurableObject {
         if (!this.state[key]) {
           this.state[key] = {
             orderCode: code,
+            eventId: this.eventId,
             stt: item.stt ? String(item.stt).slice(0, 40) : null,
             productLabel: String(item.productLabel || '').slice(0, 40),
             product: String(item.product || '').slice(0, 240),
+            customerName: item.customerName ? String(item.customerName).slice(0, 160) : null,
             claimedBy: String(item.claimedBy || 'Kho').slice(0, 120),
             claimedDesk: String(item.claimedDesk || '').slice(0, 40),
             claimedName: String(item.claimedName || '').slice(0, 120),
@@ -2056,21 +2111,26 @@ export class WarehouseOrderClaims extends DurableObject {
         if (this.state[key].claimedBy !== item.claimedBy) wonAll = false;
       }
       await this.ctx.storage.put('claims', this.state);
-      const webhookErrors = await notifyWarehouseOrderClaims(this.env, createdClaims);
-      return json({ code: 0, msg: wonAll ? 'success' : 'order_already_claimed', data: { claims: this.state, wonAll, webhookErrors } });
+      const webhookErrors = await notifyWarehouseOrderClaims(scopedSiteEnv(this.env, this.site), createdClaims);
+      return json({ code: 0, msg: wonAll ? 'success' : 'order_already_claimed', data: { eventId: this.eventId, claims: this.state, wonAll, webhookErrors } });
     }
     const orderCode = String(body?.orderCode || '').trim();
     if (!orderCode) return json({ code: -1, msg: 'Thiếu mã đơn hàng.' }, 400);
     const key = orderCode.toUpperCase();
     const existing = this.state[key];
     if (existing) {
-      return json({ code: 0, msg: 'order_already_claimed', data: { claim: existing, claims: this.state } });
+      if (!warehouseClaimMatchesOrder(existing, body)) {
+        return json({ code: -2, msg: 'Mã đơn này đang gắn với khách khác.', data: { eventId: this.eventId, claim: existing, claims: this.state } }, 409);
+      }
+      return json({ code: 0, msg: 'order_already_claimed', data: { eventId: this.eventId, claim: existing, claims: this.state } });
     }
     const claim = {
       orderCode,
+      eventId: this.eventId,
       stt: body?.stt ? String(body.stt).slice(0, 40) : null,
       productLabel: String(body?.productLabel || '').slice(0, 40),
       product: String(body?.product || '').slice(0, 240),
+      customerName: body?.customerName ? String(body.customerName).slice(0, 160) : null,
       claimedBy: String(body?.claimedBy || 'Kho').slice(0, 120),
       claimedDesk: String(body?.claimedDesk || '').slice(0, 40),
       claimedName: String(body?.claimedName || '').slice(0, 120),
@@ -2080,7 +2140,7 @@ export class WarehouseOrderClaims extends DurableObject {
     this.state[key] = claim;
     await this.ctx.storage.put('claims', this.state);
     const webhookErrors = await notifyWarehouseOrderClaims(scopedSiteEnv(this.env, this.site), [claim]);
-    return json({ code: 0, msg: 'success', data: { claim, claims: this.state, webhookErrors } });
+    return json({ code: 0, msg: 'success', data: { eventId: this.eventId, claim, claims: this.state, webhookErrors } });
   }
 }
 
@@ -2215,12 +2275,17 @@ export default {
         if (request.method === 'DELETE' && (await verifyToken(env, bearer(request)))?.role !== 'admin') {
           return json({ code: -1, msg: 'Chỉ admin được mở khóa order.' }, 403);
         }
-        // Tách khóa theo hostname để HCM/HN không khóa nhầm cùng mã order.
+        // Tách khóa theo hostname + event ngày để claim cũ không lẫn sang event mới.
         const scope = new URL(request.url).hostname.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
-        const stub = env.WAREHOUSE_ORDER_CLAIMS.getByName(`npi-cps-warehouse-orders-${scope}`);
+        const eventId = currentWarehouseEventId(site);
+        const stub = env.WAREHOUSE_ORDER_CLAIMS.getByName(`npi-cps-warehouse-orders-${scope}-${eventId}`);
         return await stub.fetch(new Request('https://warehouse-order-claims', {
           method: request.method,
-          headers: { ...Object.fromEntries(request.headers), 'X-NPI-Site': env.NPI_SITE },
+          headers: {
+            ...Object.fromEntries(request.headers),
+            'X-NPI-Site': env.NPI_SITE,
+            'X-NPI-Event-ID': eventId,
+          },
           body: request.body,
         }));
       } catch (e) {
@@ -2445,7 +2510,7 @@ export default {
           return json({ code: -1, msg: `Không đọc được danh sách tài khoản (Master_DS): ${String(e?.message || e)}` }, 502);
         }
         if (account) {
-          if (account.workspaces.length === 0) {
+          if (account.workspaces.length === 0 && !account.canViewAll) {
             // Nói thẳng nguyên nhân: dòng roster thiếu mã bàn thì có cho vào
             // cũng không mở được màn hình nào.
             return json(
@@ -2459,7 +2524,9 @@ export default {
           // Một tài khoản có thể có nhiều workspace (S12196 có TV3, TC3,
           // BK3, KHO3 và DP2). Token phải giữ quyền cao nhất mà tài khoản có,
           // không phụ thuộc thứ tự dòng trong Master_DS, để DP vẫn gửi SMS.
-          const tokenRole = account.workspaces.some((workspace) => workspace.role === 'dieuphoi')
+          const tokenRole = account.canViewAll
+            ? 'adminViewer'
+            : account.workspaces.some((workspace) => workspace.role === 'dieuphoi')
             ? 'dieuphoi'
             : account.workspaces[0].role;
           return json({
@@ -2477,6 +2544,7 @@ export default {
               username: account.username,
               msnv: account.msnv,
               name: account.name,
+              canViewAll: account.canViewAll,
             },
           });
         }
@@ -2637,7 +2705,8 @@ export default {
     }
 
     if (route === 'audit/logs') {
-      if ((await verifyToken(env, bearer(request)))?.role !== 'admin') {
+      const session = await verifyToken(env, bearer(request));
+      if (!canViewAdminSurfaces(session)) {
         return json({ code: -1, msg: 'Chỉ admin được xem audit log' }, 403);
       }
       if (!env.AUDIT_LOG) return json({ code: -1, msg: 'Chưa cấu hình kho audit log' }, 500);
@@ -2657,6 +2726,9 @@ export default {
       }
       if (desk) { where.push('desk_code = ?'); binds.push(desk); }
       if (request.method === 'DELETE') {
+        if (session.role !== 'admin') {
+          return json({ code: -1, msg: 'Chỉ tài khoản admin mới được xóa audit log' }, 403);
+        }
         if (stages.length !== 1 || stages[0] !== 'Admin') {
           return json({ code: -1, msg: 'Chỉ được xóa log Admin' }, 400);
         }

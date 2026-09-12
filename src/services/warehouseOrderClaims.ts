@@ -1,4 +1,9 @@
-import type { WarehouseInboxOrder, WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
+import type {
+  WarehouseInboxOrder,
+  WarehouseOrderClaim,
+  WarehouseOrderClaims,
+  WarehouseOrderInput,
+} from '@/types/warehouse';
 import { adminSessionStore } from '@/config/adminSession';
 import { recordAuditEvent } from './auditLogApi';
 
@@ -20,7 +25,7 @@ export async function fetchWarehouseOrderClaims(apiUrl: string, signal?: AbortSi
 
 export async function claimWarehouseOrder(
   apiUrl: string,
-  claim: Omit<WarehouseOrderClaim, 'claimedAt'>,
+  claim: WarehouseOrderInput,
 ): Promise<{ won: boolean; claims: WarehouseOrderClaims }> {
   const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/warehouse-order-claims`, {
     method: 'POST',
@@ -37,7 +42,7 @@ export async function claimWarehouseOrder(
 
 export async function claimWarehouseOrders(
   apiUrl: string,
-  orders: Array<Omit<WarehouseOrderClaim, 'claimedAt'>>,
+  orders: WarehouseOrderInput[],
 ): Promise<{ wonAll: boolean; claims: WarehouseOrderClaims }> {
   const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/warehouse-order-claims`, {
     method: 'POST',

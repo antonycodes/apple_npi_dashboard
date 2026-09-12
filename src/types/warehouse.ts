@@ -1,9 +1,13 @@
-/** Một order sản phẩm đã được Kho tiếp nhận. Khóa theo mã đơn hàng. */
+/** Một order sản phẩm đã được Kho tiếp nhận trong một event. */
 export interface WarehouseOrderClaim {
+  /** Event hiện tại, ví dụ `HCM-2026-09-12`. */
+  eventId: string;
   orderCode: string;
   stt: string | null;
   productLabel: string;
   product: string;
+  /** Tên khách tại thời điểm Kho nhận order. */
+  customerName?: string | null;
   claimedBy: string;
   claimedAt: number;
   claimedDesk?: string;
@@ -13,7 +17,10 @@ export interface WarehouseOrderClaim {
 
 export type WarehouseOrderClaims = Record<string, WarehouseOrderClaim>;
 
-export type WarehouseOrderInput = Omit<WarehouseOrderClaim, 'claimedAt'>;
+/** Payload từ client; eventId do Worker xác định theo event hiện tại. */
+export type WarehouseOrderInput = Omit<WarehouseOrderClaim, 'eventId' | 'claimedAt'> & {
+  eventId?: string;
+};
 
 export interface WarehouseInboxOrder {
   id: string;
