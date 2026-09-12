@@ -24,6 +24,8 @@ export type WarehouseOrderInput = Omit<WarehouseOrderClaim, 'eventId' | 'claimed
 
 export interface WarehouseInboxOrder {
   id: string;
+  /** Event tạo order theo ngày vận hành Việt Nam. Legacy order có thể thiếu field này. */
+  eventId?: string;
   orderCode: string;
   rawText: string;
   /** Các mã đơn hàng thật của khách nhận cùng nội dung Order từ Tư vấn. */

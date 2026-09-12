@@ -101,6 +101,12 @@ function currentWarehouseEventId(site, now = new Date()) {
   return `${prefix}-${values.year}-${values.month}-${values.day}`;
 }
 
+function warehouseOrderEventId(order, site) {
+  if (order?.eventId) return order.eventId;
+  const createdAt = Number(order?.createdAt);
+  return Number.isFinite(createdAt) ? currentWarehouseEventId(site, new Date(createdAt)) : null;
+}
+
 function normalizeWarehouseIdentity(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN');
 }
@@ -2166,12 +2172,14 @@ export class WarehouseOrderInbox extends DurableObject {
       this.site = requestedSite;
       await this.ctx.storage.put('site', this.site);
     }
+    const eventId = request.headers.get('X-NPI-Event-ID') || currentWarehouseEventId(this.site);
     if (request.method === 'GET') {
-      const visible = this.orders.filter((order) => !order.deletedAt);
+      const visible = this.orders.filter((order) => !order.deletedAt && warehouseOrderEventId(order, this.site) === eventId);
       if (new URL(request.url).pathname.endsWith('/log')) {
         const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-        const header = ['id', 'createdAt', 'deletedAt', 'deletedBy', 'deskId', 'stt', 'customerName', 'sentBy', 'orderCode', 'rawText', 'productOrders'];
+        const header = ['eventId', 'id', 'createdAt', 'deletedAt', 'deletedBy', 'deskId', 'stt', 'customerName', 'sentBy', 'orderCode', 'rawText', 'productOrders'];
         const rows = this.orders.map((order) => [
+          order.eventId || '',
           order.id,
           new Date(order.createdAt).toISOString(),
           order.deletedAt ? new Date(order.deletedAt).toISOString() : '',
@@ -2219,6 +2227,7 @@ export class WarehouseOrderInbox extends DurableObject {
             orderCode: item?.orderCode ? String(item.orderCode).trim().slice(0, 120) : null,
           }))
         : [],
+      eventId,
       deskId: String(body?.deskId || '').trim().slice(0, 40),
       stt: body?.stt ? String(body.stt).trim().slice(0, 40) : null,
       customerName: body?.customerName ? String(body.customerName).trim().slice(0, 160) : null,
@@ -2301,18 +2310,20 @@ export default {
         const admin = isAdminRoute ? await verifyToken(env, bearer(request)) : null;
         if (isAdminRoute && admin?.role !== 'admin') return json({ code: -1, msg: 'Chỉ admin được thao tác log order.' }, 403);
         const scope = new URL(request.url).hostname.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
+        const eventId = currentWarehouseEventId(site);
         const stub = env.WAREHOUSE_ORDER_INBOX.getByName(`npi-cps-warehouse-orders-${scope}`);
         if (request.method === 'DELETE') {
           const body = await request.json();
           return await stub.fetch(new Request('https://warehouse-orders', {
-            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', 'X-NPI-Site': env.NPI_SITE, 'X-NPI-Event-ID': eventId },
             body: JSON.stringify({ ...body, deletedBy: admin.username || admin.msnv || 'admin' }),
           }));
         }
         const targetPath = new URL(request.url).pathname.endsWith('/log') ? 'https://warehouse-orders/log' : 'https://warehouse-orders';
         return await stub.fetch(new Request(targetPath, {
           method: request.method,
-          headers: { ...Object.fromEntries(request.headers), 'X-NPI-Site': env.NPI_SITE },
+          headers: { ...Object.fromEntries(request.headers), 'X-NPI-Site': env.NPI_SITE, 'X-NPI-Event-ID': eventId },
           body: request.body,
         }));
       } catch (e) {
