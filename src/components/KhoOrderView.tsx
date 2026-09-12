@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 import type { WarehouseInboxOrder, WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
 import { warehouseClaimantFull, warehouseClaimantShort, warehouseClaimedAt } from '@/utils/warehouseClaimant';
-import { warehouseClaimMatchesCustomer } from '@/utils/warehouseClaim';
+import { warehouseClaimMatchesCustomer, warehouseOrderMatchesCustomer } from '@/utils/warehouseClaim';
 
 function claimKey(orderCode: string) {
   return orderCode.trim().toUpperCase();
@@ -29,7 +29,7 @@ function CustomerOrders({
     : customer.productName
       ? [{ label: 'SP1', product: customer.productName, orderCode: null }]
       : [];
-  const sentOrders = inboxOrders.filter((order) => order.stt === customer.stt);
+  const sentOrders = inboxOrders.filter((order) => warehouseOrderMatchesCustomer(order, customer));
   const productOrders = products.filter((item) => item.orderCode).map((item) => ({
     id: `product-${item.orderCode}`,
     orderCode: item.orderCode!,

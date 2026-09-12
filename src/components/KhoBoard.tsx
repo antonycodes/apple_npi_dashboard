@@ -22,7 +22,7 @@ import { guestMediaUrl } from '@/services/guestMedia';
 import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 import type { WarehouseInboxOrder, WarehouseOrderClaims } from '@/types/warehouse';
 import { warehouseClaimantFull, warehouseClaimedAt } from '@/utils/warehouseClaimant';
-import { warehouseClaimMatchesCustomer } from '@/utils/warehouseClaim';
+import { warehouseClaimMatchesCustomer, warehouseOrderMatchesCustomer } from '@/utils/warehouseClaim';
 import ProductList from './ProductList';
 
 interface ProductOrderDetails {
@@ -511,7 +511,7 @@ function CompletedModal({
                 customer={c}
                 showTradeIn={showTradeIn}
                 onZoom={onZoom}
-                orders={inboxOrders.filter((order) => order.stt === c.stt)}
+                orders={inboxOrders.filter((order) => warehouseOrderMatchesCustomer(order, c))}
               />
             </li>
           ))}
@@ -546,7 +546,7 @@ function DeskColumn({
   const showTradeIn = desk.cluster !== 'consult';
   const active = desk.customers.filter((c) => c.status === 'received');
   const completed = desk.customers.filter((c) => c.status === 'completed');
-  const deskOrders = inboxOrders.filter((order) => desk.customers.some((customer) => customer.stt === order.stt));
+  const deskOrders = inboxOrders.filter((order) => desk.customers.some((customer) => warehouseOrderMatchesCustomer(order, customer)));
   const hasOrder = deskOrders.length > 0;
   const hasClaim = active.some((customer) => customer.productOrders?.some((item) => {
     const claim = item.orderCode ? claims[item.orderCode.trim().toUpperCase()] : undefined;
@@ -621,7 +621,7 @@ function DeskColumn({
               customer={c}
               showTradeIn={showTradeIn}
               onZoom={onZoom}
-              orders={inboxOrders.filter((order) => order.stt === c.stt)}
+              orders={inboxOrders.filter((order) => warehouseOrderMatchesCustomer(order, c))}
               claims={claims}
               onDetails={(customer) => onDetails(desk, customer)}
             />
@@ -656,7 +656,7 @@ function DeskColumn({
                     customer={c}
                     showTradeIn={showTradeIn}
                     onZoom={onZoom}
-                    orders={inboxOrders.filter((order) => order.stt === c.stt)}
+                    orders={inboxOrders.filter((order) => warehouseOrderMatchesCustomer(order, c))}
                   />
                 ))}
               </ul>
@@ -680,7 +680,7 @@ function DeskColumn({
           customers={completed}
           showTradeIn={showTradeIn}
           onZoom={onZoom}
-          inboxOrders={inboxOrders.filter((order) => order.stt && completed.some((customer) => customer.stt === order.stt))}
+          inboxOrders={inboxOrders.filter((order) => completed.some((customer) => warehouseOrderMatchesCustomer(order, customer)))}
           onClose={() => setModal(false)}
         />
       )}
@@ -807,7 +807,7 @@ export default function KhoBoard({
         <CustomerDetailsModal
           desk={details.desk}
           customer={details.customer}
-          orders={inboxOrders.filter((order) => order.deskId === details.desk.id && order.stt === details.customer.stt)}
+          orders={inboxOrders.filter((order) => order.deskId === details.desk.id && warehouseOrderMatchesCustomer(order, details.customer))}
           claims={claims}
           onInspectOrder={(order) => setOrderDetails(order)}
           onInspectProduct={(order) => setProductOrderDetails(order)}

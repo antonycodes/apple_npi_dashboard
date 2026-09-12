@@ -1,4 +1,4 @@
-import type { WarehouseOrderClaim } from '@/types/warehouse';
+import type { WarehouseInboxOrder, WarehouseOrderClaim } from '@/types/warehouse';
 
 interface ClaimCustomer {
   stt: string | null;
@@ -22,5 +22,20 @@ export function warehouseClaimMatchesCustomer(
   const claimName = normalize(claim.customerName);
   const customerName = normalize(customer.name);
   if (claimName && customerName && claimName !== customerName) return false;
+  return true;
+}
+
+/** Chỉ hiển thị Inbox order khi đúng cả STT và khách hiện tại. */
+export function warehouseOrderMatchesCustomer(
+  order: Pick<WarehouseInboxOrder, 'stt' | 'customerName'>,
+  customer: ClaimCustomer,
+): boolean {
+  const orderStt = normalize(order.stt);
+  const customerStt = normalize(customer.stt);
+  if (orderStt && customerStt && orderStt !== customerStt) return false;
+
+  const orderName = normalize(order.customerName);
+  const customerName = normalize(customer.name);
+  if (orderName && customerName && orderName !== customerName) return false;
   return true;
 }
