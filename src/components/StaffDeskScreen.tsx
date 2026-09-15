@@ -69,8 +69,7 @@ interface Pending {
 
 /** Cùng quy ước tô màu với `CustomerPopover` — theo TỪ KHOÁ, không so chuỗi cứng. */
 /**
- * Phần "máy thu cũ" của form Hoàn tất: giá trị điền sẵn + có khoá nút "Thu máy
- * sau" hay không.
+ * Phần "máy thu cũ" của form Hoàn tất: giá trị điền sẵn theo khâu.
  *
  * Tách riêng vì 2 thứ đó suy từ CÙNG một phép tính — để lặp lại logic ở 2 chỗ
  * là sớm muộn cũng lệch nhau.
@@ -87,27 +86,27 @@ function buildDeviceDefaults(
   // lại những gì đã nhập và sửa được chỗ sai.
   const tiepTuc = hoanTat && prev?.thuLaiMay === 'Thu máy sau';
 
-  // Ở bàn BACKUP, đủ cả 3 (ảnh + QR + IMEI) nghĩa là máy đã cầm trên tay rồi —
-  // mặc định "Thu máy ngay" và KHOÁ luôn nút "Thu máy sau" để NV không bấm
-  // nhầm (yêu cầu user 2026-08-12). Thiếu 1 trong 3 thì không khoá, vì lúc đó
-  // chưa chắc máy đã thu.
+  // Ở bàn BACKUP, chỉ dùng "Thu máy ngay". Nếu dữ liệu cũ từng ghi
+  // "Thu máy sau", chuyển thành lựa chọn hiện tại để không gửi ngầm trạng thái cũ.
   const duDuLieu = Boolean(
     prev && prev.images.length > 0 && prev.scanQr?.trim() && prev.imei?.trim(),
   );
   const backupDaThuMay = hoanTat && cluster === 'backup' && duDuLieu;
   const dienSan = tiepTuc || backupDaThuMay;
+  const thuLaiMay = cluster === 'backup'
+    ? dienSan ? 'Thu máy ngay' : ''
+    : backupDaThuMay ? 'Thu máy ngay' : tiepTuc ? prev?.thuLaiMay ?? '' : '';
 
   return {
     values: {
       checkBackup: '',
-      thuLaiMay: backupDaThuMay ? 'Thu máy ngay' : tiepTuc ? prev?.thuLaiMay ?? '' : '',
+      thuLaiMay,
       khachKhongDongYGiaThuCu: false,
       hinhNghiemThu: [] as File[],
       anhGiuLai: dienSan ? prev?.images ?? [] : [],
       scanQr: dienSan ? prev?.scanQr ?? '' : '',
       imei: dienSan ? prev?.imei ?? '' : '',
     },
-    khoaThuMaySau: backupDaThuMay,
   };
 }
 
@@ -1298,7 +1297,6 @@ export default function StaffDeskScreen({
           deskLabel={view.label}
           cluster={view.cluster}
           action={formAction}
-          khoaThuMaySau={buildDeviceDefaults(formCustomer, view.cluster, formAction).khoaThuMaySau}
           defaults={{
             stt: formCustomer.stt ?? '',
             hoTen: formCustomer.name ?? '',

@@ -33,7 +33,7 @@ export interface ReceiveFormValues {
   submitBy: string;
   /** "Có" | "Không" | "" (chưa chọn) — chỉ có ý nghĩa khi Hoàn tất (mọi khâu). */
   checkBackup: string;
-  /** "Thu máy ngay" | "Thu máy sau" | "" — chỉ Hoàn tất ở khâu Thu cũ/Backup. */
+  /** "Thu máy ngay" | "Thu máy sau" | "" — chỉ Hoàn tất ở khâu Thu cũ. */
   thuLaiMay: string;
   /** Khách đang cân nhắc giá, không cần nhập thông tin máy — chỉ Hoàn tất ở Thu cũ. */
   khachKhongDongYGiaThuCu: boolean;
@@ -54,7 +54,6 @@ export default function StaffReceiveFormModal({
   customer,
   deskLabel,
   cluster,
-  khoaThuMaySau = false,
   defaults,
   action,
   busy,
@@ -67,12 +66,6 @@ export default function StaffReceiveFormModal({
   deskLabel: string;
   /** Cụm của bàn đang thao tác — quyết định có hiện câu hỏi Check Backup không. */
   cluster: ClusterKey;
-  /**
-   * Khoá nút "Thu máy sau" (xám, bấm không được). Bật khi ở bàn Backup mà dữ
-   * liệu máy cũ đã đủ cả 3 — máy đã cầm trên tay nên chọn "sau" là sai, khoá
-   * để NV khỏi bấm nhầm (yêu cầu user 2026-08-12). Xem `buildDeviceDefaults`.
-   */
-  khoaThuMaySau?: boolean;
   defaults: ReceiveFormValues;
   action: 'tiep_nhan' | 'hoan_tat';
   busy: boolean;
@@ -82,22 +75,17 @@ export default function StaffReceiveFormModal({
 }) {
   const [values, setValues] = useState<ReceiveFormValues>(defaults);
   const [staffDetailsOpen, setStaffDetailsOpen] = useState(false);
-  const [confirmThuMaySau, setConfirmThuMaySau] = useState(false);
   const set = <K extends keyof ReceiveFormValues>(key: K, v: ReceiveFormValues[K]) =>
     setValues((p) => ({ ...p, [key]: v }));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || busy) return;
-      if (confirmThuMaySau) {
-        setConfirmThuMaySau(false);
-        return;
-      }
       onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [busy, confirmThuMaySau, onClose]);
+  }, [busy, onClose]);
 
   // Khi chưa đánh dấu khách cân nhắc giá, giữ nguyên đầy đủ luồng cũ.
   // Đánh dấu sẽ ẩn toàn bộ lựa chọn Backup/thu máy và phần nhập máy.
@@ -105,7 +93,10 @@ export default function StaffReceiveFormModal({
   const showThuLaiMay = action === 'hoan_tat'
     && (cluster === 'tradein' || cluster === 'backup')
     && !values.khachKhongDongYGiaThuCu;
-  // 3 field chỉ bung ra sau khi chọn 1 trong 2 option.
+  const thuLaiMayOptions = cluster === 'backup'
+    ? (['Thu máy ngay'] as const)
+    : (['Thu máy ngay', 'Thu máy sau'] as const);
+  // 3 field chỉ bung ra sau khi chọn một option.
   const showPriceConsideration = action === 'hoan_tat' && cluster === 'tradein';
   const showDeviceFields = showThuLaiMay && values.thuLaiMay.length > 0 && !values.khachKhongDongYGiaThuCu;
   const deviceImageCount = values.anhGiuLai.length + values.hinhNghiemThu.length;
@@ -183,21 +174,17 @@ export default function StaffReceiveFormModal({
             <div>
               <span className="text-xs font-semibold text-neutral-500">Thu lại máy</span>
               <div className="mt-1 flex gap-2">
-                {(['Thu máy ngay', 'Thu máy sau'] as const).map((opt) => {
-                  const khoa = khoaThuMaySau && opt === 'Thu máy sau';
+                {thuLaiMayOptions.map((opt) => {
                   return (
                     <button
                       key={opt}
                       type="button"
-                      disabled={khoa}
                       onClick={() => set('thuLaiMay', values.thuLaiMay === opt ? '' : opt)}
                       aria-pressed={values.thuLaiMay === opt}
                       className={`min-h-11 flex-1 rounded-xl border px-2 text-sm font-bold ${
-                        khoa
-                          ? 'cursor-not-allowed border-neutral-200 bg-neutral-100 text-neutral-400'
-                          : values.thuLaiMay === opt
-                            ? 'border-emerald-600 bg-emerald-600 text-white'
-                            : 'border-neutral-300 bg-white text-neutral-600'
+                        values.thuLaiMay === opt
+                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                          : 'border-neutral-300 bg-white text-neutral-600'
                       }`}
                     >
                       {opt}
@@ -343,10 +330,6 @@ export default function StaffReceiveFormModal({
           <button
             type="button"
             onClick={() => {
-              if (cluster === 'backup' && action === 'hoan_tat' && values.thuLaiMay === 'Thu máy sau') {
-                setConfirmThuMaySau(true);
-                return;
-              }
               onSubmit(values);
             }}
             disabled={!canSubmit}
@@ -355,44 +338,6 @@ export default function StaffReceiveFormModal({
             {busy ? 'Đang gửi…' : action === 'tiep_nhan' ? 'Gửi Tiếp nhận' : 'Gửi Hoàn tất'}
           </button>
         </div>
-
-        {confirmThuMaySau && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/35 px-4" role="presentation">
-            <div
-              className="w-full max-w-[360px] rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl"
-              role="alertdialog"
-              aria-modal="true"
-              aria-labelledby="confirm-thu-may-sau-title"
-            >
-              <h3 id="confirm-thu-may-sau-title" className="text-center text-base font-extrabold tracking-tight text-neutral-900 sm:text-lg">
-                XÁC NHẬN <span className="text-red-600">THU MÁY SAU</span>
-              </h3>
-              <p className="mt-2 text-left text-pretty text-xs leading-5 text-neutral-500">
-                Kiểm tra trạng thái <span className="whitespace-nowrap font-bold text-red-600">THU CŨ</span> của khách, xác nhận khách có <span className="whitespace-nowrap font-bold text-red-600">THU CŨ</span> hay không.<br />
-                Nếu khách có <span className="whitespace-nowrap font-bold text-red-600">THU CŨ</span> nhưng chưa có hình ảnh nghiệm thu và thông tin <span className="whitespace-nowrap font-bold text-red-600">S/N</span>, báo <span className="whitespace-nowrap font-bold text-red-600">ĐIỀU PHỐI</span> hỗ trợ.
-              </p>
-              <div className="mt-4 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConfirmThuMaySau(false)}
-                  className="min-h-11 flex-1 rounded-xl border border-neutral-300 text-sm font-bold text-neutral-700 active:bg-neutral-100"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfirmThuMaySau(false);
-                    onSubmit(values);
-                  }}
-                  className="min-h-11 flex-1 rounded-xl bg-red-600 text-sm font-bold text-white active:bg-red-700"
-                >
-                  Xác nhận
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
