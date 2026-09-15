@@ -82,20 +82,21 @@ function buildDeviceDefaults(
   const prev = customer.prevDevice;
   const hoanTat = action === 'hoan_tat';
 
-  // Lần trước ghi "Thu máy sau" = máy chưa thu, khâu này thu nốt → cho NV thấy
-  // lại những gì đã nhập và sửa được chỗ sai.
-  const tiepTuc = hoanTat && prev?.thuLaiMay === 'Thu máy sau';
-
-  // Ở bàn BACKUP, chỉ dùng "Thu máy ngay". Nếu dữ liệu cũ từng ghi
-  // "Thu máy sau", chuyển thành lựa chọn hiện tại để không gửi ngầm trạng thái cũ.
+  const coThuMaySau = prev?.thuLaiMay === 'Thu máy sau';
   const duDuLieu = Boolean(
     prev && prev.images.length > 0 && prev.scanQr?.trim() && prev.imei?.trim(),
   );
-  const backupDaThuMay = hoanTat && cluster === 'backup' && duDuLieu;
-  const dienSan = tiepTuc || backupDaThuMay;
+
+  // Thu cũ tiếp tục dùng dữ liệu đã nhập từ lần chọn "Thu máy sau".
+  const tiepTuc = hoanTat && cluster !== 'backup' && coThuMaySau;
+
+  // Ở Backup, chỉ tự chọn "Thu máy ngay" khi dòng "Thu máy sau" trước đó
+  // đã có đủ ảnh, QR và Serial. Khi thiếu dữ liệu, NV phải chủ động chọn lại.
+  const backupTuDongThuNgay = hoanTat && cluster === 'backup' && coThuMaySau && duDuLieu;
+  const dienSan = tiepTuc || backupTuDongThuNgay;
   const thuLaiMay = cluster === 'backup'
-    ? dienSan ? 'Thu máy ngay' : ''
-    : backupDaThuMay ? 'Thu máy ngay' : tiepTuc ? prev?.thuLaiMay ?? '' : '';
+    ? backupTuDongThuNgay ? 'Thu máy ngay' : ''
+    : tiepTuc ? prev?.thuLaiMay ?? '' : '';
 
   return {
     values: {
