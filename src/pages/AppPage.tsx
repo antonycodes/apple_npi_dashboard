@@ -98,7 +98,7 @@ function DeskChoice({
             >
               <span
                 className={[
-                  'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black',
+                  'flex h-11 min-w-[44px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl px-2 text-xs font-black',
                   ws.desk === current ? 'bg-white/15 text-white' : 'bg-neutral-100 text-neutral-700',
                 ].join(' ')}
               >
