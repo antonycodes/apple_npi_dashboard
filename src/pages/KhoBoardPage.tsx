@@ -9,6 +9,7 @@
  * khoMapper) — không đụng tới màn hình STT hay dashboard chính.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import KhoBoard from '@/components/KhoBoard';
 import ViewSwitcher from '@/components/ViewSwitcher';
@@ -19,6 +20,7 @@ import { downloadWarehouseOrderLog } from '@/services/warehouseOrderClaims';
 import { useWarehouseOrders } from '@/hooks/useWarehouseOrders';
 import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { useAdminInfo } from '@/config/adminSession';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import type { ClusterKey } from '@/types/desk';
 
 type ClusterFilter = ClusterKey | 'all';
@@ -58,19 +60,22 @@ function readColumnWidths(): ColumnWidths {
   }
 }
 
-export default function KhoBoardPage() {
+export default function KhoBoardPage({ guestMode = false, onGuestBack }: { guestMode?: boolean; onGuestBack?: () => void }) {
   const [filter, setFilter] = useState<ClusterFilter>('consult');
   const [hideEmpty, setHideEmpty] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>(readColumnWidths);
   const settings = useLarkSettings();
   const session = useAdminInfo();
+  const guestSimulation = useGuestSimulation();
   const warehouseApiUrl = toRuntimeConfig(settings).apiUrl;
-  const orderClaims = useWarehouseOrderClaims(warehouseApiUrl, true);
-  const warehouseOrders = useWarehouseOrders(warehouseApiUrl, true);
+  const orderClaims = useWarehouseOrderClaims(warehouseApiUrl, !guestMode);
+  const warehouseOrders = useWarehouseOrders(warehouseApiUrl, !guestMode);
   const [downloadingLog, setDownloadingLog] = useState(false);
   const { desks, loading, error, lastUpdated, isMock, refresh } = useKhoBoardData(
     filter === 'all' ? undefined : filter,
+    true,
+    guestMode,
   );
   const shown = useMemo(
     () => (hideEmpty ? desks.filter((d) => d.customers.some((c) => c.status === 'received')) : desks),
@@ -100,7 +105,9 @@ export default function KhoBoardPage() {
     });
   }, [filter]);
   const activeColumnWidths = columnWidths[filter] ?? {};
-  const larkConnected = !isMock && !error && Boolean(lastUpdated);
+  const larkConnected = !guestMode && !isMock && !error && Boolean(lastUpdated);
+  const visibleOrders = guestMode ? guestSimulation?.orders ?? [] : warehouseOrders.orders;
+  const visibleClaims = guestMode ? guestSimulation?.orderClaims ?? {} : orderClaims.claims;
   const downloadLog = async () => {
     if (downloadingLog || session?.role !== 'admin') return;
     setDownloadingLog(true);
@@ -131,14 +138,14 @@ export default function KhoBoardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <ViewSwitcher active="kho" />
+            <ViewSwitcher active="kho" simulation={guestMode} />
             <span
               className={[
                 'rounded-full px-2 py-1 font-semibold',
-                larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
+                guestMode || larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
               ].join(' ')}
             >
-              {larkConnected ? 'Lark Connected' : 'Lark Not connected'}
+              {guestMode ? 'Guest Connected' : larkConnected ? 'Lark Connected' : 'Lark Not connected'}
             </span>
             <span className={error ? 'text-red-600' : 'text-neutral-500'}>
               {error ? 'Lỗi đồng bộ' : loading ? 'Đang tải…' : lastUpdated ? `Cập nhật: ${lastUpdated.toLocaleTimeString('vi-VN')}` : '—'}
@@ -150,6 +157,17 @@ export default function KhoBoardPage() {
             >
               Làm mới
             </button>
+            {guestMode && onGuestBack && (
+              <button
+                type="button"
+                onClick={onGuestBack}
+                aria-label="Quay lại chọn màn hình khách"
+                title="Quay lại chọn màn hình khách"
+                className="flex h-8 w-8 items-center justify-center rounded border border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -230,8 +248,8 @@ export default function KhoBoardPage() {
             columns={COLUMNS[filter]}
             columnWidths={activeColumnWidths}
             onColumnResize={handleColumnResize}
-            inboxOrders={warehouseOrders.orders}
-            claims={orderClaims.claims}
+            inboxOrders={visibleOrders}
+            claims={visibleClaims}
             onUnlockOrder={session?.role === 'admin' ? orderClaims.unlock : undefined}
             canDeleteOrder={session?.role === 'admin'}
             onDeleteOrder={session?.role === 'admin' ? async (order) => warehouseOrders.remove(order.id) : undefined}

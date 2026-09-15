@@ -8,6 +8,7 @@
  * dashboard) are never imported or modified here.
  */
 import { useState } from 'react';
+import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import QueueBoard from '@/components/QueueBoard';
 import Sidebar from '@/components/Sidebar';
@@ -19,7 +20,7 @@ import { useLarkSettings } from '@/config/larkSettings';
 import { canSendSms, useAdminInfo } from '@/config/adminSession';
 import type { ClusterKey, WaitingZoneKey } from '@/types/desk';
 
-export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
+export default function QueueBoardPage({ cluster, guestMode = false, onGuestBack }: { cluster: ClusterKey; guestMode?: boolean; onGuestBack?: () => void }) {
   const {
     desks,
     allDesks,
@@ -32,10 +33,10 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
     lastUpdated,
     isMock,
     refresh,
-  } = useQueueBoardData(cluster);
+  } = useQueueBoardData(cluster, guestMode);
   const settings = useLarkSettings();
   const title = CLUSTER_LABELS[cluster];
-  const larkConnected = !isMock && !error && Boolean(lastUpdated);
+  const larkConnected = !guestMode && !isMock && !error && Boolean(lastUpdated);
   const [onlyTradeIn, setOnlyTradeIn] = useState(false);
   const [selectedWaiting, setSelectedWaiting] = useState<{ zone: WaitingZoneKey; index: number } | null>(null);
   const [dispatchStt, setDispatchStt] = useState('');
@@ -73,14 +74,15 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <ViewSwitcher
               active={cluster === 'consult' ? 'tuvan' : cluster === 'tradein' ? 'tradein' : 'backup'}
+              simulation={guestMode}
             />
             <span
               className={[
                 'rounded-full px-2 py-1 font-semibold',
-                larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
+                guestMode || larkConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
               ].join(' ')}
             >
-              {larkConnected ? 'Lark Connected' : 'Lark Not connected'}
+              {guestMode ? 'Guest Connected' : larkConnected ? 'Lark Connected' : 'Lark Not connected'}
             </span>
             <span className={error ? 'text-red-600' : 'text-neutral-500'}>
               {error ? 'Lỗi đồng bộ' : loading ? 'Đang tải…' : lastUpdated ? `Cập nhật: ${lastUpdated.toLocaleTimeString('vi-VN')}` : '—'}
@@ -92,6 +94,17 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
             >
               Làm mới
             </button>
+            {guestMode && onGuestBack && (
+              <button
+                type="button"
+                onClick={onGuestBack}
+                aria-label="Quay lại chọn màn hình khách"
+                title="Quay lại chọn màn hình khách"
+                className="flex h-8 w-8 items-center justify-center rounded border border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
         {error && (

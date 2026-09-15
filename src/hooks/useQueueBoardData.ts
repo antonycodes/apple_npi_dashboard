@@ -17,6 +17,7 @@ import { mapDeskStates } from '@/services/larkMapper';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 import { subscribeDashboardRealtime } from '@/services/dashboardRealtime';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import {
   computeSummary,
   type ClusterKey,
@@ -39,6 +40,14 @@ const EMPTY_SIDEBAR: QueueSidebarState = {
   waitingDispatch: [],
 };
 
+const EMPTY_TABLES: LarkTables = {
+  checkin: [],
+  orders: [],
+  master: [],
+  dispatch: [],
+  dsMaster: [],
+};
+
 export interface UseQueueBoardDataResult {
   /** Chỉ các bàn thuộc `cluster` được yêu cầu, theo đúng thứ tự trong layoutConfig. */
   desks: DeskQueueState[];
@@ -59,10 +68,11 @@ function emptyState(id: string, label: string, cluster: ClusterKey): DeskQueueSt
   return { id, label, cluster, isActive: true, staffName: null, current: [], next: [] };
 }
 
-export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult {
+export function useQueueBoardData(cluster: ClusterKey, guestMode = false): UseQueueBoardDataResult {
   const settings = useLarkSettings();
+  const guestSimulation = useGuestSimulation();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
-  const isMock = cfg.useMock;
+  const isMock = guestMode || cfg.useMock;
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
 
   const [statesById, setStatesById] = useState<Record<string, DeskQueueState>>({});
@@ -78,6 +88,33 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
+
+    if (guestMode) {
+      const tables = guestSimulation?.tables ?? EMPTY_TABLES;
+      const mapped = mapDeskStates(tables, settings.fields);
+      const nextAllDesks: DeskData[] = ALL_POSITIONS.map((position) => ({
+        ...position,
+        isActive: isDeskActive(settings.deskAvailability, position.id),
+        ...(mapped.statesById[position.id] ?? { hasData: false }),
+      }));
+      setStatesById(mapQueueStates(tables, settings.fields, mapped));
+      setAllDesks(nextAllDesks);
+      setRoster(mapped.roster);
+      setSidebar({
+        summary: computeSummary(nextAllDesks, {
+          totalRegistered: mapped.totalRegistered,
+          checkedIn: mapped.totalCheckIn,
+        }),
+        waitingCheckin: mapped.waitingCheckin,
+        waitingDispatch: mapped.waitingDispatch,
+      });
+      setError(null);
+      setLoading(false);
+      setLastUpdated(new Date());
+      return () => {
+        cancelled = true;
+      };
+    }
 
     if (isMock) {
       const mapped = mapDeskStates(mockLarkTables, DEFAULT_FIELD_CONFIG);
@@ -149,7 +186,7 @@ export function useQueueBoardData(cluster: ClusterKey): UseQueueBoardDataResult 
       stopRealtime();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMock, sig, nonce]);
+  }, [guestMode, guestSimulation, isMock, sig, nonce, settings]);
 
   const desks = ALL_POSITIONS.filter((p) => p.cluster === cluster).map(
     (p) => ({

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import DashboardPage from './DashboardPage';
-import StaffPage from './StaffPage';
-import KhoAppPage from './KhoAppPage';
+import QueueBoardPage from './QueueBoardPage';
+import KhoBoardPage from './KhoBoardPage';
 import { GuestSimulationProvider } from '@/guest/GuestSimulationContext';
 import { ALL_POSITIONS, CLUSTER_LABELS } from '@/config/layoutConfig';
-import { useLarkSettings } from '@/config/larkSettings';
+import { toFieldConfig, useLarkSettings } from '@/config/larkSettings';
 
 type GuestMode = 'DP' | 'KHO' | `KHO${number}` | `TV${number}` | `TC${number}` | `BK${number}`;
 
@@ -82,14 +82,14 @@ export default function GuestPage() {
   };
 
   return (
-    <GuestSimulationProvider roomCode={roomCode} role={mode ? `Guest_${mode}` : 'Guest_DP'}>
+    <GuestSimulationProvider fields={toFieldConfig(settings)} roomCode={roomCode} role={mode ? `Guest_${mode}` : 'Guest_DP'}>
       {settings.guestLock ? <GuestLockedScreen /> : selected ? (
         <div className="min-h-full bg-neutral-100">
           {mode === 'DP' && <DashboardPage readOnly simulation onGuestBack={backToGuestModes} />}
-          {mode !== 'DP' && !mode.startsWith('KHO') && (
-            <StaffPage lockedDeskId={`Guest_${mode}`} guestMode onGuestBack={backToGuestModes} />
-          )}
-          {mode.startsWith('KHO') && <KhoAppPage guestMode guestRole={`Guest_${mode}`} onGuestBack={backToGuestModes} />}
+          {mode.startsWith('TV') && <QueueBoardPage cluster="consult" guestMode onGuestBack={backToGuestModes} />}
+          {mode.startsWith('TC') && <QueueBoardPage cluster="tradein" guestMode onGuestBack={backToGuestModes} />}
+          {mode.startsWith('BK') && <QueueBoardPage cluster="backup" guestMode onGuestBack={backToGuestModes} />}
+          {mode.startsWith('KHO') && <KhoBoardPage guestMode onGuestBack={backToGuestModes} />}
         </div>
       ) : (
         <main className="min-h-full bg-neutral-100 px-4 py-8 text-neutral-800 sm:px-6">
