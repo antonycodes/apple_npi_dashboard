@@ -5,6 +5,8 @@ import { fetchTableRecords } from '@/services/larkClient';
 import { cellToString, fieldValue, normalizeDeskCode } from '@/services/larkMapper';
 import type { LarkRecord } from '@/services/larkTypes';
 import type { KhoStaffInfo } from '@/services/khoMapper';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
+import type { WarehouseHandoverRecord } from '@/types/warehouse';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 
@@ -83,12 +85,34 @@ function mapHistory(
     .sort((a, b) => b.time - a.time);
 }
 
+function mapGuestHistory(
+  handovers: WarehouseHandoverRecord[],
+  staffByDesk: Map<string, KhoStaffInfo>,
+): KhoHandoverHistoryItem[] {
+  return handovers
+    .map((item) => ({
+      id: item.id,
+      deskCode: item.deskCode,
+      recipientName: staffByDesk.get(item.deskCode)?.name ?? item.recipientName,
+      submittedBy: item.submittedBy,
+      scanQr: item.scanQr,
+      time: item.time,
+      images: item.images.map((image) => ({
+        fileToken: image.fileToken,
+        name: image.name ?? null,
+        sourceRecordId: item.id,
+      })),
+    }))
+    .sort((a, b) => b.time - a.time);
+}
+
 export function useKhoHandoverHistory(
   staffByDesk: Map<string, KhoStaffInfo>,
   guestMode = false,
   submittedBy?: string,
 ): Result {
   const settings = useLarkSettings();
+  const guestSimulation = useGuestSimulation();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
   const [items, setItems] = useState<KhoHandoverHistoryItem[]>([]);
@@ -105,7 +129,14 @@ export function useKhoHandoverHistory(
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    if (guestMode || cfg.useMock) {
+    if (guestMode) {
+      setItems(mapGuestHistory(guestSimulation?.handovers ?? [], staffByDesk));
+      setLoading(false);
+      setError(null);
+      setLastUpdated(new Date());
+      return () => { cancelled = true; };
+    }
+    if (cfg.useMock) {
       setItems(mapHistory(mockLarkTables.master, staffByDesk, submittedByFilter));
       setLoading(false);
       setError(null);
@@ -131,7 +162,7 @@ export function useKhoHandoverHistory(
     }
     const stop = startSerializedPolling(load, cfg.pollMs, () => cancelled);
     return () => { cancelled = true; controller.abort(); stop(); };
-  }, [cfg, guestMode, sig, nonce, staffByDesk, submittedByFilter]);
+  }, [cfg, guestMode, guestSimulation, sig, nonce, staffByDesk, submittedByFilter]);
 
   return { items, loading, error, lastUpdated, refresh };
 }

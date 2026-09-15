@@ -724,6 +724,7 @@ export default function StaffDeskScreen({
                   })),
                 }
               : undefined,
+            values.khachKhongDongYGiaThuCu,
           );
         } else guestSimulation?.receive(stt, view.cluster, view.id);
         setFormAction(null);

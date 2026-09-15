@@ -39,3 +39,14 @@ export interface WarehouseInboxOrder {
   deletedAt?: number;
   deletedBy?: string;
 }
+
+/** Lượt bàn giao máy trong phòng Guest; không ghi vào Lark Base. */
+export interface WarehouseHandoverRecord {
+  id: string;
+  deskCode: string;
+  recipientName: string | null;
+  submittedBy: string | null;
+  scanQr: string;
+  time: number;
+  images: Array<{ fileToken: string; name?: string }>;
+}

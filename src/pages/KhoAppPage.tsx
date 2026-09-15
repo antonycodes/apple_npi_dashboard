@@ -24,6 +24,7 @@ import { useKhoHandoverData } from '@/hooks/useKhoHandoverData';
 import { useKhoHandoverHistory } from '@/hooks/useKhoHandoverHistory';
 import { staffActionWebhookUrl, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
+import { uploadGuestImage } from '@/services/guestMedia';
 import { sendStaffAction } from '@/services/staffActionWebhook';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
@@ -94,7 +95,31 @@ export default function KhoAppPage({
     setSending(true);
     try {
       if (guestMode) {
+        if (!guestSimulation?.roomCode) throw new Error('Phòng mô phỏng chưa kết nối. Hãy mở Guest Điều phối trước.');
+        const images: Array<{ fileToken: string; name?: string }> = [];
+        for (const [index, file] of values.anh.entries()) {
+          try {
+            const uploaded = await uploadGuestImage(guestSimulation.roomCode, file);
+            images.push({ fileToken: uploaded.fileToken, name: uploaded.name });
+          } catch (err) {
+            throw new Error(
+              `Upload ảnh ${index + 1}/${values.anh.length} thất bại: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            );
+          }
+        }
+        const staff = staffByDesk.get(values.deskCode);
+        const saved = await guestSimulation.recordHandover({
+          deskCode: values.deskCode,
+          recipientName: staff?.name ?? null,
+          submittedBy: claimedMsnv,
+          scanQr: values.scanQr,
+          images,
+        });
+        if (!saved) throw new Error('Không thể lưu lượt bàn giao vào phòng mô phỏng.');
         setOkMessage(`Thành công · mô phỏng bàn giao cho ${values.deskCode}.`);
+        handoverHistory.refresh();
         setSending(false);
         return;
       }

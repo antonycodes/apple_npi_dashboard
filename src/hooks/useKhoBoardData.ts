@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ALL_POSITIONS } from '@/config/layoutConfig';
-import { DEFAULT_FIELD_CONFIG, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
+import { DEFAULT_FIELD_CONFIG, toFieldConfig, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { mockLarkTables } from '@/data/mockLarkData';
 import { fetchLarkData } from '@/services/larkService';
 import type { LarkTables } from '@/services/larkTypes';
@@ -16,6 +16,7 @@ import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 import { subscribeDashboardRealtime } from '@/services/dashboardRealtime';
 import type { ClusterKey } from '@/types/desk';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 
 export interface UseKhoBoardDataResult {
   desks: DeskKhoState[];
@@ -38,6 +39,7 @@ function emptyState(id: string, label: string, cluster: ClusterKey): DeskKhoStat
  */
 export function useKhoBoardData(cluster?: ClusterKey, enabled = true, guestMode = false): UseKhoBoardDataResult {
   const settings = useLarkSettings();
+  const guestSimulation = useGuestSimulation();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
   const isMock = guestMode || cfg.useMock;
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
@@ -60,6 +62,20 @@ export function useKhoBoardData(cluster?: ClusterKey, enabled = true, guestMode 
 
     if (!enabled) {
       setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (guestMode) {
+      const tables = guestSimulation?.tables;
+      setSnapshot({
+        states: tables ? mapKhoStates(tables, toFieldConfig(settings)) : {},
+        fromMock: true,
+      });
+      setError(null);
+      setLoading(false);
+      setLastUpdated(new Date());
       return () => {
         cancelled = true;
       };
@@ -103,7 +119,7 @@ export function useKhoBoardData(cluster?: ClusterKey, enabled = true, guestMode 
       stopRealtime();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMock, sig, nonce, enabled]);
+  }, [guestMode, guestSimulation, isMock, sig, nonce, enabled, settings]);
 
   const khopCheDo = snapshot.fromMock === isMock;
   const statesById = khopCheDo ? snapshot.states : {};

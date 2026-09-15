@@ -47,6 +47,20 @@ const ROLE_GROUPS = [
   { label: 'Backup', items: DESK_ROLES.filter((item) => item.id.startsWith('BK')) },
 ];
 
+function persistGuestMode(mode: GuestMode) {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('role', `Guest_${mode}`);
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+function clearGuestMode() {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('role');
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
 export default function GuestPage() {
   const settings = useLarkSettings();
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -58,16 +72,24 @@ export default function GuestPage() {
     'Màn hình chính': true,
   });
   const selected = mode !== null;
+  const chooseMode = (nextMode: GuestMode) => {
+    setMode(nextMode);
+    persistGuestMode(nextMode);
+  };
+  const backToGuestModes = () => {
+    setMode(null);
+    clearGuestMode();
+  };
 
   return (
-    <GuestSimulationProvider roomCode={roomCode} role={initialMode ? `Guest_${initialMode}` : 'Guest_DP'}>
+    <GuestSimulationProvider roomCode={roomCode} role={mode ? `Guest_${mode}` : 'Guest_DP'}>
       {settings.guestLock ? <GuestLockedScreen /> : selected ? (
         <div className="min-h-full bg-neutral-100">
-          {mode === 'DP' && <DashboardPage readOnly simulation onGuestBack={() => setMode(null)} />}
+          {mode === 'DP' && <DashboardPage readOnly simulation onGuestBack={backToGuestModes} />}
           {mode !== 'DP' && !mode.startsWith('KHO') && (
-            <StaffPage lockedDeskId={`Guest_${mode}`} guestMode onGuestBack={() => setMode(null)} />
+            <StaffPage lockedDeskId={`Guest_${mode}`} guestMode onGuestBack={backToGuestModes} />
           )}
-          {mode.startsWith('KHO') && <KhoAppPage guestMode guestRole={`Guest_${mode}`} onGuestBack={() => setMode(null)} />}
+          {mode.startsWith('KHO') && <KhoAppPage guestMode guestRole={`Guest_${mode}`} onGuestBack={backToGuestModes} />}
         </div>
       ) : (
         <main className="min-h-full bg-neutral-100 px-4 py-8 text-neutral-800 sm:px-6">
@@ -100,7 +122,7 @@ export default function GuestPage() {
                       <button
                         key={item.id}
                         type="button"
-                        onClick={() => setMode(item.id)}
+                        onClick={() => chooseMode(item.id)}
                         className="flex min-h-16 items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-left transition hover:border-brand hover:bg-brand/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                       >
                         <span className="min-w-0">

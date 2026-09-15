@@ -1665,6 +1665,7 @@ export class GuestSimulationRoom extends DurableObject {
         alerts: [],
         orderClaims: {},
         orders: [],
+        handovers: [],
         participants: [],
         createdAt: Date.now(),
         expiresAt: Date.now() + GUEST_ROOM_TTL_MS,
@@ -1727,6 +1728,7 @@ export class GuestSimulationRoom extends DurableObject {
       const action = String(body?.action || '').trim();
       const checkBackup = body?.checkBackup === 'Có' || body?.checkBackup === 'Không' ? body.checkBackup : null;
       const thuLaiMay = body?.thuLaiMay === 'Thu máy ngay' || body?.thuLaiMay === 'Thu máy sau' ? body.thuLaiMay : null;
+      const khachKhongDongYGiaThuCu = body?.khachKhongDongYGiaThuCu === true || body?.khachKhongDongYGiaThuCu === 'true';
       const scanQr = typeof body?.scanQr === 'string' ? body.scanQr.trim().slice(0, 200) : null;
       const imei = typeof body?.imei === 'string' ? body.imei.trim().slice(0, 80) : null;
       let hinhNghiemThu = null;
@@ -1754,7 +1756,11 @@ export class GuestSimulationRoom extends DurableObject {
       if (typeof body?.order === 'string') {
         try { sentOrder = JSON.parse(body.order); } catch { sentOrder = null; }
       }
-      if (!stage || !deskId || !['dispatch', 'receive', 'complete', 'device', 'help', 'help-clear', 'claim-order', 'claim-orders', 'send-order'].includes(action)) {
+      let handover = null;
+      if (typeof body?.handover === 'string') {
+        try { handover = JSON.parse(body.handover); } catch { handover = null; }
+      }
+      if (!stage || !deskId || !['dispatch', 'receive', 'complete', 'device', 'help', 'help-ack', 'help-clear', 'claim-order', 'claim-orders', 'send-order', 'handover'].includes(action)) {
         return json({ code: -1, msg: 'Guest room action không hợp lệ.' }, 400);
       }
       if (action === 'send-order') {
@@ -1776,6 +1782,30 @@ export class GuestSimulationRoom extends DurableObject {
           customerName: sentOrder?.customerName ? String(sentOrder.customerName).trim().slice(0, 160) : null,
           sentBy: String(sentOrder?.sentBy || 'Tư vấn').trim().slice(0, 120),
           createdAt: Date.now(),
+        }].slice(-200);
+      } else if (action === 'handover') {
+        const deskCode = typeof handover?.deskCode === 'string' ? handover.deskCode.trim().slice(0, 40) : '';
+        const scanQrValue = typeof handover?.scanQr === 'string' ? handover.scanQr.trim().slice(0, 200) : '';
+        const submittedBy = typeof handover?.submittedBy === 'string' ? handover.submittedBy.trim().slice(0, 120) : '';
+        const recipientName = typeof handover?.recipientName === 'string' ? handover.recipientName.trim().slice(0, 160) : null;
+        const tokenPrefix = `guest-r2:${this.state.roomCode}:`;
+        const images = Array.isArray(handover?.images)
+          ? handover.images.slice(0, 3).map((image) => ({
+              fileToken: typeof image?.fileToken === 'string' ? image.fileToken.trim().slice(0, 180) : '',
+              name: typeof image?.name === 'string' ? image.name.trim().slice(0, 120) : undefined,
+            })).filter((image) => image.fileToken.startsWith(tokenPrefix))
+          : [];
+        if (!deskCode || !scanQrValue || !images.length) {
+          return json({ code: -1, msg: 'Guest bàn giao thiếu mã bàn, QR hoặc ảnh nghiệm thu.' }, 400);
+        }
+        this.state.handovers = [...(this.state.handovers || []), {
+          id: crypto.randomUUID(),
+          deskCode,
+          recipientName,
+          submittedBy: submittedBy || null,
+          scanQr: scanQrValue,
+          time: Date.now(),
+          images,
         }].slice(-200);
       } else if (action === 'claim-orders') {
         const validOrders = Array.isArray(orders) ? orders.filter((item) => item && typeof item.orderCode === 'string') : [];
@@ -1838,6 +1868,8 @@ export class GuestSimulationRoom extends DurableObject {
               acknowledgedByMsnv: String(body?.acknowledgedByMsnv || '').trim() || null,
             }
           : item);
+      } else if (action === 'help-clear') {
+        this.state.alerts = (this.state.alerts || []).filter((item) => item.deskId !== deskId);
       } else if (action === 'dispatch') {
         this.state.assignments = this.state.assignments.filter(
           (item) => !(item.stt === stt && item.stage === stage && item.status === 'waiting'),
@@ -1885,6 +1917,7 @@ export class GuestSimulationRoom extends DurableObject {
                 at: Date.now(),
                 ...(checkBackup ? { checkBackup } : {}),
                 ...(thuLaiMay ? { thuLaiMay } : {}),
+                ...(khachKhongDongYGiaThuCu ? { khachKhongDongYGiaThuCu: true } : {}),
                 ...(scanQr ? { scanQr } : {}),
                 ...(imei ? { imei } : {}),
                 ...(hinhNghiemThu?.length ? { hinhNghiemThu } : {}),
@@ -1905,12 +1938,21 @@ export class GuestSimulationRoom extends DurableObject {
             if (backupKey) checkinRow.fields[backupKey] = backupValue;
             if (backupStatusKey) checkinRow.fields[backupStatusKey] = backupValue;
           }
-          const row = checkinRow;
+        }
+        if (action === 'complete' && thuLaiMay === 'Thu máy ngay') {
+          const checkinRow = this.state.baseTables.checkin.find((row) => Object.entries(row.fields).some(([key, value]) => key.trim().toLowerCase() === 'stt' && guestCellText(value) === stt));
+          if (checkinRow) {
+            const acceptedKey = Object.keys(checkinRow.fields).find((key) => key.trim().toLowerCase() === 'check nghiệm thu');
+            if (acceptedKey) checkinRow.fields[acceptedKey] = incrementGuestNghiemThu(checkinRow.fields[acceptedKey]);
+          }
+        }
+        if (action === 'complete') {
+          const row = this.state.baseTables.checkin.find((candidate) => Object.entries(candidate.fields).some(([key, value]) => key.trim().toLowerCase() === 'stt' && guestCellText(value) === stt));
           if (row) {
             const oldDeviceKey = Object.keys(row.fields).find((key) => key.toLowerCase().includes('thu cũ check') || key.toLowerCase().includes('thu cu check'));
             const backupKey = Object.keys(row.fields).find((key) => key.toLowerCase().includes('backup check'));
-            const oldDevice = oldDeviceKey ? String(row.fields[oldDeviceKey] ?? '').toLowerCase() : '';
-            const backup = backupKey ? String(row.fields[backupKey] ?? '').toLowerCase() : checkBackup.toLowerCase();
+            const oldDevice = oldDeviceKey ? guestCellText(row.fields[oldDeviceKey]).toLowerCase() : '';
+            const backup = backupKey ? guestCellText(row.fields[backupKey]).toLowerCase() : '';
             const completed = new Set(this.state.assignments.filter((item) => item.stt === stt && item.status === 'completed').map((item) => item.stage));
             const ready = completed.has('consult')
               && (!(oldDevice.includes('có') || oldDevice.includes('thu cũ') || oldDevice.includes('thu cu')) || completed.has('tradein'))
@@ -1919,13 +1961,6 @@ export class GuestSimulationRoom extends DurableObject {
               const endFlowKey = Object.keys(row.fields).find((key) => key.toLowerCase().includes('end flow'));
               if (endFlowKey) row.fields[endFlowKey] = 'End flow';
             }
-          }
-        }
-        if (action === 'complete' && thuLaiMay === 'Thu máy ngay') {
-          const checkinRow = this.state.baseTables.checkin.find((row) => Object.entries(row.fields).some(([key, value]) => key.trim().toLowerCase() === 'stt' && guestCellText(value) === stt));
-          if (checkinRow) {
-            const acceptedKey = Object.keys(checkinRow.fields).find((key) => key.trim().toLowerCase() === 'check nghiệm thu');
-            if (acceptedKey) checkinRow.fields[acceptedKey] = incrementGuestNghiemThu(checkinRow.fields[acceptedKey]);
           }
         }
       }

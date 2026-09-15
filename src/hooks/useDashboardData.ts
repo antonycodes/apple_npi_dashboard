@@ -95,14 +95,29 @@ function guestTables(tables: LarkTables, fields = DEFAULT_FIELD_CONFIG): LarkTab
     })
     .slice(0, 10);
 
-  // Chỉ đưa 10 khách Check-in vào bản mô phỏng. Không đưa Master/Dispatch/DS
-  // Master vào để sơ đồ bàn và các khâu thật không lộ dữ liệu vận hành.
+  const guestRoster = ALL_POSITIONS
+    .filter((position) => position.cluster === 'consult' || position.cluster === 'tradein')
+    .map((position) => ({
+      record_id: `guest_roster_${position.id}`,
+      fields: {
+        [fields.dsMaster.code]: position.id,
+        [fields.dsMaster.staff]: `Guest ${position.id}`,
+        [fields.dsMaster.staffId]: `Guest_${position.id}`,
+        [fields.dsMaster.loai]: position.cluster === 'tradein' ? 'Thu cũ' : 'Tư vấn',
+        [fields.dsMaster.nextStt]: null,
+        [fields.dsMaster.waitingCount]: 0,
+      },
+    }));
+
+  // Chỉ đưa 10 khách Check-in vào bản mô phỏng. Dùng roster an toàn của các
+  // mã bàn thay vì roster thật, để form Guest vẫn có cùng hành vi tra bàn mà
+  // không làm lộ danh sách nhân sự vận hành.
   return {
     checkin: candidates,
     orders: candidates,
     master: [],
     dispatch: [],
-    dsMaster: [],
+    dsMaster: guestRoster,
   };
 }
 

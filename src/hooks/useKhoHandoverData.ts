@@ -9,11 +9,13 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_FIELD_CONFIG, toFieldConfig, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
+import { ALL_POSITIONS } from '@/config/layoutConfig';
 import { mockLarkTables } from '@/data/mockLarkData';
 import { fetchTableRecords } from '@/services/larkClient';
 import { indexStaffByDesk, type KhoStaffInfo } from '@/services/khoMapper';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 
 export interface UseKhoHandoverDataResult {
   /** Mã bàn (vd "TV4") → nhân sự đang đứng bàn đó. */
@@ -45,6 +47,7 @@ interface StaffSnapshot {
 
 export function useKhoHandoverData(guestMode = false): UseKhoHandoverDataResult {
   const settings = useLarkSettings();
+  const guestSimulation = useGuestSimulation();
   const cfg = useMemo(() => toRuntimeConfig(settings), [settings]);
   const isMock = guestMode || cfg.useMock;
   const sig = useMemo(() => JSON.stringify(settings), [settings]);
@@ -59,6 +62,29 @@ export function useKhoHandoverData(guestMode = false): UseKhoHandoverDataResult 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
+
+    if (guestMode) {
+      const guestRows = guestSimulation?.tables.dsMaster ?? [];
+      const guestStaff = guestRows.length
+        ? indexStaffByDesk(guestRows, toFieldConfig(settings).dsMaster)
+        : new Map(
+            ALL_POSITIONS
+              .filter((position) => position.cluster === 'consult')
+              .map((position) => [position.id, {
+                desk: position.id,
+                name: settings.guestUsers[position.id]?.trim() || `Guest ${position.id}`,
+                msnv: `Guest_${position.id}`,
+                loai: 'Tư vấn',
+              } satisfies KhoStaffInfo]),
+          );
+      setSnapshot({ map: guestStaff, fromMock: true });
+      setError(null);
+      setLoading(false);
+      setLastUpdated(new Date());
+      return () => {
+        cancelled = true;
+      };
+    }
 
     if (isMock) {
       setSnapshot({
@@ -103,7 +129,7 @@ export function useKhoHandoverData(guestMode = false): UseKhoHandoverDataResult 
       stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMock, sig, nonce]);
+  }, [guestMode, guestSimulation, isMock, sig, nonce, settings]);
 
   // Dữ liệu sinh ra ở chế độ khác chế độ hiện tại thì coi như CHƯA CÓ, kèm
   // `loading` để UI nói "đang tải" thay vì kết luận sai là bàn không tồn tại.
