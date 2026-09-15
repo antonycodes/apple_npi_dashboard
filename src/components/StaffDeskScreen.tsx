@@ -26,12 +26,13 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import ProductList from './ProductList';
-import { staffActionWebhookUrl, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
+import { dispatchWebhookUrl, staffActionWebhookUrl, toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import { formatElapsed, staffTimerStore, useStaffTimers, type TimerEntry } from '@/config/staffTimers';
 import { uploadNghiemThuImage } from '@/services/larkUpload';
 import { uploadGuestImage } from '@/services/guestMedia';
 import { sendStaffAction } from '@/services/staffActionWebhook';
+import { sendDispatchForm } from '@/services/dispatchWebhook';
 import type { PrevImage, StaffCustomer, StaffDeskView } from '@/services/staffMapper';
 import StaffReceiveFormModal, { type ReceiveFormValues } from './StaffReceiveFormModal';
 import ThuMayModal, { type ThuMayValues } from './ThuMayModal';
@@ -843,6 +844,43 @@ export default function StaffDeskScreen({
     }
   };
 
+  const submitCustomerChangedMind = async (values: ReceiveFormValues): Promise<boolean> => {
+    if (sending) return false;
+    setActionError(null);
+    setSending(true);
+    try {
+      if (simulation) {
+        setFormAction(null);
+        setFormCustomer(null);
+        setSimulationMessage(`Đã ghi nhận mô phỏng · STT ${values.stt.trim()} không thu cũ nữa.`);
+        return true;
+      }
+
+      const submitter = submitByMsnv || view.staffId?.trim() || '';
+      await sendDispatchForm(dispatchWebhookUrl(settings), {
+        stt: values.stt.trim(),
+        phanLoai: '',
+        maBan: '',
+        nhanSu: '',
+        msnv: '',
+        thoiGian: new Date().toISOString(),
+        dieuPhoiId: submitter || view.id,
+        dieuPhoiTen: view.staffName ?? '',
+        dieuPhoiViTri: view.id,
+        submitBy: submitter,
+        khachDoiY: 'Không thu cũ nữa',
+      });
+      setFormAction(null);
+      setFormCustomer(null);
+      return true;
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+      return false;
+    } finally {
+      setSending(false);
+    }
+  };
+
   const openQuickReceive = () => {
     if (deskLocked) return;
     setQuickReceiveError(null);
@@ -1311,6 +1349,9 @@ export default function StaffDeskScreen({
           busy={sending}
           error={actionError}
           onSubmit={(values) => void submitAction(values)}
+          onCustomerChangedMind={view.cluster === 'tradein' && formAction === 'hoan_tat'
+            ? submitCustomerChangedMind
+            : undefined}
           onClose={() => {
             if (sending) return;
             setFormAction(null);

@@ -14,7 +14,7 @@
  * Layout điện thoại: sheet trượt từ đáy, chiếm tối đa 92% chiều cao, nội dung
  * cuộn được, nút hành động dính đáy trong tầm ngón cái + chừa safe area.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import QrScanButton from '@/components/QrScanButton';
 import SerialScanButton from '@/components/SerialScanButton';
 import { workerBaseUrl } from '@/services/adminApi';
@@ -59,6 +59,7 @@ export default function StaffReceiveFormModal({
   busy,
   error,
   onSubmit,
+  onCustomerChangedMind,
   onClose,
 }: {
   /** Khách kế tiếp — dùng cho phần đối chiếu read-only. */
@@ -71,34 +72,56 @@ export default function StaffReceiveFormModal({
   busy: boolean;
   error: string | null;
   onSubmit: (values: ReceiveFormValues) => void;
+  onCustomerChangedMind?: (values: ReceiveFormValues) => Promise<boolean>;
   onClose: () => void;
 }) {
   const [values, setValues] = useState<ReceiveFormValues>(defaults);
   const [staffDetailsOpen, setStaffDetailsOpen] = useState(false);
+  const [customerChangedMind, setCustomerChangedMind] = useState(false);
+  const [changeMindConfirmOpen, setChangeMindConfirmOpen] = useState(false);
+  const [changeMindProgress, setChangeMindProgress] = useState(0);
+  const [changeMindSending, setChangeMindSending] = useState(false);
+  const changeMindProgressRef = useRef(0);
+  const changeMindReleaseTimer = useRef<number | null>(null);
   const set = <K extends keyof ReceiveFormValues>(key: K, v: ReceiveFormValues[K]) =>
     setValues((p) => ({ ...p, [key]: v }));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || busy) return;
+      if (changeMindConfirmOpen) {
+        setChangeMindConfirmOpen(false);
+        return;
+      }
       onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [busy, onClose]);
+  }, [busy, changeMindConfirmOpen, onClose]);
+
+  useEffect(() => () => {
+    if (changeMindReleaseTimer.current !== null) window.clearTimeout(changeMindReleaseTimer.current);
+  }, []);
 
   // Khi chưa đánh dấu khách cân nhắc giá, giữ nguyên đầy đủ luồng cũ.
   // Đánh dấu sẽ ẩn toàn bộ lựa chọn Backup/thu máy và phần nhập máy.
-  const showBackupCheck = action === 'hoan_tat' && cluster !== 'backup' && !values.khachKhongDongYGiaThuCu;
+  const showBackupCheck = action === 'hoan_tat'
+    && cluster !== 'backup'
+    && !values.khachKhongDongYGiaThuCu
+    && !customerChangedMind;
   const showThuLaiMay = action === 'hoan_tat'
     && (cluster === 'tradein' || cluster === 'backup')
-    && !values.khachKhongDongYGiaThuCu;
+    && !values.khachKhongDongYGiaThuCu
+    && !customerChangedMind;
   const thuLaiMayOptions = cluster === 'backup'
     ? (['Thu máy ngay'] as const)
     : (['Thu máy ngay', 'Thu máy sau'] as const);
   // 3 field chỉ bung ra sau khi chọn một option.
   const showPriceConsideration = action === 'hoan_tat' && cluster === 'tradein';
-  const showDeviceFields = showThuLaiMay && values.thuLaiMay.length > 0 && !values.khachKhongDongYGiaThuCu;
+  const showDeviceFields = showThuLaiMay
+    && values.thuLaiMay.length > 0
+    && !values.khachKhongDongYGiaThuCu
+    && !customerChangedMind;
   const deviceImageCount = values.anhGiuLai.length + values.hinhNghiemThu.length;
   const missingDeviceEvidence = showDeviceFields
     ? [
@@ -118,6 +141,45 @@ export default function StaffReceiveFormModal({
     (!showBackupCheck || values.checkBackup.length > 0) &&
     missingDeviceEvidence.length === 0 &&
     !busy;
+
+  const openChangeMindConfirmation = () => {
+    changeMindProgressRef.current = 0;
+    setChangeMindProgress(0);
+    setChangeMindConfirmOpen(true);
+  };
+
+  const updateChangeMindProgress = (value: number) => {
+    const next = Math.max(0, Math.min(100, value));
+    changeMindProgressRef.current = next;
+    setChangeMindProgress(next);
+  };
+
+  const updateChangeMindProgressFromPointer = (clientX: number, element: HTMLDivElement) => {
+    const rect = element.getBoundingClientRect();
+    if (!rect.width) return;
+    updateChangeMindProgress(((clientX - rect.left) / rect.width) * 100);
+  };
+
+  const releaseChangeMindConfirmation = () => {
+    if (changeMindSending) return;
+    if (changeMindProgressRef.current < 85) {
+      changeMindProgressRef.current = 0;
+      setChangeMindProgress(0);
+      return;
+    }
+
+    changeMindProgressRef.current = 100;
+    setChangeMindProgress(100);
+    setChangeMindSending(true);
+    changeMindReleaseTimer.current = window.setTimeout(async () => {
+      const sent = onCustomerChangedMind ? await onCustomerChangedMind(values) : false;
+      setChangeMindSending(false);
+      changeMindProgressRef.current = 0;
+      setChangeMindProgress(0);
+      if (sent) setChangeMindConfirmOpen(false);
+      changeMindReleaseTimer.current = null;
+    }, 180);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" role="dialog" aria-modal="true">
@@ -196,31 +258,57 @@ export default function StaffReceiveFormModal({
           )}
 
           {showPriceConsideration && (
-            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2">
-              <input
-                type="checkbox"
-                checked={values.khachKhongDongYGiaThuCu}
-                onChange={(event) => {
-                  const checked = event.target.checked;
-                  setValues((current) => ({
-                    ...current,
-                    khachKhongDongYGiaThuCu: checked,
-                    ...(checked
-                      ? {
-                          checkBackup: '',
-                          thuLaiMay: '',
-                          hinhNghiemThu: [],
-                          anhGiuLai: [],
-                          scanQr: '',
-                          imei: '',
-                        }
-                      : {}),
-                  }));
+            <div className="space-y-2">
+              <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={values.khachKhongDongYGiaThuCu}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setCustomerChangedMind(false);
+                    setValues((current) => ({
+                      ...current,
+                      khachKhongDongYGiaThuCu: checked,
+                      ...(checked
+                        ? {
+                            checkBackup: '',
+                            thuLaiMay: '',
+                            hinhNghiemThu: [],
+                            anhGiuLai: [],
+                            scanQr: '',
+                            imei: '',
+                          }
+                        : {}),
+                    }));
+                  }}
+                  className="h-5 w-5 accent-emerald-600"
+                />
+                <span className="text-sm font-semibold text-neutral-700">Khách cân nhắc giá thu cũ</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !customerChangedMind;
+                  setCustomerChangedMind(next);
+                  if (next) {
+                    setValues((current) => ({
+                      ...current,
+                      khachKhongDongYGiaThuCu: false,
+                      checkBackup: '',
+                      thuLaiMay: '',
+                      hinhNghiemThu: [],
+                      anhGiuLai: [],
+                      scanQr: '',
+                      imei: '',
+                    }));
+                  }
                 }}
-                className="h-5 w-5 accent-emerald-600"
-              />
-              <span className="text-sm font-semibold text-neutral-700">Khách cân nhắc giá thu cũ</span>
-            </label>
+                aria-pressed={customerChangedMind}
+                className={`min-h-11 w-full rounded-xl border px-3 py-2 text-left text-sm font-bold transition-[background-color,border-color,color] active:scale-[0.98] ${customerChangedMind ? 'border-red-600 bg-red-600 text-white' : 'border-red-200 bg-red-50 text-red-700'}`}
+              >
+                Khách đổi ý không thu cũ nữa
+              </button>
+            </div>
           )}
 
           {/* 3 field máy thu cũ — đủ cả ảnh, QR và Serial mới được Hoàn tất. */}
@@ -330,15 +418,106 @@ export default function StaffReceiveFormModal({
           <button
             type="button"
             onClick={() => {
-              onSubmit(values);
+              if (customerChangedMind) openChangeMindConfirmation();
+              else onSubmit(values);
             }}
-            disabled={!canSubmit}
-            className={`min-h-[56px] flex-[2] rounded-2xl text-base font-bold text-white shadow-sm active:opacity-80 disabled:bg-neutral-200 disabled:text-neutral-900 ${action === 'tiep_nhan' ? 'bg-emerald-600' : 'bg-red-600'}`}
+            disabled={!canSubmit || (customerChangedMind && !onCustomerChangedMind)}
+            className={`min-h-[56px] flex-[2] rounded-2xl text-base font-bold text-white shadow-sm active:opacity-80 disabled:bg-neutral-200 disabled:text-neutral-700 ${action === 'tiep_nhan' ? 'bg-emerald-600' : 'bg-red-600'}`}
           >
-            {busy ? 'Đang gửi…' : action === 'tiep_nhan' ? 'Gửi Tiếp nhận' : 'Gửi Hoàn tất'}
+            {busy || changeMindSending
+              ? 'Đang gửi…'
+              : customerChangedMind
+                ? 'Gửi khách đổi ý'
+                : action === 'tiep_nhan'
+                  ? 'Gửi Tiếp nhận'
+                  : 'Gửi Hoàn tất'}
           </button>
         </div>
       </div>
+
+      {changeMindConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xác nhận khách đổi ý"
+          onClick={() => {
+            if (!changeMindSending) setChangeMindConfirmOpen(false);
+          }}
+        >
+          <div className="w-full max-w-[430px] rounded-2xl bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Khách đổi ý</p>
+                <h3 className="mt-1 text-xl font-bold text-neutral-900">Xác nhận thao tác</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChangeMindConfirmOpen(false)}
+                disabled={changeMindSending}
+                aria-label="Hủy xác nhận"
+                className="flex h-10 w-10 items-center justify-center rounded-xl text-2xl leading-none text-neutral-400 active:bg-neutral-100 disabled:opacity-40"
+              >
+                ×
+              </button>
+            </div>
+            <div className="mt-5 flex items-center gap-3 rounded-xl bg-neutral-100 px-4 py-3">
+              <span className="text-sm font-semibold text-neutral-500">STT {values.stt || '—'}</span>
+              <span className="h-1 w-1 rounded-full bg-neutral-400" aria-hidden="true" />
+              <span className="text-sm font-semibold text-neutral-700">Không thu cũ nữa</span>
+            </div>
+            <div className="mt-6">
+              <label htmlFor="staff-change-mind-slider" className="sr-only">
+                Kéo để xác nhận khách đồng ý thay đổi
+              </label>
+              <div
+                className="relative touch-none select-none"
+                onPointerDown={(event) => {
+                  if (changeMindSending) return;
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  updateChangeMindProgressFromPointer(event.clientX, event.currentTarget);
+                }}
+                onPointerMove={(event) => {
+                  if (!event.currentTarget.hasPointerCapture(event.pointerId) || changeMindSending) return;
+                  updateChangeMindProgressFromPointer(event.clientX, event.currentTarget);
+                }}
+                onPointerUp={(event) => {
+                  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+                  releaseChangeMindConfirmation();
+                }}
+                onPointerCancel={(event) => {
+                  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+                  changeMindProgressRef.current = 0;
+                  setChangeMindProgress(0);
+                }}
+              >
+                <input
+                  id="staff-change-mind-slider"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={changeMindProgress}
+                  disabled={changeMindSending}
+                  onChange={(event) => updateChangeMindProgress(Number(event.target.value))}
+                  onKeyUp={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') releaseChangeMindConfirmation();
+                  }}
+                  aria-valuetext={changeMindSending ? 'Đang gửi về Lark' : 'Chưa xác nhận'}
+                  className="h-14 w-full appearance-none rounded-xl bg-red-700 accent-red-500"
+                />
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-semibold text-white">
+                  {changeMindSending ? 'Đang gửi về Lark…' : 'Kéo để xác nhận'}
+                </span>
+              </div>
+            </div>
+            {error && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">✗ {error}</p>}
+            <p className="mt-3 text-xs leading-5 text-neutral-500">
+              Thao tác này sẽ ghi `Không thu cũ nữa` vào Master Điều phối.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
