@@ -113,6 +113,8 @@ export interface MasterFieldMap {
   hinhNghiemThu: string;
   /** Checkbox khách chưa đồng ý giá thu cũ. */
   khachKhongDongYGiaThuCu: string;
+  /** Checkbox xác nhận đã xóa iCloud và dữ liệu khách. */
+  daXoaICloudVaDuLieuKhach: string;
 }
 
 /**
@@ -215,6 +217,7 @@ export const DEFAULT_MASTER_FIELDS: MasterFieldMap = {
   imei: 'Scan IMEI',
   hinhNghiemThu: 'Hình nghiệm thu máy cũ',
   khachKhongDongYGiaThuCu: 'Khách không đồng ý giá thu cũ',
+  daXoaICloudVaDuLieuKhach: 'Đã xóa iCloud và dữ liệu khách',
 };
 
 export const DEFAULT_DISPATCH_FIELDS: DispatchFieldMap = {

@@ -135,6 +135,11 @@ export default function QueueBoardPage({ cluster, guestMode = false, onGuestBack
         <DispatchFormModal
           desks={allDesks}
           roster={roster}
+          customerLookup={[
+            ...waitingCheckin,
+            ...waitingDispatch,
+            ...allDesks.flatMap((desk) => desk.receivedCustomers ?? []),
+          ]}
           initialStt={dispatchStt}
           onClose={() => setShowDispatchForm(false)}
           canSendSms={canSendSms(session)}

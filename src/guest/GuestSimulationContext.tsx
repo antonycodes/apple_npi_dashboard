@@ -22,6 +22,7 @@ interface Assignment {
   imei?: string;
   hinhNghiemThu?: Array<{ file_token: string; name?: string }>;
   khachKhongDongYGiaThuCu?: boolean;
+  daXoaICloudVaDuLieuKhach?: boolean;
 }
 
 interface GuestDeviceData {
@@ -39,7 +40,7 @@ interface GuestSimulationValue {
   seed: (tables: LarkTables) => LarkTables;
   dispatch: (stt: string, stage: ClusterKey, deskId: string) => void;
   receive: (stt: string, stage: ClusterKey, deskId?: string) => void;
-  complete: (stt: string, stage: ClusterKey, checkBackup?: 'Có' | 'Không', thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau', device?: GuestDeviceData, khachKhongDongYGiaThuCu?: boolean) => void;
+  complete: (stt: string, stage: ClusterKey, checkBackup?: 'Có' | 'Không', thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau', device?: GuestDeviceData, khachKhongDongYGiaThuCu?: boolean, daXoaICloudVaDuLieuKhach?: boolean) => void;
   quickDevice: (stt: string, stage: ClusterKey, deskId?: string, device?: GuestDeviceData) => void;
   callCoordinator: (deskId: string, role: string, stt: string | null, customerName: string | null) => void;
   acknowledgeCoordinatorAlert: (deskId: string) => void;
@@ -116,6 +117,7 @@ function buildTables(base: LarkTables, assignments: Assignment[], fields: FieldC
       ...(item.imei ? { [fields.master.imei]: item.imei } : {}),
       ...(item.hinhNghiemThu?.length ? { [fields.master.hinhNghiemThu]: item.hinhNghiemThu } : {}),
       ...(item.khachKhongDongYGiaThuCu ? { [fields.master.khachKhongDongYGiaThuCu]: true } : {}),
+      ...(item.daXoaICloudVaDuLieuKhach ? { [fields.master.daXoaICloudVaDuLieuKhach]: true } : {}),
     }));
   });
 
@@ -417,7 +419,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         setAssignments(nextAssignments);
         void postAction('receive', stt, stage, deskId);
       },
-      complete(stt, stage, checkBackup, thuLaiMay, device, khachKhongDongYGiaThuCu = false) {
+      complete(stt, stage, checkBackup, thuLaiMay, device, khachKhongDongYGiaThuCu = false, daXoaICloudVaDuLieuKhach = false) {
         const target = assignments.find((item) => item.stt === stt && item.stage === stage && item.status === 'active');
         const nextAssignments = assignments.map((item) =>
           item.stt === stt && item.stage === stage && item.status === 'active'
@@ -431,6 +433,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
                 ...(device?.imei ? { imei: device.imei } : {}),
                 ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
                 ...(khachKhongDongYGiaThuCu ? { khachKhongDongYGiaThuCu } : {}),
+                ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach } : {}),
               }
             : item,
         );
@@ -467,6 +470,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
           ...(device?.imei ? { imei: device.imei } : {}),
           ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: JSON.stringify(device.hinhNghiemThu) } : {}),
           ...(khachKhongDongYGiaThuCu ? { khachKhongDongYGiaThuCu: 'true' } : {}),
+          ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: 'true' } : {}),
         });
       },
       quickDevice(stt, stage, guestDeskId, device) {

@@ -904,6 +904,7 @@ const RECORD_FIELD_MAP = {
   scanQr: 'Scan QR máy cũ',
   imei: 'Scan IMEI',
   hinhNghiemThu: 'Hình nghiệm thu máy cũ',
+  daXoaICloudVaDuLieuKhach: 'Đã xóa iCloud và dữ liệu khách',
   // Leadtime do APP đo, tính bằng GIÂY — làm ĐỐI CHIẾU cho cột worker tự tính.
   //
   // ⚠️ Cả hai cột leadtime giờ đều là kiểu NUMBER và đều là SỐ GIÂY, để cộng

@@ -104,6 +104,7 @@ function buildDeviceDefaults(
       checkBackup: '',
       thuLaiMay,
       khachKhongDongYGiaThuCu: false,
+      daXoaICloudVaDuLieuKhach: false,
       hinhNghiemThu: [] as File[],
       anhGiuLai: dienSan ? prev?.images ?? [] : [],
       scanQr: dienSan ? prev?.scanQr ?? '' : '',
@@ -730,6 +731,7 @@ export default function StaffDeskScreen({
                 }
               : undefined,
             values.khachKhongDongYGiaThuCu,
+            values.daXoaICloudVaDuLieuKhach,
           );
         } else guestSimulation?.receive(stt, view.cluster, view.id);
         setFormAction(null);
@@ -752,6 +754,8 @@ export default function StaffDeskScreen({
           : undefined;
       const khachKhongDongYGiaThuCu =
         isComplete && view.cluster === 'tradein' && values.khachKhongDongYGiaThuCu;
+      const daXoaICloudVaDuLieuKhach =
+        isComplete && isDeviceStage && values.daXoaICloudVaDuLieuKhach;
       const scanQr = thuLaiMay ? values.scanQr.trim() : '';
       const imei = thuLaiMay ? values.imei.trim() : '';
 
@@ -824,6 +828,7 @@ export default function StaffDeskScreen({
         ...(checkBackup ? { checkBackup } : {}),
         ...(thuLaiMay ? { thuLaiMay } : {}),
         ...(khachKhongDongYGiaThuCu ? { khachKhongDongYGiaThuCu: true } : {}),
+        ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
         ...(hinhNghiemThu?.length ? { hinhNghiemThu } : {}),
         ...(scanQr ? { scanQr } : {}),
         ...(imei ? { imei } : {}),

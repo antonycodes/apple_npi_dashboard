@@ -87,6 +87,8 @@ export interface StaffActionPayload {
   thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau';
   /** True khi khách Thu cũ đang cân nhắc giá và chưa đồng ý thu máy. */
   khachKhongDongYGiaThuCu?: boolean;
+  /** True khi đã xóa iCloud và dữ liệu khách — chỉ Hoàn tất ở Thu cũ/Backup. */
+  daXoaICloudVaDuLieuKhach?: boolean;
   /**
    * Danh sách `file_token` do Lark cấp cho ảnh nghiệm thu — KHÔNG phải URL hay
    * base64. App upload từng ảnh qua `POST /upload` của worker trước, gom token

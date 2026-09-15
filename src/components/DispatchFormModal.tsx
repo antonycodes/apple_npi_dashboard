@@ -30,6 +30,8 @@ interface DispatchFormModalProps {
   desks: DeskData[];
   /** Roster nhân sự từ `Master_DS` — nguồn chính của 2 ô select. */
   roster: RosterEntry[];
+  /** Dữ liệu dùng để hiển thị tên khách theo STT nhập trong form. */
+  customerLookup?: Array<{ stt: string | null; name: string | null }>;
   /**
    * STT điền sẵn khi mở form từ nút "DP" trong popup khách đang chờ — điều
    * phối viên khỏi phải nhớ rồi gõ lại số vừa nhìn thấy.
@@ -71,7 +73,7 @@ type Status =
   | { kind: 'sent'; confirmed: boolean }
   | { kind: 'error'; msg: string };
 
-export default function DispatchFormModal({ desks, roster, initialStt = '', onClose, simulation = false, canSendSms = false }: DispatchFormModalProps) {
+export default function DispatchFormModal({ desks, roster, customerLookup = [], initialStt = '', onClose, simulation = false, canSendSms = false }: DispatchFormModalProps) {
   const settings = useLarkSettings();
   const webhook = dispatchWebhookUrl(settings);
   // Danh tính lấy trực tiếp từ tài khoản đăng nhập; không còn gán theo máy.
@@ -84,6 +86,7 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const [stt, setStt] = useState(initialStt);
   const [loai, setLoai] = useState('');
   const [khachDoiY, setKhachDoiY] = useState('');
+  const [khachDoiYOpen, setKhachDoiYOpen] = useState(false);
   const [deskId, setDeskId] = useState('');
   const [daySms, setDaySms] = useState(false);
   const [smsConfirmOpen, setSmsConfirmOpen] = useState(false);
@@ -169,6 +172,10 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
   const selectedDeskCustomers = selectedDesk?.receivedCustomers ?? [];
   const selectedDeskBusy = Boolean(selectedDesk?.isOccupied || selectedDeskCustomers.length > 0);
   const staffNameOf = (e: RosterEntry) => e.staffName || liveStaffByDesk.get(e.deskCode) || '';
+  const customerName = useMemo(
+    () => customerLookup.find((customer) => customer.stt?.trim() === stt.trim())?.name?.trim() ?? '',
+    [customerLookup, stt],
+  );
   const msnv = khachDoiY ? '' : selected?.staffId ?? '';
   const submitBy = coordinatorSubmitBy;
   const canSubmit = Boolean(stt.trim() && (khachDoiY || (loai && deskId && selected && selectedDeskActive))) && status.kind !== 'sending';
@@ -319,25 +326,45 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
           </Field>
 
           <Field label="Khách đổi ý">
-            <select
-              value={khachDoiY}
-              onChange={(e) => {
-                const value = e.target.value;
-                setKhachDoiY(value);
-                if (value) {
-                  setLoai('');
-                  setDeskId('');
-                }
-              }}
-              className={`${FIELD_BASE} border-neutral-300 bg-white focus:border-brand focus:outline-none`}
-            >
-              <option value="">— Không có thay đổi —</option>
-              {KHACH_DOI_Y_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <button
+                type="button"
+                aria-expanded={khachDoiYOpen}
+                onClick={() => setKhachDoiYOpen((open) => !open)}
+                className={`${FIELD_BASE} flex items-center justify-between gap-3 border-neutral-300 bg-white text-left focus:border-brand focus:outline-none`}
+              >
+                <span className={khachDoiY ? 'text-neutral-800' : 'text-neutral-500'}>
+                  {khachDoiY || '— Chọn thay đổi —'}
+                </span>
+                <span aria-hidden="true" className="text-neutral-500">{khachDoiYOpen ? '⌃' : '⌄'}</span>
+              </button>
+              {khachDoiYOpen && (
+                <div className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-lg">
+                  {KHACH_DOI_Y_OPTIONS.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => {
+                        setKhachDoiY(option);
+                        setKhachDoiYOpen(false);
+                        setLoai('');
+                        setDeskId('');
+                        setDaySms(false);
+                      }}
+                      className={`block min-h-11 w-full px-3 py-2 text-left text-base hover:bg-neutral-50 ${khachDoiY === option ? 'bg-neutral-100 font-semibold text-neutral-900' : 'text-neutral-700'}`}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Field>
+
+          <Field label="Họ và tên khách">
+            <div className={`${FIELD_BASE} border-neutral-200 bg-neutral-100 text-neutral-700`}>
+              {customerName || '— Chưa tìm thấy tên theo STT —'}
+            </div>
           </Field>
 
           {!khachDoiY && (
@@ -397,15 +424,17 @@ export default function DispatchFormModal({ desks, roster, initialStt = '', onCl
             </>
           )}
 
-          <Field label="Submit by">
-            <input
-              value={submitBy || '— Chưa có MSNV điều phối trong Master_DS —'}
-              readOnly
-              className={`${FIELD_BASE} ${submitBy ? 'border-neutral-200 bg-neutral-100 text-neutral-700' : 'border-amber-300 bg-amber-50 text-amber-900'}`}
-            />
-          </Field>
+          {!khachDoiY && (
+            <Field label="Submit by">
+              <input
+                value={submitBy || '— Chưa có MSNV điều phối trong Master_DS —'}
+                readOnly
+                className={`${FIELD_BASE} ${submitBy ? 'border-neutral-200 bg-neutral-100 text-neutral-700' : 'border-amber-300 bg-amber-50 text-amber-900'}`}
+              />
+            </Field>
+          )}
 
-          {!webhook && (
+          {!khachDoiY && !webhook && (
             <p className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-700">
               Chưa cấu hình Webhook URL. Vào <b>Cài đặt → 4 · Webhook Điều phối</b> để dán URL
               webhook của Lark Base.

@@ -37,6 +37,8 @@ export interface ReceiveFormValues {
   thuLaiMay: string;
   /** Khách đang cân nhắc giá, không cần nhập thông tin máy — chỉ Hoàn tất ở Thu cũ. */
   khachKhongDongYGiaThuCu: boolean;
+  /** Đã xóa iCloud và dữ liệu khách — chỉ Hoàn tất ở Thu cũ/Backup. */
+  daXoaICloudVaDuLieuKhach: boolean;
   /** Ảnh nghiệm thu NV vừa chụp/chọn (chọn được NHIỀU) — upload lấy `file_token` lúc submit. */
   hinhNghiemThu: File[];
   /**
@@ -118,6 +120,9 @@ export default function StaffReceiveFormModal({
     : (['Thu máy ngay', 'Thu máy sau'] as const);
   // 3 field chỉ bung ra sau khi chọn một option.
   const showPriceConsideration = action === 'hoan_tat' && cluster === 'tradein';
+  const showICloudDeletion = action === 'hoan_tat'
+    && (cluster === 'tradein' || cluster === 'backup')
+    && !customerChangedMind;
   const showDeviceFields = showThuLaiMay
     && values.thuLaiMay.length > 0
     && !values.khachKhongDongYGiaThuCu
@@ -298,6 +303,7 @@ export default function StaffReceiveFormModal({
                       setValues((current) => ({
                         ...current,
                         khachKhongDongYGiaThuCu: false,
+                        daXoaICloudVaDuLieuKhach: false,
                         checkBackup: '',
                         thuLaiMay: '',
                         hinhNghiemThu: [],
@@ -365,6 +371,18 @@ export default function StaffReceiveFormModal({
                 </p>
               )}
             </div>
+          )}
+
+          {showICloudDeletion && (
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2">
+              <input
+                type="checkbox"
+                checked={values.daXoaICloudVaDuLieuKhach}
+                onChange={(event) => set('daXoaICloudVaDuLieuKhach', event.target.checked)}
+                className="h-5 w-5 accent-emerald-600"
+              />
+              <span className="text-sm font-semibold text-neutral-700">Đã xóa iCloud và dữ liệu khách</span>
+            </label>
           )}
 
           <section className="rounded-2xl border border-neutral-200 bg-neutral-50">

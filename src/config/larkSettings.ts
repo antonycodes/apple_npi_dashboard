@@ -290,6 +290,7 @@ export const MASTER_FIELD_LABELS: Record<keyof MasterFieldMap, string> = {
   imei: 'Scan IMEI',
   hinhNghiemThu: 'Hình nghiệm thu máy cũ (cột đính kèm)',
   khachKhongDongYGiaThuCu: 'Khách không đồng ý giá thu cũ (checkbox)',
+  daXoaICloudVaDuLieuKhach: 'Đã xóa iCloud và dữ liệu khách (checkbox)',
 };
 
 export const DISPATCH_FIELD_LABEL = 'Họ và tên';

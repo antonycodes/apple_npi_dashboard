@@ -470,6 +470,11 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
         <DispatchFormModal
           desks={desks}
           roster={roster}
+          customerLookup={[
+            ...waitingCheckin,
+            ...waitingDispatch,
+            ...desks.flatMap((desk) => desk.receivedCustomers ?? []),
+          ]}
           initialStt={dispatchStt}
           onClose={() => setShowDispatchForm(false)}
           simulation={simulation}
