@@ -247,12 +247,8 @@ export default function AppPage() {
       return <AdminHome name={session.name} canConfigure={session.role === 'admin'} />;
     }
 
-    if (session.role === 'checkin') {
-      return <CheckinPage />;
-    }
-
     // Chưa chọn chỗ (tài khoản nhiều chỗ), hoặc đang bấm đổi chỗ.
-    if (!session.desk || picking) {
+    if ((session.role !== 'checkin' && !session.desk) || picking) {
       return (
         <DeskChoice
           workspaces={session.workspaces}
@@ -265,6 +261,10 @@ export default function AppPage() {
           onCancel={picking ? () => setPicking(false) : undefined}
         />
       );
+    }
+
+    if (session.role === 'checkin') {
+      return <CheckinPage />;
     }
 
     const doiCho = session.workspaces.length > 1 ? () => setPicking(true) : undefined;

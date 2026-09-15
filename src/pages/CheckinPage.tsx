@@ -144,6 +144,7 @@ function CheckinForm({
   const [status, setStatus] = useState<'idle' | 'sending'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [serverDuplicateField, setServerDuplicateField] = useState<'phone' | 'orderCode' | null>(null);
+  const [phoneTouched, setPhoneTouched] = useState(false);
 
   const orderOptions = useMemo(
     () => [...new Set(orders.map(getOrderCode).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi')),
@@ -169,6 +170,7 @@ function CheckinForm({
   const hasIdentifier = Boolean(phone.trim() || orderCode);
   const validQuantity = /^\d+$/.test(oldDeviceQuantity.trim());
   const resolvedPhone = orderCode ? orderPhonePreview : phone;
+  const phoneFormatInvalid = !orderCode && Boolean(phone.trim()) && normalizePhone(phone).length !== 9;
   const duplicatePhoneFromData = useMemo(() => {
     const normalized = normalizePhone(resolvedPhone);
     return Boolean(normalized) && checkin.some((record) => getCheckinPhone(record) === normalized);
@@ -184,6 +186,7 @@ function CheckinForm({
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setPhoneTouched(true);
     if (!canSubmit) return;
     setStatus('sending');
     setError(null);
@@ -217,15 +220,21 @@ function CheckinForm({
           <input
             value={orderCode ? orderPhonePreview : phone}
             onChange={(event) => { setPhone(event.target.value); setOrderPhonePreview(''); setServerDuplicateField(null); setOrderCode(''); setOrderSearch(''); }}
+            onBlur={() => setPhoneTouched(true)}
             onFocus={() => setOrderMenuOpen(false)}
             readOnly={Boolean(orderCode)}
             inputMode="tel"
             autoComplete="tel"
             placeholder="Ưu tiên nhập SĐT"
-            aria-invalid={duplicatePhone}
+            aria-invalid={duplicatePhone || (phoneTouched && phoneFormatInvalid)}
             aria-readonly={Boolean(orderCode)}
             className={`mt-1 min-h-12 w-full rounded-xl border px-3 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 ${orderCode ? 'cursor-default bg-neutral-50 text-neutral-400' : ''} ${duplicatePhone ? 'border-red-500 shadow-[0_0_0_3px_rgba(239,68,68,0.18),0_0_18px_rgba(239,68,68,0.3)]' : 'border-neutral-300'}`}
           />
+          {phoneTouched && phoneFormatInvalid && (
+            <p role="alert" className="mt-1 text-xs font-semibold text-amber-700">
+              Số điện thoại không đúng định dạng, vui lòng kiểm tra
+            </p>
+          )}
           {orderCode && <span className="mt-1 block text-xs text-neutral-400">SĐT từ mã đơn — chỉ để đối chiếu</span>}
         </label>
 
@@ -259,6 +268,7 @@ function CheckinForm({
                     setOrderSearch(value);
                     setServerDuplicateField(null);
                     setPhone('');
+                    setPhoneTouched(false);
                     setOrderPhonePreview(orderPhone);
                     setOrderMenuOpen(false);
                   }}
@@ -338,19 +348,28 @@ function CheckinDetail({ record, stt, onClose }: { record: LarkRecord; stt: stri
   );
 }
 
-function AccessDenied() {
+function AccessDenied({ canChooseWorkspace = false }: { canChooseWorkspace?: boolean }) {
   return (
     <div className="flex min-h-full items-center justify-center bg-[#f5f5f7] p-5">
       <div className="w-full max-w-[430px] rounded-2xl bg-white p-6 text-center shadow-sm">
-        <h1 className="text-xl font-black text-neutral-950">Không có quyền Check-in</h1>
-        <p className="mt-2 text-sm text-neutral-500">Hãy đăng xuất và dùng tài khoản checkin.</p>
-        <button type="button" onClick={logoutToApp} className="mt-5 min-h-11 rounded-xl bg-neutral-950 px-5 text-sm font-bold text-white">Đăng xuất</button>
+        <h1 className="text-xl font-black text-neutral-950">Chọn khu vực làm việc</h1>
+        <p className="mt-2 text-sm text-neutral-500">
+          {canChooseWorkspace ? 'Tài khoản này có nhiều khu vực. Hãy chọn vai trò trước.' : 'Tài khoản này không có quyền Check-in.'}
+        </p>
+        {canChooseWorkspace && (
+          <a href="/app?choose=1" className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-neutral-950 px-5 text-sm font-bold text-white hover:bg-neutral-800">
+            Chọn khu vực
+          </a>
+        )}
+        <button type="button" onClick={logoutToApp} className="mt-5 min-h-11 rounded-xl border border-neutral-300 px-5 text-sm font-bold text-neutral-700 hover:bg-neutral-50">
+          Đăng xuất
+        </button>
       </div>
     </div>
   );
 }
 
-function CheckinBoard({ readOnly = false }: { readOnly?: boolean }) {
+function CheckinBoard({ readOnly = false, showWorkspaceSwitcher = false }: { readOnly?: boolean; showWorkspaceSwitcher?: boolean }) {
   const { checkin, orders, loading, error, lastUpdated, refresh } = useCheckinData();
   const [page, setPage] = useState(0);
   const [formStt, setFormStt] = useState<string | null>(null);
@@ -395,6 +414,11 @@ function CheckinBoard({ readOnly = false }: { readOnly?: boolean }) {
           </div>
           <div className="flex items-center gap-2 text-xs">
             <ViewSwitcher active="checkin" />
+            {showWorkspaceSwitcher && (
+              <a href="/app?choose=1" className="min-h-9 rounded-lg border border-neutral-300 px-3 py-2 font-bold text-neutral-600 hover:bg-neutral-50">
+                Đổi khu vực
+              </a>
+            )}
             <button type="button" onClick={logoutToApp} className="min-h-9 rounded-lg border border-red-200 px-3 py-2 font-bold text-red-600 hover:bg-red-50">Đăng xuất</button>
           </div>
         </div>
@@ -464,6 +488,9 @@ export default function CheckinPage() {
       />
     );
   }
-  if (session.role !== 'checkin' && session.role !== 'admin' && session.role !== 'adminViewer') return <AccessDenied />;
-  return <CheckinBoard readOnly={session.role === 'adminViewer'} />;
+  if (session.role !== 'checkin' && session.role !== 'admin' && session.role !== 'adminViewer') {
+    const canChooseWorkspace = session.workspaces.some((workspace) => workspace.role === 'checkin');
+    return <AccessDenied canChooseWorkspace={canChooseWorkspace} />;
+  }
+  return <CheckinBoard readOnly={session.role === 'adminViewer'} showWorkspaceSwitcher={session.workspaces.length > 1} />;
 }

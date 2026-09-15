@@ -380,6 +380,15 @@ function canViewAdminSurfaces(session) {
   return session?.role === 'admin' || session?.role === 'adminViewer';
 }
 
+/** Tài khoản nhiều workspace được ghi Check-in khi sở hữu mã CHECK-IN. */
+function canUseCheckin(session) {
+  if (!session) return false;
+  if (session.role === 'admin' || session.role === 'checkin') return true;
+  return String(session.desk || '')
+    .split(',')
+    .some((desk) => /^CHECK[- ]?IN-\d+$/i.test(String(desk).trim()));
+}
+
 const SMS_SENDER_IDS = new Set(['S12196', 'S12434']);
 
 function canSendSms(session) {
@@ -575,20 +584,13 @@ function matchRosterAccount(rows, username, password) {
   const sameUser = rows.filter((r) => r.user.toUpperCase() === wanted);
   if (sameUser.length === 0) return null;
 
-  // CHECK-IN là vai trò riêng. Nếu một người có thêm dòng bàn khác, lần đăng
-  // nhập này vẫn phải vào đúng khu Check-in, không mở nhầm màn hình bàn.
-  const checkinRows = sameUser.filter((r) => roleFromRosterRow(r.loai, r.desk) === 'checkin');
-  const matched = checkinRows.length ? checkinRows : sameUser;
-
-  // Mật khẩu của tài khoản CHECK-IN lấy từ chính các dòng CHECK-IN. Các role
-  // cũ vẫn giữ quy tắc dùng mật khẩu ở bất kỳ dòng nào của cùng tài khoản.
-  const credentialRows = checkinRows.length ? checkinRows : sameUser;
-  const hopLe = credentialRows.some((r) => r.pass && safeEqual(String(password ?? ''), r.pass));
+  // Mật khẩu khớp với bất kỳ dòng nào của cùng tài khoản là hợp lệ.
+  const hopLe = sameUser.some((r) => r.pass && safeEqual(String(password ?? ''), r.pass));
   if (!hopLe) return null;
 
-  // Với role cũ, CHỖ LÀM VIỆC lấy tất cả dòng của tài khoản, không chỉ dòng có
-  // mật khẩu khớp. Với CHECK-IN, chỉ giữ các dòng CHECK-IN để bảo đảm quyền
-  // route và danh tính không bị trộn với workspace bàn khác.
+  // Giữ toàn bộ workspace để tài khoản có nhiều `Loại` được chọn khu vực sau
+  // đăng nhập. Role cụ thể đi theo workspace được chọn ở frontend.
+  const matched = sameUser;
   const canViewAll = matched.some((r) => normalizeLoai(r.loai) === 'admin');
 
   const workspaces = [];
@@ -1163,7 +1165,7 @@ function findSelectOption(meta, raw) {
 /** Ghi một lượt Check-in sau khi xác thực, kiểm tra trùng và dò schema. */
 async function handleCheckinRecord(request, env, ctx) {
   const session = await verifyToken(env, bearer(request));
-  if (!session || (session.role !== 'checkin' && session.role !== 'admin')) {
+  if (!canUseCheckin(session)) {
     return json({ code: -1, msg: 'Phiên Check-in không hợp lệ hoặc đã hết hạn' }, 401);
   }
   if (!env.LARK_APP_TOKEN) return json({ code: -1, msg: 'Chưa cấu hình LARK_APP_TOKEN' }, 500);
@@ -2537,15 +2539,14 @@ export default {
           const desks = account.workspaces.map((w) => w.desk);
           // Vai trò trong TOKEN chỉ để phân biệt với `admin` (quyền ghi cấu
           // hình); chỗ làm việc cụ thể do app chọn từ `workspaces`.
-          // CHECK-IN có ưu tiên route riêng. Các role cũ vẫn giữ quyền cao
-          // nhất mà tài khoản có, không phụ thuộc thứ tự dòng trong Master_DS.
-          const tokenRole = account.workspaces.some((workspace) => workspace.role === 'checkin')
-            ? 'checkin'
-            : account.canViewAll
+          // Tài khoản nhiều role giữ token role vận hành chính; quyền CHECK-IN
+          // được xác định thêm từ mã CHECK-IN đã ký trong danh sách workspace.
+          const nonCheckinWorkspaces = account.workspaces.filter((workspace) => workspace.role !== 'checkin');
+          const tokenRole = account.canViewAll
             ? 'adminViewer'
-            : account.workspaces.some((workspace) => workspace.role === 'dieuphoi')
+            : nonCheckinWorkspaces.some((workspace) => workspace.role === 'dieuphoi')
             ? 'dieuphoi'
-            : account.workspaces[0].role;
+            : nonCheckinWorkspaces[0]?.role ?? 'checkin';
           return json({
             code: 0,
             msg: 'success',
