@@ -46,6 +46,9 @@ const PENDING_TTL_MS = 120_000;
 /** Gửi webhook xong mà bấy nhiêu lâu Lark vẫn chưa hiện record → cảnh báo. */
 const CONFIRM_WARN_MS = 15_000;
 
+const ORDER_HEADERS = ['#Lấy hàng cho khách', '#Trả hàng về kho'] as const;
+type OrderHeader = (typeof ORDER_HEADERS)[number];
+
 /** Cụm → giá trị cột `Master."Loại 2"` bên Lark (KHÁC `CLUSTER_LABELS` dùng cho UI). */
 const STAGE_LABEL: Record<ClusterKey, string> = {
   consult: 'Tư vấn',
@@ -426,6 +429,7 @@ export default function StaffDeskScreen({
     return [...byStt.values()];
   }, [current, ghost]);
   const [selectedOrderStt, setSelectedOrderStt] = useState('');
+  const [orderHeader, setOrderHeader] = useState<OrderHeader | ''>('');
   const [orderText, setOrderText] = useState('');
   const [orderSending, setOrderSending] = useState(false);
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
@@ -897,12 +901,12 @@ export default function StaffDeskScreen({
   const sendOrderToWarehouse = async () => {
     if (deskLocked) return;
     const rawText = orderText.trim();
-    if (!rawText || !orderCustomer?.stt || orderSending) return;
+    if (!rawText || !orderHeader || !orderCustomer?.stt || orderSending) return;
     setOrderSending(true);
     setOrderMessage(null);
     try {
       const payload = {
-        rawText,
+        rawText: `${orderHeader}\n\n${rawText}`,
         productOrders: orderCustomer.productOrders ?? [],
         deskId: view.id,
         stt: orderCustomer.stt,
@@ -914,6 +918,7 @@ export default function StaffDeskScreen({
         : await warehouseOrders.send(payload);
       const created = result.order;
       if (!created) throw new Error('Phòng mô phỏng chưa kết nối.');
+      setOrderHeader('');
       setOrderText('');
       setOrderMessage(
         result.webhookErrors.length
@@ -1098,6 +1103,7 @@ export default function StaffDeskScreen({
                       value={selectedOrderStt}
                       onChange={(event) => {
                         setSelectedOrderStt(event.target.value);
+                        setOrderHeader('');
                         setOrderMessage(null);
                       }}
                       className="mt-1 min-h-12 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm font-bold text-neutral-800 outline-none transition-colors focus:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2"
@@ -1112,7 +1118,42 @@ export default function StaffDeskScreen({
                     </select>
                   </label>
                 )}
+                <fieldset className="mt-3" disabled={deskLocked || !orderCustomer?.stt || orderSending}>
+                  <legend className="text-xs font-bold uppercase tracking-wide text-neutral-500">
+                    Header cố định của order
+                  </legend>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    {ORDER_HEADERS.map((header) => {
+                      const selected = orderHeader === header;
+                      return (
+                        <button
+                          key={header}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => {
+                            setOrderHeader(selected ? '' : header);
+                            setOrderMessage(null);
+                          }}
+                          className={`min-h-12 rounded-xl border px-3 py-2 text-sm font-bold leading-tight transition-colors active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 ${
+                            selected
+                              ? 'border-sky-600 bg-sky-600 text-white'
+                              : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
+                          }`}
+                        >
+                          {header}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Header được ghép tự động. Nhân viên không sửa được.
+                  </p>
+                </fieldset>
+                <label htmlFor="warehouse-order-content" className="mt-3 block text-xs font-bold uppercase tracking-wide text-neutral-500">
+                  Nội dung order
+                </label>
                 <textarea
+                  id="warehouse-order-content"
                   value={orderText}
                   onChange={(event) => setOrderText(event.target.value)}
                   onPaste={(event) => {
@@ -1136,7 +1177,7 @@ export default function StaffDeskScreen({
                   <button
                     type="button"
                     onClick={() => void sendOrderToWarehouse()}
-                    disabled={deskLocked || !orderCustomer?.stt || !orderText.trim() || orderSending}
+                    disabled={deskLocked || !orderCustomer?.stt || !orderHeader || !orderText.trim() || orderSending}
                     className="min-h-12 flex-1 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white transition-colors active:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:bg-neutral-200 disabled:text-neutral-700"
                   >
                     {orderSending ? 'Đang gửi…' : 'Gửi'}
