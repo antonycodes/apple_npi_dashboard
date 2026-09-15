@@ -1,20 +1,42 @@
 import { canViewAll, useAdminInfo } from '@/config/adminSession';
+import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 
 export type AppView = 'main' | 'dash' | 'checkin' | 'sms' | 'errors' | 'tuvan' | 'tradein' | 'backup' | 'kho';
 
-const OPERATION_VIEWS: Array<{ key: AppView; label: string; href: string }> = [
+type OperationView = 'tuvan' | 'tradein' | 'backup' | 'kho';
+
+const OPERATION_VIEWS: Array<{ key: OperationView; label: string; href: string }> = [
   { key: 'tuvan', label: 'Tư vấn', href: '/tuvanview' },
   { key: 'tradein', label: 'Thu cũ', href: '/thucuview' },
   { key: 'backup', label: 'Backup', href: '/backupview' },
   { key: 'kho', label: 'Kho', href: '/khoview' },
 ];
 
-export default function ViewSwitcher({ active }: { active: AppView }) {
+const GUEST_ROLE_BY_VIEW: Record<'dash' | OperationView, string> = {
+  dash: 'DP',
+  tuvan: 'TV1',
+  tradein: 'TC1',
+  backup: 'BK1',
+  kho: 'KHO1',
+};
+
+export default function ViewSwitcher({ active, simulation = false }: { active: AppView; simulation?: boolean }) {
   const session = useAdminInfo();
+  const guestSimulation = useGuestSimulation();
   const hasAllViewAccess = canViewAll(session);
   const canOpenCheckin = hasAllViewAccess || session?.role === 'checkin';
   const canOpenSms = hasAllViewAccess || session?.role === 'dieuphoi' || session?.workspaces.some((workspace) => workspace.role === 'dieuphoi');
-  const views = session?.role === 'checkin'
+  const guestHref = (view: keyof typeof GUEST_ROLE_BY_VIEW) => {
+    const params = new URLSearchParams({ role: `Guest_${GUEST_ROLE_BY_VIEW[view]}` });
+    if (guestSimulation?.roomCode) params.set('room', guestSimulation.roomCode);
+    return `/guest?${params.toString()}`;
+  };
+  const views = simulation
+    ? [
+        { key: 'dash' as const, label: 'Dash', href: guestHref('dash') },
+        ...OPERATION_VIEWS.map((view) => ({ ...view, href: guestHref(view.key) })),
+      ]
+    : session?.role === 'checkin'
     ? [{ key: 'checkin' as const, label: 'Check-in', href: '/check-in' }]
     : hasAllViewAccess
     ? [

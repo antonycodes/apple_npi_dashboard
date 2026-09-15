@@ -269,7 +269,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs">
-            <ViewSwitcher active="dash" />
+            <ViewSwitcher active="dash" simulation={simulation} />
             {session?.role === 'admin' && (
               <a
                 href="/settings"
