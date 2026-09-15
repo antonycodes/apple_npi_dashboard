@@ -537,8 +537,15 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         return Boolean(next?.handovers?.some((item) => item.id && item.deskCode === handover.deskCode && item.time));
       },
       async sendWarehouseOrder(order) {
-        const next = await postAction('send-order', order.stt || '', 'consult', order.deskId || 'TV', {
-          order: JSON.stringify(order),
+        // Guest staff views use `Guest_TV1`, while Guest Kho maps desks to the
+        // canonical operational code `TV1`. Store the canonical code so the
+        // shared room inbox can match the order to the right desk.
+        const guestOrder = {
+          ...order,
+          deskId: deskForGuestRole(order.deskId) ?? order.deskId,
+        };
+        const next = await postAction('send-order', guestOrder.stt || '', 'consult', guestOrder.deskId || 'TV', {
+          order: JSON.stringify(guestOrder),
         });
         return next?.orders?.at(-1) ?? null;
       },
