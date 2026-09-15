@@ -215,7 +215,7 @@ export default function KhoOrderView({
                     <>
                       <p className="text-sm font-bold text-neutral-900">Nội dung Order</p>
                       <p className="mt-1 text-xs font-semibold text-neutral-500">Mã đơn: {order.orderCode}</p>
-                      <pre className="mt-2 whitespace-pre-wrap text-xs text-neutral-800">{order.rawText}</pre>
+                      <pre className="mt-2 whitespace-pre-wrap font-sans text-xs text-neutral-800">{order.rawText}</pre>
                     </>
                   ) : (
                     <>
