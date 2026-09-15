@@ -613,6 +613,17 @@ function matchRosterAccount(rows, username, password) {
     });
   }
   const withInfo = matched.find((r) => r.msnv || r.name) ?? matched[0];
+  // ADMIN là một vai trò riêng trong bộ chọn. Không gộp nó vào CHECK-IN hoặc
+  // các workspace vận hành khác, để tài khoản nhiều role chọn đúng quyền.
+  if (canViewAll) {
+    workspaces.unshift({
+      desk: 'ADMIN',
+      loai: 'ADMIN',
+      role: 'adminViewer',
+      name: withInfo.name,
+      msnv: withInfo.msnv || withInfo.user,
+    });
+  }
   return {
     workspaces,
     username: withInfo.user,

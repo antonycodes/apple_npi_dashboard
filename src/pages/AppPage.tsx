@@ -37,10 +37,15 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 /** Nhãn nhóm khi cột `Loại` bỏ trống — suy từ tiền tố mã chỗ. */
 function loaiLabel(ws: Workspace): string {
+  if (ws.role === 'adminViewer') return 'ADMIN';
   if (ws.loai.trim()) return ws.loai.trim();
   if (ws.role === 'kho') return 'Kho';
   if (ws.role === 'dieuphoi') return 'Điều phối';
   return 'Bàn phục vụ';
+}
+
+function workspaceMeta(ws: Workspace): string {
+  return ws.role === 'adminViewer' ? 'Nhóm chức năng quản trị' : `Khu vực ${ws.desk}`;
 }
 
 /**
@@ -79,7 +84,7 @@ function DeskChoice({
             'text-[30px] font-black leading-tight tracking-[-0.025em] text-neutral-950',
             name ? 'mt-1' : 'mt-6',
           ].join(' ')}>
-            Chọn khu vực
+            {workspaces.some((ws) => ws.role === 'adminViewer') ? 'Chọn vai trò' : 'Chọn khu vực'}
           </h1>
         </div>
 
@@ -107,7 +112,7 @@ function DeskChoice({
               <span className="min-w-0 flex-1">
                 <span className="block text-base font-bold">{loaiLabel(ws)}</span>
                 <span className={ws.desk === current ? 'text-xs text-white/65' : 'text-xs text-neutral-400'}>
-                  Khu vực {ws.desk}
+                  {workspaceMeta(ws)}
                 </span>
               </span>
               <ChevronRightIcon className={ws.desk === current ? 'h-5 w-5 text-white/70' : 'h-5 w-5 text-neutral-300 group-hover:text-neutral-500'} />
@@ -181,11 +186,10 @@ function SessionBar({
   );
 }
 
-/** Danh mục toàn bộ view; chỉ tài khoản `admin` mới thấy Cài đặt. */
-function AdminHome({ name, canConfigure }: { name: string; canConfigure: boolean }) {
+/** Danh mục chức năng của tab ADMIN; chỉ tài khoản `admin` mới thấy Cài đặt. */
+function AdminHome({ name, canConfigure, canChangeRole }: { name: string; canConfigure: boolean; canChangeRole: boolean }) {
   const links: Array<{ href: string; label: string }> = [
     { href: '/dashboard', label: 'Dashboard Admin' },
-    { href: '/check-in', label: 'Check-in khách' },
     { href: '/tuvanview', label: 'View Tư vấn' },
     { href: '/thucuview', label: 'View Thu cũ' },
     { href: '/backupview', label: 'View Backup' },
@@ -216,6 +220,16 @@ function AdminHome({ name, canConfigure }: { name: string; canConfigure: boolean
           </button>
         </div>
 
+        <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-900 px-4 py-4 text-white">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-white/55">Vai trò đang chọn</p>
+          <p className="mt-1 text-2xl font-black tracking-tight">ADMIN</p>
+          {canChangeRole && (
+            <a href="/app?choose=1" className="mt-3 inline-flex min-h-9 items-center rounded-lg bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-neutral-100">
+              Đổi vai trò
+            </a>
+          )}
+        </div>
+
         <div className="mt-5 space-y-2">
           {links.map((l) => (
             <a
@@ -243,12 +257,8 @@ export default function AppPage() {
   // bên dưới cũng đi qua đúng đường này, nên giao diện xem trước là giao diện
   // thật chứ không phải một bản mô phỏng riêng.
   if (session) {
-    if (session.role === 'admin' || session.role === 'adminViewer') {
-      return <AdminHome name={session.name} canConfigure={session.role === 'admin'} />;
-    }
-
     // Chưa chọn chỗ (tài khoản nhiều chỗ), hoặc đang bấm đổi chỗ.
-    if ((session.role !== 'checkin' && !session.desk) || picking) {
+    if ((session.workspaces.length > 1 && !session.desk) || picking) {
       return (
         <DeskChoice
           workspaces={session.workspaces}
@@ -261,6 +271,10 @@ export default function AppPage() {
           onCancel={picking ? () => setPicking(false) : undefined}
         />
       );
+    }
+
+    if (session.role === 'admin' || session.role === 'adminViewer') {
+      return <AdminHome name={session.name} canConfigure={session.role === 'admin'} canChangeRole={session.workspaces.length > 1} />;
     }
 
     if (session.role === 'checkin') {

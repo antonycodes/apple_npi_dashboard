@@ -488,9 +488,12 @@ export default function CheckinPage() {
       />
     );
   }
+  const hasCheckinWorkspace = session.workspaces.some((workspace) => workspace.role === 'checkin');
+  if (session.role === 'adminViewer' && hasCheckinWorkspace) {
+    return <AccessDenied canChooseWorkspace />;
+  }
   if (session.role !== 'checkin' && session.role !== 'admin' && session.role !== 'adminViewer') {
-    const canChooseWorkspace = session.workspaces.some((workspace) => workspace.role === 'checkin');
-    return <AccessDenied canChooseWorkspace={canChooseWorkspace} />;
+    return <AccessDenied canChooseWorkspace={hasCheckinWorkspace} />;
   }
   return <CheckinBoard readOnly={session.role === 'adminViewer'} showWorkspaceSwitcher={session.workspaces.length > 1} />;
 }

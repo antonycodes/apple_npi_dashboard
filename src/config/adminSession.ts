@@ -33,7 +33,7 @@ export interface Workspace {
   desk: string;
   /** Cột `Loại` nguyên văn — hiện lên cho người chọn đọc. */
   loai: string;
-  role: 'staff' | 'kho' | 'dieuphoi' | 'checkin';
+  role: 'staff' | 'kho' | 'dieuphoi' | 'checkin' | 'adminViewer';
   /**
    * Tên và MSNV lấy theo ĐÚNG DÒNG roster của chỗ này, không phải "tên của tài
    * khoản": mỗi dòng là một bàn với cột `NV Tư vấn` riêng. Chọn chỗ nào thì
@@ -106,7 +106,7 @@ function load(): StoredSession | null {
           : desks.map((d) => ({
               desk: d,
               loai: '',
-              role: role === 'admin' || role === 'adminViewer' ? 'staff' : role,
+              role: role === 'admin' ? 'staff' : role,
               name: t.name ?? '',
               msnv: t.msnv ?? '',
             })),
@@ -169,7 +169,7 @@ export const adminSessionStore = {
             ({
               desk: d,
               loai: '',
-              role: role === 'admin' || role === 'adminViewer' ? 'staff' : role,
+              role: role === 'admin' ? 'staff' : role,
               name: extra.name ?? '',
               msnv: extra.msnv ?? '',
             }) as Workspace,
