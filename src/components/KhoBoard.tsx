@@ -24,6 +24,7 @@ import type { WarehouseInboxOrder, WarehouseOrderClaims } from '@/types/warehous
 import { warehouseClaimantFull, warehouseClaimedAt } from '@/utils/warehouseClaimant';
 import { warehouseClaimMatchesCustomer, warehouseOrderMatchesCustomer } from '@/utils/warehouseClaim';
 import ProductList from './ProductList';
+import OrderMessageText from './OrderMessageText';
 
 interface ProductOrderDetails {
   orderCode: string;
@@ -329,7 +330,7 @@ function OrderDetailsModal({ order, canDelete, onDelete, onClose }: { order: War
           </div>
           <button type="button" onClick={onClose} aria-label="Đóng" className="rounded-lg px-2 text-2xl leading-none text-neutral-400 hover:bg-neutral-100">×</button>
         </header>
-        <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 font-sans text-sm text-neutral-800">{order.rawText}</pre>
+        <OrderMessageText rawText={order.rawText} className="mt-3 max-h-72 overflow-auto rounded-xl bg-neutral-50 p-3 text-sm text-neutral-800" />
         {canDelete && onDelete && (
           <button
             type="button"

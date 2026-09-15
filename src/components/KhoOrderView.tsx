@@ -3,6 +3,7 @@ import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 import type { WarehouseInboxOrder, WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
 import { warehouseClaimantFull, warehouseClaimantShort, warehouseClaimedAt } from '@/utils/warehouseClaimant';
 import { warehouseClaimMatchesCustomer, warehouseOrderMatchesCustomer } from '@/utils/warehouseClaim';
+import OrderMessageText from './OrderMessageText';
 
 function claimKey(orderCode: string) {
   return orderCode.trim().toUpperCase();
@@ -215,7 +216,7 @@ export default function KhoOrderView({
                     <>
                       <p className="text-sm font-bold text-neutral-900">Nội dung Order</p>
                       <p className="mt-1 text-xs font-semibold text-neutral-500">Mã đơn: {order.orderCode}</p>
-                      <pre className="mt-2 whitespace-pre-wrap font-sans text-xs text-neutral-800">{order.rawText}</pre>
+                      <OrderMessageText rawText={order.rawText} className="mt-2 text-xs text-neutral-800" />
                     </>
                   ) : (
                     <>

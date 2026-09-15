@@ -1120,7 +1120,7 @@ export default function StaffDeskScreen({
                 )}
                 <fieldset className="mt-3" disabled={deskLocked || !orderCustomer?.stt || orderSending}>
                   <legend className="text-xs font-bold uppercase tracking-wide text-neutral-500">
-                    Header cố định của order
+                    LOẠI ORDER
                   </legend>
                   <div className="mt-1 grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-2">
                     {ORDER_HEADERS.map((header) => {
