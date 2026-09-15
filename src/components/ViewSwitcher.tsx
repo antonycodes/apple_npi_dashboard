@@ -12,22 +12,15 @@ const OPERATION_VIEWS: Array<{ key: OperationView; label: string; href: string }
   { key: 'kho', label: 'Kho', href: '/khoview' },
 ];
 
-const GUEST_ROLE_BY_VIEW: Record<'dash' | OperationView, string> = {
-  dash: 'DP',
-  tuvan: 'TV1',
-  tradein: 'TC1',
-  backup: 'BK1',
-  kho: 'KHO1',
-};
-
 export default function ViewSwitcher({ active, simulation = false }: { active: AppView; simulation?: boolean }) {
   const session = useAdminInfo();
   const guestSimulation = useGuestSimulation();
   const hasAllViewAccess = canViewAll(session);
   const canOpenCheckin = hasAllViewAccess || session?.role === 'checkin';
   const canOpenSms = hasAllViewAccess || session?.role === 'dieuphoi' || session?.workspaces.some((workspace) => workspace.role === 'dieuphoi');
-  const guestHref = (view: keyof typeof GUEST_ROLE_BY_VIEW) => {
-    const params = new URLSearchParams({ role: `Guest_${GUEST_ROLE_BY_VIEW[view]}` });
+  const guestHref = (view: 'dash' | OperationView) => {
+    const params = new URLSearchParams({ role: 'Guest_DP' });
+    if (view !== 'dash') params.set('view', view);
     if (guestSimulation?.roomCode) params.set('room', guestSimulation.roomCode);
     return `/guest?${params.toString()}`;
   };

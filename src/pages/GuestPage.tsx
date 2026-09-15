@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import DashboardPage from './DashboardPage';
+import StaffPage from './StaffPage';
+import KhoAppPage from './KhoAppPage';
 import QueueBoardPage from './QueueBoardPage';
 import KhoBoardPage from './KhoBoardPage';
 import { GuestSimulationProvider } from '@/guest/GuestSimulationContext';
@@ -8,6 +10,7 @@ import { ALL_POSITIONS, CLUSTER_LABELS } from '@/config/layoutConfig';
 import { toFieldConfig, useLarkSettings } from '@/config/larkSettings';
 
 type GuestMode = 'DP' | 'KHO' | `KHO${number}` | `TV${number}` | `TC${number}` | `BK${number}`;
+type GuestView = 'dash' | 'tuvan' | 'tradein' | 'backup' | 'kho';
 
 const MODES: Array<{ id: GuestMode; code: string; label: string; note: string }> = [
   { id: 'DP', code: 'Guest_DP', label: 'Dashboard điều phối', note: 'Sơ đồ bàn và form điều phối' },
@@ -51,6 +54,7 @@ function persistGuestMode(mode: GuestMode) {
   if (typeof window === 'undefined') return;
   const url = new URL(window.location.href);
   url.searchParams.set('role', `Guest_${mode}`);
+  url.searchParams.delete('view');
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -58,7 +62,12 @@ function clearGuestMode() {
   if (typeof window === 'undefined') return;
   const url = new URL(window.location.href);
   url.searchParams.delete('role');
+  url.searchParams.delete('view');
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+function readGuestView(value: string | null): GuestView {
+  return value === 'tuvan' || value === 'tradein' || value === 'backup' || value === 'kho' ? value : 'dash';
 }
 
 export default function GuestPage() {
@@ -66,6 +75,7 @@ export default function GuestPage() {
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialRole = params?.get('role')?.replace(/^Guest_/, '');
   const initialMode = [...MODES, ...DESK_ROLES, ...KHO_ROLES, LEGACY_KHO_MODE].some((item) => item.id === initialRole) ? initialRole as GuestMode : null;
+  const guestView = readGuestView(params?.get('view') ?? null);
   const roomCode = params?.get('room');
   const [mode, setMode] = useState<GuestMode | null>(initialMode);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -85,11 +95,15 @@ export default function GuestPage() {
     <GuestSimulationProvider fields={toFieldConfig(settings)} roomCode={roomCode} role={mode ? `Guest_${mode}` : 'Guest_DP'}>
       {settings.guestLock ? <GuestLockedScreen /> : selected ? (
         <div className="min-h-full bg-neutral-100">
-          {mode === 'DP' && <DashboardPage readOnly simulation onGuestBack={backToGuestModes} />}
-          {mode.startsWith('TV') && <QueueBoardPage cluster="consult" guestMode onGuestBack={backToGuestModes} />}
-          {mode.startsWith('TC') && <QueueBoardPage cluster="tradein" guestMode onGuestBack={backToGuestModes} />}
-          {mode.startsWith('BK') && <QueueBoardPage cluster="backup" guestMode onGuestBack={backToGuestModes} />}
-          {mode.startsWith('KHO') && <KhoBoardPage guestMode onGuestBack={backToGuestModes} />}
+          {mode === 'DP' && guestView === 'dash' && <DashboardPage readOnly simulation onGuestBack={backToGuestModes} />}
+          {mode === 'DP' && guestView === 'tuvan' && <QueueBoardPage cluster="consult" guestMode onGuestBack={backToGuestModes} />}
+          {mode === 'DP' && guestView === 'tradein' && <QueueBoardPage cluster="tradein" guestMode onGuestBack={backToGuestModes} />}
+          {mode === 'DP' && guestView === 'backup' && <QueueBoardPage cluster="backup" guestMode onGuestBack={backToGuestModes} />}
+          {mode === 'DP' && guestView === 'kho' && <KhoBoardPage guestMode onGuestBack={backToGuestModes} />}
+          {mode.startsWith('TV') && <StaffPage lockedDeskId={`Guest_${mode}`} guestMode onGuestBack={backToGuestModes} />}
+          {mode.startsWith('TC') && <StaffPage lockedDeskId={`Guest_${mode}`} guestMode onGuestBack={backToGuestModes} />}
+          {mode.startsWith('BK') && <StaffPage lockedDeskId={`Guest_${mode}`} guestMode onGuestBack={backToGuestModes} />}
+          {mode.startsWith('KHO') && <KhoAppPage guestMode guestRole={`Guest_${mode}`} onGuestBack={backToGuestModes} />}
         </div>
       ) : (
         <main className="min-h-full bg-neutral-100 px-4 py-8 text-neutral-800 sm:px-6">
