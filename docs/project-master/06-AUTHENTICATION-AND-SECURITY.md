@@ -10,9 +10,15 @@ Tài liệu mô tả đúng trạng thái hiện tại và các rủi ro cần x
 
 - Username: `Master_DS.NPI_AIO_User`.
 - Password: `Master_DS.NPI_AIO_Pass`.
-- Workspace: mỗi dòng `Master_DS` có `STT bàn`, `Loại`, tên và MSNV.
+- Workspace: mỗi dòng `Master_DS` có `STT bàn`, `Loại`, tên và MSNV. Dòng có `Loại = CHECK-IN` nhận role `checkin` và chỉ vào màn Check-in.
 - Một username có thể có nhiều workspace.
 - Worker cache roster khoảng 60 giây; đổi mật khẩu trong Base không cần deploy nhưng có độ trễ cache.
+
+### Tài khoản Check-in mặc định
+
+- Username: `CHECKIN`.
+- Password nằm trong Cloudflare secret `CHECKIN_PASSWORD`.
+- Tài khoản này vẫn được giữ để dùng chung hoặc dự phòng.
 
 ### Admin
 

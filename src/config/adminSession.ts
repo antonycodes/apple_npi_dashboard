@@ -29,11 +29,11 @@ const SMS_SENDER_IDS = new Set(['S12196', 'S12434']);
  * app phải hỏi hôm nay họ đang trực chỗ nào.
  */
 export interface Workspace {
-  /** Mã bàn / mã chỗ: "TV4", "TC1", "BK2", "KHO1", "DP3". */
+  /** Mã bàn / mã chỗ: "TV4", "TC1", "BK2", "KHO1", "DP3", "CHECK-IN-1". */
   desk: string;
   /** Cột `Loại` nguyên văn — hiện lên cho người chọn đọc. */
   loai: string;
-  role: 'staff' | 'kho' | 'dieuphoi';
+  role: 'staff' | 'kho' | 'dieuphoi' | 'checkin';
   /**
    * Tên và MSNV lấy theo ĐÚNG DÒNG roster của chỗ này, không phải "tên của tài
    * khoản": mỗi dòng là một bàn với cột `NV Tư vấn` riêng. Chọn chỗ nào thì
@@ -106,7 +106,7 @@ function load(): StoredSession | null {
           : desks.map((d) => ({
               desk: d,
               loai: '',
-              role: role === 'admin' || role === 'adminViewer' || role === 'checkin' ? 'staff' : role,
+              role: role === 'admin' || role === 'adminViewer' ? 'staff' : role,
               name: t.name ?? '',
               msnv: t.msnv ?? '',
             })),
@@ -169,7 +169,7 @@ export const adminSessionStore = {
             ({
               desk: d,
               loai: '',
-              role: role === 'admin' || role === 'adminViewer' || role === 'checkin' ? 'staff' : role,
+              role: role === 'admin' || role === 'adminViewer' ? 'staff' : role,
               name: extra.name ?? '',
               msnv: extra.msnv ?? '',
             }) as Workspace,

@@ -541,13 +541,14 @@ async function readRoster(env, host) {
  * Vai trò của MỘT DÒNG roster, suy từ cột `Loại`; `Loại` bỏ trống thì suy tiếp
  * từ tiền tố mã bàn.
  *
- * Roster thật có 4 nhóm: Tư vấn/Thu cũ/Backup (bàn phục vụ), Kho, và Điều phối
- * (DP1–DP4, có dòng bỏ trống `Loại`). Đoán sai nhóm là mở nhầm cả màn hình,
- * nên chỗ này đọc cả hai nguồn thay vì tin mỗi cột `Loại`.
+ * Roster thật có các nhóm: Tư vấn/Thu cũ/Backup (bàn phục vụ), Kho, Điều phối
+ * (DP1–DP4, có dòng bỏ trống `Loại`) và CHECK-IN. Đoán sai nhóm là mở nhầm cả
+ * màn hình, nên chỗ này đọc cả hai nguồn thay vì tin mỗi cột `Loại`.
  */
 function roleFromRosterRow(loai, desk) {
   const l = normalizeLoai(loai);
   if (l === 'admin') return 'adminViewer';
+  if (l === 'check-in' || l === 'checkin') return 'checkin';
   if (l === 'kho') return 'kho';
   if (l.startsWith('dieu phoi')) return 'dieuphoi';
   const code = String(desk || '').toUpperCase();
@@ -574,17 +575,20 @@ function matchRosterAccount(rows, username, password) {
   const sameUser = rows.filter((r) => r.user.toUpperCase() === wanted);
   if (sameUser.length === 0) return null;
 
-  // Mật khẩu: khớp với BẤT KỲ dòng nào của tài khoản này là hợp lệ.
-  const hopLe = sameUser.some((r) => r.pass && safeEqual(String(password ?? ''), r.pass));
+  // CHECK-IN là vai trò riêng. Nếu một người có thêm dòng bàn khác, lần đăng
+  // nhập này vẫn phải vào đúng khu Check-in, không mở nhầm màn hình bàn.
+  const checkinRows = sameUser.filter((r) => roleFromRosterRow(r.loai, r.desk) === 'checkin');
+  const matched = checkinRows.length ? checkinRows : sameUser;
+
+  // Mật khẩu của tài khoản CHECK-IN lấy từ chính các dòng CHECK-IN. Các role
+  // cũ vẫn giữ quy tắc dùng mật khẩu ở bất kỳ dòng nào của cùng tài khoản.
+  const credentialRows = checkinRows.length ? checkinRows : sameUser;
+  const hopLe = credentialRows.some((r) => r.pass && safeEqual(String(password ?? ''), r.pass));
   if (!hopLe) return null;
 
-  // …nhưng CHỖ LÀM VIỆC thì lấy TẤT CẢ các dòng của tài khoản, không chỉ dòng
-  // có mật khẩu khớp (sửa 2026-08-19). Trong roster thật, các dòng của cùng một
-  // MSNV không nhất thiết cùng giá trị ở cột `NPI_AIO_Pass` — S12196 có 5 dòng
-  // (TV3, TC3, BK3, KHO3, DP2) mà chỉ dòng DP2 khớp, nên người này đăng nhập
-  // vào là rơi thẳng vào dashboard điều phối, không bao giờ thấy bàn TV3 của
-  // mình. Tài khoản là CON NGƯỜI, không phải từng dòng bàn.
-  const matched = sameUser;
+  // Với role cũ, CHỖ LÀM VIỆC lấy tất cả dòng của tài khoản, không chỉ dòng có
+  // mật khẩu khớp. Với CHECK-IN, chỉ giữ các dòng CHECK-IN để bảo đảm quyền
+  // route và danh tính không bị trộn với workspace bàn khác.
   const canViewAll = matched.some((r) => normalizeLoai(r.loai) === 'admin');
 
   const workspaces = [];
@@ -2533,10 +2537,11 @@ export default {
           const desks = account.workspaces.map((w) => w.desk);
           // Vai trò trong TOKEN chỉ để phân biệt với `admin` (quyền ghi cấu
           // hình); chỗ làm việc cụ thể do app chọn từ `workspaces`.
-          // Một tài khoản có thể có nhiều workspace (S12196 có TV3, TC3,
-          // BK3, KHO3 và DP2). Token phải giữ quyền cao nhất mà tài khoản có,
-          // không phụ thuộc thứ tự dòng trong Master_DS, để DP vẫn gửi SMS.
-          const tokenRole = account.canViewAll
+          // CHECK-IN có ưu tiên route riêng. Các role cũ vẫn giữ quyền cao
+          // nhất mà tài khoản có, không phụ thuộc thứ tự dòng trong Master_DS.
+          const tokenRole = account.workspaces.some((workspace) => workspace.role === 'checkin')
+            ? 'checkin'
+            : account.canViewAll
             ? 'adminViewer'
             : account.workspaces.some((workspace) => workspace.role === 'dieuphoi')
             ? 'dieuphoi'

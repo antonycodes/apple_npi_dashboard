@@ -88,13 +88,14 @@ Request:
 }
 ```
 
-Response thành công gồm token, TTL, role, `canViewAll`, desks, workspaces, username, MSNV và tên. Tài khoản roster có `Master_DS.Loại = ADMIN` nhận role `adminViewer`; mật khẩu không được trả về hoặc lưu phía frontend.
+Response thành công gồm token, TTL, role, `canViewAll`, desks, workspaces, username, MSNV và tên. Tài khoản roster có `Master_DS.Loại = ADMIN` nhận role `adminViewer`; tài khoản roster có `Master_DS.Loại = CHECK-IN` nhận role `checkin`. Mật khẩu không được trả về hoặc lưu phía frontend.
 
 Worker thử theo thứ tự:
 
-1. tài khoản roster `Master_DS`;
-2. admin secret;
-3. đường staff password dùng chung legacy nếu còn bật.
+1. tài khoản cố định `CHECKIN` với secret `CHECKIN_PASSWORD`;
+2. tài khoản roster `Master_DS`;
+3. admin secret;
+4. đường staff password dùng chung legacy nếu còn bật.
 
 Thông báo sai username/mật khẩu được gộp để tránh dò tài khoản.
 
@@ -148,7 +149,8 @@ Mục đích: ghi một khách mới vào `Master_Check in` từ màn hình `/ch
 - Worker từ chối nếu SĐT hoặc mã đơn hàng đã xuất hiện trong `Master_Check in`.
 - `oldDeviceQuantity` là số nguyên không âm.
 - Durable Object tuần tự hóa các lượt ghi, chống hai máy chiếm cùng STT.
-- Secret đăng nhập: `CHECKIN_PASSWORD`.
+- Tài khoản cố định `CHECKIN` dùng secret `CHECKIN_PASSWORD`.
+- Nhân sự có `Master_DS.Loại = CHECK-IN` dùng `NPI_AIO_User` và `NPI_AIO_Pass`.
 
 ### POST `/record`
 

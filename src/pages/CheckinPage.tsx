@@ -454,7 +454,16 @@ function CheckinBoard({ readOnly = false }: { readOnly?: boolean }) {
 
 export default function CheckinPage() {
   const session = useAdminInfo();
-  if (!session) return <AppLogin fixedUsername="checkin" title={`${SITE_BRAND} · Check-in`} subtitle="Đăng nhập khu vực tiếp nhận khách" />;
+  if (!session) {
+    return (
+      <AppLogin
+        title={`${SITE_BRAND} · Check-in`}
+        subtitle="Đăng nhập khu vực tiếp nhận khách"
+        usernameLabel="Tài khoản Check-in hoặc MSNV"
+        usernamePlaceholder="CHECKIN hoặc S12196"
+      />
+    );
+  }
   if (session.role !== 'checkin' && session.role !== 'admin' && session.role !== 'adminViewer') return <AccessDenied />;
   return <CheckinBoard readOnly={session.role === 'adminViewer'} />;
 }

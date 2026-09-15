@@ -30,11 +30,15 @@ export default function AppLogin({
   fixedUsername,
   title = SITE_BRAND,
   subtitle,
+  usernameLabel,
+  usernamePlaceholder,
 }: {
   onGuest?: () => void;
   fixedUsername?: string;
   title?: string;
   subtitle?: string;
+  usernameLabel?: string;
+  usernamePlaceholder?: string;
 }) {
   const [username, setUsername] = useState(() => fixedUsername ?? loadLastUser());
   const [password, setPassword] = useState('');
@@ -87,14 +91,14 @@ export default function AppLogin({
             </div>
           ) : (
             <label className="flex flex-col gap-2">
-              <span className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-500">Tài khoản MSNV</span>
+              <span className="text-xs font-bold uppercase tracking-[0.08em] text-neutral-500">{usernameLabel ?? 'Tài khoản MSNV'}</span>
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
                 autoCapitalize="characters"
                 autoFocus={!username}
-                placeholder="VD: S08380"
+                placeholder={usernamePlaceholder ?? 'VD: S08380'}
                 className="min-h-14 rounded-xl bg-neutral-100 px-4 text-lg font-bold uppercase text-neutral-900 outline-none ring-brand transition-shadow placeholder:text-neutral-400 focus:ring-2"
               />
             </label>
