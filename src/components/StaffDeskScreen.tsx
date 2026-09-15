@@ -1145,9 +1145,6 @@ export default function StaffDeskScreen({
                       );
                     })}
                   </div>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    Header được ghép tự động. Nhân viên không sửa được.
-                  </p>
                 </fieldset>
                 <label htmlFor="warehouse-order-content" className="mt-3 block text-xs font-bold uppercase tracking-wide text-neutral-500">
                   Nội dung order
