@@ -287,32 +287,30 @@ export default function StaffReceiveFormModal({
                   <span className="text-sm font-semibold text-neutral-700">Khách cân nhắc giá thu cũ</span>
                 </label>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !customerChangedMind;
-                  setCustomerChangedMind(next);
-                  if (next) {
-                    setValues((current) => ({
-                      ...current,
-                      khachKhongDongYGiaThuCu: false,
-                      checkBackup: '',
-                      thuLaiMay: '',
-                      hinhNghiemThu: [],
-                      anhGiuLai: [],
-                      scanQr: '',
-                      imei: '',
-                    }));
-                  }
-                }}
-                aria-pressed={customerChangedMind}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-[background-color,border-color,color] active:scale-[0.98] ${customerChangedMind ? 'border-red-600 bg-red-50 text-red-700' : 'border-neutral-200 bg-white text-neutral-700'}`}
-              >
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-sm font-black ${customerChangedMind ? 'border-red-600 bg-red-600 text-white' : 'border-neutral-400 text-transparent'}`} aria-hidden="true">
-                  ✓
-                </span>
-                Khách đổi ý không thu cũ nữa
-              </button>
+              <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={customerChangedMind}
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setCustomerChangedMind(next);
+                    if (next) {
+                      setValues((current) => ({
+                        ...current,
+                        khachKhongDongYGiaThuCu: false,
+                        checkBackup: '',
+                        thuLaiMay: '',
+                        hinhNghiemThu: [],
+                        anhGiuLai: [],
+                        scanQr: '',
+                        imei: '',
+                      }));
+                    }
+                  }}
+                  className="h-5 w-5 accent-emerald-600"
+                />
+                <span className="text-sm font-semibold text-neutral-700">Khách đổi ý không thu cũ nữa</span>
+              </label>
             </div>
           )}
 
