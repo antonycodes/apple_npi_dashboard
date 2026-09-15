@@ -1070,7 +1070,7 @@ export default function StaffDeskScreen({
         </section>
 
         {view.cluster === 'consult' && (
-          <section className="rounded-2xl border border-sky-200 bg-white p-4 shadow-sm">
+          <section className="rounded-2xl border border-sky-200 bg-white p-3 shadow-sm sm:p-4">
             <button
               type="button"
               onClick={() => setOrderOpen((open) => !open)}
@@ -1122,7 +1122,7 @@ export default function StaffDeskScreen({
                   <legend className="text-xs font-bold uppercase tracking-wide text-neutral-500">
                     Header cố định của order
                   </legend>
-                  <div className="mt-1 grid grid-cols-2 gap-2">
+                  <div className="mt-1 grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-2">
                     {ORDER_HEADERS.map((header) => {
                       const selected = orderHeader === header;
                       return (
@@ -1134,7 +1134,7 @@ export default function StaffDeskScreen({
                             setOrderHeader(selected ? '' : header);
                             setOrderMessage(null);
                           }}
-                          className={`min-h-12 rounded-xl border px-3 py-2 text-sm font-bold leading-tight transition-colors active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 ${
+                          className={`min-h-12 min-w-0 whitespace-nowrap rounded-xl border px-2.5 py-2 text-sm font-bold leading-tight transition-colors active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 ${
                             selected
                               ? 'border-sky-600 bg-sky-600 text-white'
                               : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
