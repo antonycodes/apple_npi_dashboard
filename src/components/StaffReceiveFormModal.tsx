@@ -14,7 +14,7 @@
  * Layout điện thoại: sheet trượt từ đáy, chiếm tối đa 92% chiều cao, nội dung
  * cuộn được, nút hành động dính đáy trong tầm ngón cái + chừa safe area.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import QrScanButton from '@/components/QrScanButton';
 import SerialScanButton from '@/components/SerialScanButton';
 import { workerBaseUrl } from '@/services/adminApi';
@@ -81,10 +81,7 @@ export default function StaffReceiveFormModal({
   const [staffDetailsOpen, setStaffDetailsOpen] = useState(false);
   const [customerChangedMind, setCustomerChangedMind] = useState(false);
   const [changeMindConfirmOpen, setChangeMindConfirmOpen] = useState(false);
-  const [changeMindProgress, setChangeMindProgress] = useState(0);
   const [changeMindSending, setChangeMindSending] = useState(false);
-  const changeMindProgressRef = useRef(0);
-  const changeMindReleaseTimer = useRef<number | null>(null);
   const set = <K extends keyof ReceiveFormValues>(key: K, v: ReceiveFormValues[K]) =>
     setValues((p) => ({ ...p, [key]: v }));
 
@@ -100,10 +97,6 @@ export default function StaffReceiveFormModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [busy, changeMindConfirmOpen, onClose]);
-
-  useEffect(() => () => {
-    if (changeMindReleaseTimer.current !== null) window.clearTimeout(changeMindReleaseTimer.current);
-  }, []);
 
   // Khi chưa đánh dấu khách cân nhắc giá, giữ nguyên đầy đủ luồng cũ.
   // Đánh dấu sẽ ẩn toàn bộ lựa chọn Backup/thu máy và phần nhập máy.
@@ -148,42 +141,15 @@ export default function StaffReceiveFormModal({
     !busy;
 
   const openChangeMindConfirmation = () => {
-    changeMindProgressRef.current = 0;
-    setChangeMindProgress(0);
     setChangeMindConfirmOpen(true);
   };
 
-  const updateChangeMindProgress = (value: number) => {
-    const next = Math.max(0, Math.min(100, value));
-    changeMindProgressRef.current = next;
-    setChangeMindProgress(next);
-  };
-
-  const updateChangeMindProgressFromPointer = (clientX: number, element: HTMLDivElement) => {
-    const rect = element.getBoundingClientRect();
-    if (!rect.width) return;
-    updateChangeMindProgress(((clientX - rect.left) / rect.width) * 100);
-  };
-
-  const releaseChangeMindConfirmation = () => {
-    if (changeMindSending) return;
-    if (changeMindProgressRef.current < 85) {
-      changeMindProgressRef.current = 0;
-      setChangeMindProgress(0);
-      return;
-    }
-
-    changeMindProgressRef.current = 100;
-    setChangeMindProgress(100);
+  const confirmChangeMind = async () => {
+    if (changeMindSending || !onCustomerChangedMind) return;
     setChangeMindSending(true);
-    changeMindReleaseTimer.current = window.setTimeout(async () => {
-      const sent = onCustomerChangedMind ? await onCustomerChangedMind(values) : false;
-      setChangeMindSending(false);
-      changeMindProgressRef.current = 0;
-      setChangeMindProgress(0);
-      if (sent) setChangeMindConfirmOpen(false);
-      changeMindReleaseTimer.current = null;
-    }, 180);
+    const sent = await onCustomerChangedMind(values);
+    setChangeMindSending(false);
+    if (sent) setChangeMindConfirmOpen(false);
   };
 
   return (
@@ -487,51 +453,15 @@ export default function StaffReceiveFormModal({
               <span className="h-1 w-1 rounded-full bg-neutral-400" aria-hidden="true" />
               <span className="text-sm font-semibold text-neutral-700">Không thu cũ nữa</span>
             </div>
-            <div className="mt-6">
-              <label htmlFor="staff-change-mind-slider" className="sr-only">
-                Kéo để xác nhận khách đồng ý thay đổi
-              </label>
-              <div
-                className="relative touch-none select-none"
-                onPointerDown={(event) => {
-                  if (changeMindSending) return;
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                  updateChangeMindProgressFromPointer(event.clientX, event.currentTarget);
-                }}
-                onPointerMove={(event) => {
-                  if (!event.currentTarget.hasPointerCapture(event.pointerId) || changeMindSending) return;
-                  updateChangeMindProgressFromPointer(event.clientX, event.currentTarget);
-                }}
-                onPointerUp={(event) => {
-                  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-                  releaseChangeMindConfirmation();
-                }}
-                onPointerCancel={(event) => {
-                  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-                  changeMindProgressRef.current = 0;
-                  setChangeMindProgress(0);
-                }}
-              >
-                <input
-                  id="staff-change-mind-slider"
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={changeMindProgress}
-                  disabled={changeMindSending}
-                  onChange={(event) => updateChangeMindProgress(Number(event.target.value))}
-                  onKeyUp={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') releaseChangeMindConfirmation();
-                  }}
-                  aria-valuetext={changeMindSending ? 'Đang gửi về Lark' : 'Chưa xác nhận'}
-                  className="h-14 w-full appearance-none rounded-xl bg-red-700 accent-red-500"
-                />
-                <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-semibold text-white">
-                  {changeMindSending ? 'Đang gửi về Lark…' : 'Kéo để xác nhận'}
-                </span>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={confirmChangeMind}
+              disabled={changeMindSending || !onCustomerChangedMind}
+              aria-label="Xác nhận khách đồng ý thay đổi"
+              className="mt-6 min-h-14 w-full rounded-xl bg-red-700 px-4 text-base font-bold text-white active:bg-red-800 disabled:bg-neutral-200 disabled:text-neutral-700"
+            >
+              {changeMindSending ? 'Đang gửi về Lark…' : 'Xác nhận'}
+            </button>
             {error && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">✗ {error}</p>}
             <p className="mt-3 text-xs leading-5 text-neutral-500">
               Thao tác này sẽ ghi `Không thu cũ nữa` vào Master Điều phối.
