@@ -7,15 +7,14 @@
  * khách sang bàn đó, bấm Tiếp nhận, rồi bấm Hoàn tất: ba bước cho một việc duy
  * nhất là cầm cái máy.
  *
- * Ở đây chỉ còn 1 chạm: ảnh + QR + IMEI đã ghi ở khâu trước được điền sẵn, NV
- * kiểm rồi bấm xác nhận. Sửa được nếu lệch, nhưng KHÔNG bắt buộc nhập gì.
+ * Ở đây chỉ còn 1 chạm cho từng máy: ảnh + QR + IMEI đã ghi ở khâu trước
+ * được điền sẵn, NV kiểm rồi bấm xác nhận. Mã QR MTC là định danh bắt buộc.
  */
 import { useEffect, useState } from 'react';
-import QrScanButton from '@/components/QrScanButton';
 import SerialScanButton from '@/components/SerialScanButton';
 import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
-import type { PrevImage, StaffCustomer } from '@/services/staffMapper';
+import type { PrevDeviceData, PrevImage, StaffCustomer } from '@/services/staffMapper';
 import PhotoSlotPicker, { type PhotoSlot } from '@/components/PhotoSlotPicker';
 
 export interface ThuMayValues {
@@ -38,9 +37,18 @@ function mediaUrl(image: PrevImage): string {
   return `${workerBaseUrl()}/media/${encodeURIComponent(image.fileToken)}${query}`;
 }
 
+function devicesOf(customer: StaffCustomer): PrevDeviceData[] {
+  return customer.prevDevices ?? (customer.prevDevice ? [customer.prevDevice] : []);
+}
+
+function deviceLabel(device: PrevDeviceData, index: number): string {
+  return device.scanQr?.trim() || `MTC.${index + 1}`;
+}
+
 export default function ThuMayModal({
   candidates,
   deskLabel,
+  title = 'Thu máy nhanh',
   busy,
   error,
   onSubmit,
@@ -49,6 +57,7 @@ export default function ThuMayModal({
   /** Khách còn máy chưa thu — NV gõ STT để tra trong đây. */
   candidates: StaffCustomer[];
   deskLabel: string;
+  title?: string;
   busy: boolean;
   error: string | null;
   onSubmit: (customer: StaffCustomer, values: ThuMayValues) => void;
@@ -62,6 +71,7 @@ export default function ThuMayModal({
    * tranh toàn cảnh là việc của Điều phối — xem `PendingDeviceTable`.
    */
   const [chon, setChon] = useState<StaffCustomer | null>(null);
+  const [chonMay, setChonMay] = useState<PrevDeviceData | null>(null);
   const [sttNhap, setSttNhap] = useState('');
   const [loiTra, setLoiTra] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<PrevImage | null>(null);
@@ -85,13 +95,19 @@ export default function ThuMayModal({
     }
     setLoiTra(null);
     setChon(found);
-    // Điền sẵn dữ liệu máy đã ghi ở khâu trước ngay khi tra được khách.
+    setChonMay(null);
+    setValues({ anhGiuLai: [], anhMoi: [], scanQr: '', imei: '' });
+  };
+
+  const selectDevice = (device: PrevDeviceData) => {
+    setChonMay(device);
     setValues({
-      anhGiuLai: found.prevDevice?.images ?? [],
+      anhGiuLai: device.images,
       anhMoi: [],
-      scanQr: found.prevDevice?.scanQr ?? '',
-      imei: found.prevDevice?.imei ?? '',
+      scanQr: device.scanQr ?? '',
+      imei: device.imei ?? '',
     });
+    setLoiTra(null);
   };
 
   useEffect(() => {
@@ -115,7 +131,7 @@ export default function ThuMayModal({
       <div className="flex max-h-[92dvh] w-full max-w-[430px] flex-col rounded-t-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-neutral-900">Thu máy nhanh</h2>
+            <h2 className="text-lg font-bold text-neutral-900">{title}</h2>
             <p className="truncate text-xs text-neutral-500">
               {chon
                 ? `STT ${chon.stt ?? '—'} · ${chon.name ?? 'chưa rõ tên'} · Bàn ${deskLabel}`
@@ -170,50 +186,88 @@ export default function ThuMayModal({
             </div>
           )}
 
-          {chon && (
-          <>
-          <div>
-            <span className="text-xs font-semibold text-neutral-500">
-              Ảnh nghiệm thu (tối đa {MAX_ANH} ảnh)
-            </span>
-            <PhotoSlotPicker
-              slots={photoSlots}
-              mediaUrl={mediaUrl}
-              onPreview={(image) => setPreviewImage(image)}
-              onPick={(_, file) => set('anhMoi', [...values.anhMoi, file].slice(0, conTrong))}
-              onRemove={(slot) => slot < values.anhGiuLai.length
-                ? set('anhGiuLai', values.anhGiuLai.filter((_, index) => index !== slot))
-                : set('anhMoi', values.anhMoi.filter((_, index) => index !== slot - values.anhGiuLai.length))}
-            />
-            <p className="mt-1 text-xs font-semibold text-neutral-500">Đã có {photoSlots.length}/3 ảnh</p>
-          </div>
-
-          <div>
-            <span className="text-xs font-semibold text-neutral-500">Scan QR máy thu cũ</span>
-            <div className="mt-1 flex items-center gap-2">
-              <input
-                value={values.scanQr}
-                onChange={(e) => set('scanQr', e.target.value)}
-                className="min-h-11 flex-1 rounded-xl border border-neutral-300 px-3 text-base"
-              />
-              <QrScanButton onScan={(v) => set('scanQr', v.trim())} />
+          {chon && !chonMay && (
+            <div className="space-y-2">
+              <div className="rounded-xl bg-neutral-50 px-3 py-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Máy đang chờ thu</p>
+                <p className="mt-1 text-sm font-semibold text-neutral-700">
+                  {devicesOf(chon).length} máy · Số lượng thu cũ: {chon.oldDeviceQuantity ?? '—'}
+                </p>
+              </div>
+              {devicesOf(chon).map((device, index) => {
+                const label = deviceLabel(device, index);
+                return (
+                  <button
+                    key={`${label}-${device.sourceRecordId ?? index}`}
+                    type="button"
+                    onClick={() => selectDevice(device)}
+                    className="w-full rounded-2xl border border-neutral-200 bg-white p-3 text-left transition-colors active:bg-neutral-50"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-base font-bold text-neutral-900">{label}</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800">Thu máy sau</span>
+                    </div>
+                    <p className="mt-2 text-xs text-neutral-500">
+                      {device.images.length} ảnh · Serial Number: {device.imei || '—'}
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-emerald-700">Xem chi tiết →</p>
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          )}
 
-          <div>
-            <span className="text-xs font-semibold text-neutral-500">Serial Number</span>
-            <div className="mt-1 flex items-center gap-2">
-              <input
-                value={values.imei}
-                onChange={(e) => set('imei', e.target.value)}
-                inputMode="text"
-                className="min-h-11 flex-1 rounded-xl border border-neutral-300 px-3 text-base"
-              />
-              <SerialScanButton onScan={(v) => set('imei', v.trim())} />
-            </div>
-          </div>
+          {chon && chonMay && (
+            <>
+              <button
+                type="button"
+                onClick={() => setChonMay(null)}
+                disabled={busy}
+                className="min-h-10 rounded-xl px-2 text-sm font-bold text-neutral-600 active:bg-neutral-100 disabled:opacity-40"
+              >
+                ← Danh sách máy
+              </button>
 
-          </>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Máy đang xử lý</p>
+                <p className="mt-1 text-xl font-black text-neutral-900">{deviceLabel(chonMay, devicesOf(chon).indexOf(chonMay))}</p>
+                <p className="mt-1 text-xs text-neutral-600">Đối chiếu thông tin rồi xác nhận đã thu máy.</p>
+              </div>
+
+              <div>
+                <span className="text-xs font-semibold text-neutral-500">Ảnh nghiệm thu (tối đa {MAX_ANH} ảnh)</span>
+                <PhotoSlotPicker
+                  slots={photoSlots}
+                  mediaUrl={mediaUrl}
+                  onPreview={(image) => setPreviewImage(image)}
+                  onPick={(_, file) => set('anhMoi', [...values.anhMoi, file].slice(0, conTrong))}
+                  onRemove={(slot) => slot < values.anhGiuLai.length
+                    ? set('anhGiuLai', values.anhGiuLai.filter((_, index) => index !== slot))
+                    : set('anhMoi', values.anhMoi.filter((_, index) => index !== slot - values.anhGiuLai.length))}
+                />
+                <p className="mt-1 text-xs font-semibold text-neutral-500">Đã có {photoSlots.length}/{MAX_ANH} ảnh</p>
+              </div>
+
+              <div>
+                <span className="text-xs font-semibold text-neutral-500">Mã QR MTC</span>
+                <div className="mt-1 rounded-xl border border-neutral-200 bg-neutral-100 px-3 py-3 text-base font-bold text-neutral-800">
+                  {values.scanQr || 'Thiếu mã MTC'}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-xs font-semibold text-neutral-500">Serial Number</span>
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    value={values.imei}
+                    onChange={(e) => set('imei', e.target.value)}
+                    inputMode="text"
+                    className="min-h-11 flex-1 rounded-xl border border-neutral-300 px-3 text-base"
+                  />
+                  <SerialScanButton onScan={(v) => set('imei', v.trim())} />
+                </div>
+              </div>
+            </>
           )}
 
           {error && <p className="text-sm font-semibold text-red-600">✗ {error}</p>}
@@ -228,14 +282,14 @@ export default function ThuMayModal({
           >
             Huỷ
           </button>
-          {chon && (
+          {chon && chonMay && (
             <button
               type="button"
               onClick={() => onSubmit(chon, values)}
               disabled={busy}
               className="min-h-14 flex-[2] rounded-2xl bg-emerald-600 text-base font-bold text-white disabled:opacity-40"
             >
-              {busy ? 'Đang gửi…' : 'Xác nhận đã thu máy'}
+              {busy ? 'Đang gửi…' : `Xác nhận đã thu ${deviceLabel(chonMay, devicesOf(chon).indexOf(chonMay))}`}
             </button>
           )}
         </div>

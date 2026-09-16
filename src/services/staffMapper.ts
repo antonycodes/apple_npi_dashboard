@@ -26,7 +26,7 @@ import { toFieldConfig } from '@/config/larkSettings';
 import { ALL_POSITIONS } from '@/config/layoutConfig';
 import type { ClusterKey, DeskCustomer } from '@/types/desk';
 import { cellToBool, cellToNumber, cellToProducts, cellToString, cellToUrl, cellToUsername, fieldValue, mapDeskStates, normalizeDeskCode } from './larkMapper';
-import type { LarkRecord, LarkTables } from './larkTypes';
+import type { LarkCellValue, LarkRecord, LarkTables } from './larkTypes';
 
 /** 1 ảnh nghiệm thu đã ghi vào Base từ lần trước. */
 export interface PrevImage {
@@ -47,6 +47,8 @@ export interface PrevDeviceData {
   scanQr: string | null;
   imei: string | null;
   images: PrevImage[];
+  /** Epoch ms của record Master mới nhất cho đúng mã MTC. */
+  updatedAt?: number;
   sourceRecordId?: string;
   sourceRevision?: number;
 }
@@ -57,6 +59,8 @@ export interface StaffCustomer extends DeskCustomer {
   receiveUrl?: string | null;
   /** Dữ liệu máy cũ đã ghi lần trước — null nếu chưa từng ghi. */
   prevDevice?: PrevDeviceData | null;
+  /** Các máy cũ mới nhất theo từng mã MTC của khách. */
+  prevDevices?: PrevDeviceData[];
   /** Khách đã kết thúc toàn bộ luồng trong Check-in. */
   endFlow?: boolean;
 }
@@ -129,7 +133,10 @@ function indexCheckinByStt(rows: LarkRecord[], fm: CheckinFieldMap): Map<string,
       productName: cellToProducts(r.fields, fm.product),
       oldDeviceQuantity: Number.isFinite(quantity) ? quantity : null,
       paymentNote: cellToString(r.fields[fm.note]),
-      deviceAccepted: cellToBool(r.fields[fm.deviceAccepted]),
+      deviceAccepted: deviceAcceptedByQuantity(
+        r.fields[fm.deviceAccepted],
+        Number.isFinite(quantity) ? quantity : null,
+      ),
       deviceAcceptedText: cellToString(r.fields[fm.deviceAccepted]),
       oldDeviceCheck: cellToString(r.fields[fm.oldDeviceCheck]),
       backupCheck: cellToString(r.fields[fm.backupCheck]),
@@ -163,34 +170,77 @@ function cellToAttachments(v: unknown, sourceRecordId?: string): PrevImage[] {
 }
 
 /**
+ * `Check nghiệm thu` là công thức có dạng "Đã nghiệm thu (n) máy".
+ * Với khách thu nhiều máy, phải so n với số lượng đăng ký, không chỉ kiểm
+ * tra công thức có chữ "Đã nghiệm thu".
+ */
+function deviceAcceptedByQuantity(value: LarkCellValue, quantity: number | null): boolean {
+  const text = cellToString(value);
+  const count = text?.match(/đã nghiệm thu\s*\((\d+)\)\s*máy/i)?.[1];
+  if (count != null && quantity != null) return Number(count) >= quantity;
+  return cellToBool(value);
+}
+
+/**
  * Tra dữ liệu máy cũ đã ghi, theo `STT Input`.
  *
  * Lấy dòng MỚI NHẤT (theo `Thời gian`) có `Thu lại máy` — mỗi khách có thể có
  * nhiều dòng `Master` (Tiếp nhận, Hoàn tất, nhiều khâu), chỉ dòng nào thật sự
  * ghi trạng thái thu máy mới đáng dùng để điền lại form.
  */
-export function indexPrevDeviceByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<string, PrevDeviceData> {
-  const best = new Map<string, { time: number; data: PrevDeviceData }>();
+export function indexPrevDevicesByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<string, PrevDeviceData[]> {
+  const best = new Map<string, Map<string, { time: number; data: PrevDeviceData }>>();
   for (const r of rows) {
     const stt = cellToString(r.fields[fm.sttInput]);
     const thuLaiMay = cellToString(r.fields[fm.thuLaiMay]);
     if (!stt || !thuLaiMay) continue;
     const time = Number(r.fields[fm.time]) || 0;
-    const prev = best.get(stt);
+    const scanQr = cellToString(r.fields[fm.scanQr])?.trim() ?? '';
+    // `Scan QR máy cũ` chứa mã MTC (MTC.1, MTC.2...). Dùng record_id làm
+    // fallback để một record cũ thiếu mã không làm mất thiết bị khác.
+    const deviceKey = scanQr.toUpperCase() || `record:${r.record_id}`;
+    const devices = best.get(stt) ?? new Map<string, { time: number; data: PrevDeviceData }>();
+    const prev = devices.get(deviceKey);
     if (prev && time < prev.time) continue;
-    best.set(stt, {
+    const images = cellToAttachments(r.fields[fm.hinhNghiemThu], r.record_id);
+    devices.set(deviceKey, {
       time,
       data: {
         thuLaiMay,
-        scanQr: cellToString(r.fields[fm.scanQr]),
+        scanQr: scanQr || null,
         imei: cellToString(r.fields[fm.imei]),
-        images: cellToAttachments(r.fields[fm.hinhNghiemThu], r.record_id),
+        images,
+        updatedAt: time,
         sourceRecordId: r.record_id,
-        sourceRevision: cellToAttachments(r.fields[fm.hinhNghiemThu], r.record_id)[0]?.sourceRevision,
+        sourceRevision: images[0]?.sourceRevision,
       },
     });
+    best.set(stt, devices);
   }
-  return new Map([...best].map(([stt, v]) => [stt, v.data]));
+  return new Map([...best].map(([stt, devices]) => [
+    stt,
+    [...devices.values()]
+      .map((entry) => entry.data)
+      .sort((a, b) => {
+        const aCode = a.scanQr ?? '';
+        const bCode = b.scanQr ?? '';
+        const aNumber = Number(aCode.match(/^MTC\.(\d+)$/i)?.[1] ?? Number.MAX_SAFE_INTEGER);
+        const bNumber = Number(bCode.match(/^MTC\.(\d+)$/i)?.[1] ?? Number.MAX_SAFE_INTEGER);
+        return aNumber - bNumber || (a.updatedAt ?? 0) - (b.updatedAt ?? 0);
+      }),
+  ]));
+}
+
+/**
+ * Tương thích với các màn hình cũ chỉ cần một thiết bị: trả record mới nhất
+ * của khách, còn luồng Thu máy nhanh dùng `indexPrevDevicesByStt()`.
+ */
+export function indexPrevDeviceByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<string, PrevDeviceData> {
+  const all = indexPrevDevicesByStt(rows, fm);
+  return new Map([...all].map(([stt, devices]) => [
+    stt,
+    devices.reduce((latest, device) => (device.updatedAt ?? 0) >= (latest.updatedAt ?? 0) ? device : latest),
+  ]));
 }
 
 /**
@@ -266,11 +316,16 @@ export function mapPendingDevices(
   tables: LarkTables,
   fields: FieldConfig = toFieldConfig(),
 ): StaffCustomer[] {
-  const prevByStt = indexPrevDeviceByStt(tables.master, fields.master);
+  const prevByStt = indexPrevDevicesByStt(tables.master, fields.master);
   const checkinByStt = indexCheckinByStt(tables.checkin, fields.checkin);
   return [...prevByStt.entries()]
-    .filter(([, d]) => d.thuLaiMay === 'Thu máy sau')
-    .map(([stt, d]) => ({ ...(checkinByStt.get(stt) ?? { stt, name: null }), prevDevice: d }))
+    .map(([stt, devices]) => [stt, devices.filter((device) => device.thuLaiMay === 'Thu máy sau')] as const)
+    .filter(([, devices]) => devices.length > 0)
+    .map(([stt, devices]) => ({
+      ...(checkinByStt.get(stt) ?? { stt, name: null }),
+      prevDevice: devices[0] ?? null,
+      prevDevices: devices,
+    }))
     .sort((a, b) => Number(a.stt ?? 0) - Number(b.stt ?? 0));
 }
 
@@ -306,11 +361,13 @@ export function mapStaffDeskView(
   // Gắn dữ liệu máy cũ đã ghi lần trước vào từng khách, để form Hoàn tất điền
   // sẵn khi lần đó chọn "Thu máy sau".
   const prevByStt = indexPrevDeviceByStt(tables.master, fields.master);
+  const prevDevicesByStt = indexPrevDevicesByStt(tables.master, fields.master);
   const withPrev = (c: StaffCustomer): StaffCustomer => ({
     ...c,
     oldDeviceQuantity: c.stt ? checkinByStt.get(c.stt)?.oldDeviceQuantity ?? null : null,
     icloudDataProcessed: c.stt ? icloudDataProcessedByStt.has(c.stt) : null,
     prevDevice: c.stt ? prevByStt.get(c.stt) ?? null : null,
+    prevDevices: c.stt ? prevDevicesByStt.get(c.stt) ?? [] : [],
   });
 
   // Tư vấn không thu máy nên không cần danh sách này.
@@ -329,7 +386,9 @@ export function mapStaffDeskView(
   const pendingDevice =
     pos.cluster === 'consult'
       ? []
-      : mapPendingDevices(tables, fields).filter((c) => !c.stt || !dangOBanNay.has(c.stt));
+      // Backup được phép thu ngay máy của STT đang ở chính bàn mình. Thu cũ
+      // vẫn giữ quy tắc cũ: khách đang ở bàn thì dùng form Hoàn tất thường.
+      : mapPendingDevices(tables, fields).filter((c) => pos.cluster === 'backup' || !c.stt || !dangOBanNay.has(c.stt));
 
   return {
     id: deskId,

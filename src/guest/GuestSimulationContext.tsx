@@ -474,21 +474,27 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         });
       },
       quickDevice(stt, stage, guestDeskId, device) {
-        const target = assignments.find((item) => item.stt === stt && item.stage === stage);
+        const deviceKey = device?.scanQr?.trim().toUpperCase() ?? '';
+        const target = assignments.find((item) =>
+          item.stt === stt
+          && item.stage === stage
+          && item.thuLaiMay === 'Thu máy sau'
+          && (item.scanQr?.trim().toUpperCase() ?? '') === deviceKey,
+        );
         const resolvedDesk = target?.deskId ?? (guestDeskId ? deskForGuestRole(guestDeskId) : null);
         if (!resolvedDesk) return;
         const deviceFields = {
           thuLaiMay: 'Thu máy ngay' as const,
-          ...(device?.scanQr ? { scanQr: device.scanQr } : {}),
+          ...(deviceKey ? { scanQr: deviceKey } : {}),
           ...(device?.imei ? { imei: device.imei } : {}),
           ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
         };
-        setAssignments((current) => current.some((item) => item.stt === stt && item.stage === stage)
-          ? current.map((item) =>
-              item.stt === stt && item.stage === stage ? { ...item, ...deviceFields } : item,
-            )
-          : [...current, { stt, stage, deskId: resolvedDesk, status: 'completed', at: Date.now(), ...deviceFields }],
-        );
+        // Giữ record `Thu máy sau` ban đầu để mô phỏng đúng audit trail; mỗi
+        // MTC được xác nhận tạo thêm một record `Thu máy ngay` riêng.
+        setAssignments((current) => [
+          ...current,
+          { stt, stage, deskId: resolvedDesk, status: 'completed', at: Date.now(), ...deviceFields },
+        ]);
         setBase((current) => ({
           ...current,
           checkin: current.checkin.map((row) =>

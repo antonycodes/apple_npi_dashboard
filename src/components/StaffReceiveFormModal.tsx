@@ -22,6 +22,7 @@ import { guestMediaUrl } from '@/services/guestMedia';
 import type { PrevImage, StaffCustomer } from '@/services/staffMapper';
 import type { ClusterKey } from '@/types/desk';
 import PhotoSlotPicker, { type PhotoSlot } from '@/components/PhotoSlotPicker';
+import { isTradeInCustomer } from '@/utils/tradeInFilter';
 
 export interface ReceiveFormValues {
   stt: string;
@@ -33,7 +34,7 @@ export interface ReceiveFormValues {
   submitBy: string;
   /** "Có" | "Không" | "" (chưa chọn) — chỉ có ý nghĩa khi Hoàn tất (mọi khâu). */
   checkBackup: string;
-  /** "Thu máy ngay" | "Thu máy sau" | "" — chỉ Hoàn tất ở khâu Thu cũ. */
+  /** "Thu máy ngay" | "Thu máy sau" | "" — chỉ Hoàn tất ở khâu Thu cũ/Backup. */
   thuLaiMay: string;
   /** Khách đang cân nhắc giá, không cần nhập thông tin máy — chỉ Hoàn tất ở Thu cũ. */
   khachKhongDongYGiaThuCu: boolean;
@@ -102,16 +103,39 @@ export default function StaffReceiveFormModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [busy, changeMindConfirmOpen, onClose]);
 
+  const pendingDevices = (customer?.prevDevices ?? (customer?.prevDevice ? [customer.prevDevice] : []))
+    .filter((device) => device.thuLaiMay === 'Thu máy sau');
+  const selectedPendingDevice = pendingDevices.find(
+    (device) => device.scanQr?.trim().toUpperCase() === values.scanQr.trim().toUpperCase(),
+  ) ?? pendingDevices[0];
+  const selectPendingDevice = (device: (typeof pendingDevices)[number]) => {
+    setValues((current) => ({
+      ...current,
+      thuLaiMay: 'Thu máy ngay',
+      anhGiuLai: device.images,
+      hinhNghiemThu: [],
+      scanQr: device.scanQr ?? '',
+      imei: device.imei ?? '',
+    }));
+  };
+
   // Cân nhắc giá hoặc đổi ý sẽ ẩn các trường thu máy liên quan.
+  const hasPendingTradeInDevices = pendingDevices.length > 0;
+  const needsDeviceCollection = cluster === 'tradein'
+    || (cluster === 'backup' && Boolean(
+      customer
+      && isTradeInCustomer(customer)
+      && (customer.deviceAccepted !== true || hasPendingTradeInDevices),
+    ));
   const showBackupCheck = action === 'hoan_tat'
     && cluster !== 'backup'
     && !values.khachKhongDongYGiaThuCu
     && !customerChangedMind;
   const showThuLaiMay = action === 'hoan_tat'
-    && (cluster === 'tradein' || cluster === 'backup')
+    && needsDeviceCollection
     && !values.khachKhongDongYGiaThuCu
     && !customerChangedMind;
-  const thuLaiMayOptions = cluster === 'backup'
+  const thuLaiMayOptions = cluster === 'backup' || hasPendingTradeInDevices
     ? (['Thu máy ngay'] as const)
     : (['Thu máy ngay', 'Thu máy sau'] as const);
   // 3 field chỉ bung ra sau khi chọn một option.
@@ -247,6 +271,35 @@ export default function StaffReceiveFormModal({
             </div>
           )}
 
+          {showThuLaiMay && pendingDevices.length > 0 && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Máy cần thu</p>
+              <p className="mt-1 text-xs leading-5 text-amber-900">
+                Chọn đúng mã MTC đang ở trạng thái Thu máy sau.
+              </p>
+              <div className="mt-2 grid gap-2">
+                {pendingDevices.map((device, index) => {
+                  const selected = selectedPendingDevice === device;
+                  const label = device.scanQr?.trim() || 'MTC.' + (index + 1);
+                  return (
+                    <button
+                      key={label + '-' + (device.sourceRecordId ?? index)}
+                      type="button"
+                      onClick={() => selectPendingDevice(device)}
+                      aria-pressed={selected}
+                      className={selected
+                        ? 'flex min-h-11 items-center justify-between gap-3 rounded-xl border border-amber-600 bg-amber-100 px-3 py-2 text-left text-amber-950'
+                        : 'flex min-h-11 items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-neutral-900 active:bg-amber-100'}
+                    >
+                      <span className="text-sm font-bold">{label}</span>
+                      <span className="text-xs font-semibold">{device.imei || 'Chưa có Serial'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {showPriceConsideration && (
             <div className="space-y-2">
               {!customerChangedMind && (
@@ -331,10 +384,11 @@ export default function StaffReceiveFormModal({
                   <input
                     value={values.scanQr}
                     onChange={(e) => set('scanQr', e.target.value)}
+                    readOnly={hasPendingTradeInDevices}
                     placeholder="Quét QR hoặc gõ tay"
-                    className={`min-h-11 w-full rounded-xl border px-3 text-base ${values.scanQr.trim() ? 'border-neutral-300' : 'border-red-300'}`}
+                    className={`min-h-11 w-full rounded-xl border px-3 text-base read-only:border-amber-300 read-only:bg-amber-100 read-only:text-amber-950 ${values.scanQr.trim() ? 'border-neutral-300' : 'border-red-300'}`}
                   />
-                  <QrScanButton onScan={(v) => set('scanQr', v)} label="Quét QR máy thu cũ" />
+                  {!hasPendingTradeInDevices && <QrScanButton onScan={(v) => set('scanQr', v)} label="Quét QR máy thu cũ" />}
                 </div>
               </div>
 
@@ -429,7 +483,7 @@ export default function StaffReceiveFormModal({
               else onSubmit(values);
             }}
             disabled={!canSubmit || (customerChangedMind && !onCustomerChangedMind)}
-            className={`min-h-[56px] flex-[2] rounded-2xl text-base font-bold text-white shadow-sm active:opacity-80 disabled:bg-neutral-300 disabled:text-neutral-900 ${action === 'tiep_nhan' ? 'bg-emerald-600' : 'bg-red-600'}`}
+            className={`min-h-[56px] flex-[2] rounded-2xl text-base font-bold text-white shadow-sm active:opacity-80 disabled:bg-neutral-200 disabled:text-black ${action === 'tiep_nhan' ? 'bg-emerald-600' : 'bg-red-600'}`}
           >
             {busy || changeMindSending
               ? 'Đang gửi…'
@@ -478,7 +532,7 @@ export default function StaffReceiveFormModal({
               onClick={confirmChangeMind}
               disabled={changeMindSending || !onCustomerChangedMind}
               aria-label="Xác nhận khách đồng ý thay đổi"
-              className="mt-6 min-h-14 w-full rounded-xl bg-red-700 px-4 text-base font-bold text-white active:bg-red-800 disabled:bg-neutral-300 disabled:text-neutral-900"
+              className="mt-6 min-h-14 w-full rounded-xl bg-red-700 px-4 text-base font-bold text-white active:bg-red-800 disabled:bg-neutral-200 disabled:text-black"
             >
               {changeMindStatus === 'sent'
                 ? 'Đã gửi bản ghi'

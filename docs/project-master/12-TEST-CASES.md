@@ -62,6 +62,7 @@ Mỗi lần test lưu:
 | TC-04 | 1/2/3 ảnh | Đủ token và attachment |
 | TC-05 | Ảnh thứ 2 lỗi | Báo đúng vị trí, không im lặng |
 | TC-06 | Thu máy nhanh | `Trạng thái=Thu máy nhanh`, không Hoàn tất khâu |
+| TC-07 | Một STT có 2/3 máy MTC | Hiện từng `MTC.n`; xác nhận máy nào chỉ tạo record cho mã đó |
 
 ## 6. Backup
 

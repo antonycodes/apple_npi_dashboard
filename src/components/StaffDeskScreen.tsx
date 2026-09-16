@@ -33,7 +33,7 @@ import { uploadNghiemThuImage } from '@/services/larkUpload';
 import { uploadGuestImage } from '@/services/guestMedia';
 import { sendStaffAction } from '@/services/staffActionWebhook';
 import { sendDispatchForm } from '@/services/dispatchWebhook';
-import type { PrevImage, StaffCustomer, StaffDeskView } from '@/services/staffMapper';
+import type { PrevDeviceData, PrevImage, StaffCustomer, StaffDeskView } from '@/services/staffMapper';
 import StaffReceiveFormModal, { type ReceiveFormValues } from './StaffReceiveFormModal';
 import ThuMayModal, { type ThuMayValues } from './ThuMayModal';
 import DispatchSummary from './DispatchSummary';
@@ -41,6 +41,7 @@ import type { ClusterKey } from '@/types/desk';
 import { sendDeskAlert } from '@/services/dashboardRealtime';
 import { recordAuditEvent } from '@/services/auditLogApi';
 import { useWarehouseOrders } from '@/hooks/useWarehouseOrders';
+import { isTradeInCustomer } from '@/utils/tradeInFilter';
 
 /** Trạng thái lạc quan tự huỷ sau 2 phút (NV mở link rồi bỏ ngang). */
 const PENDING_TTL_MS = 120_000;
@@ -70,6 +71,15 @@ interface Pending {
   at: number;
 }
 
+function showBackupDeviceInfo(customer: StaffCustomer, cluster: ClusterKey): boolean {
+  return cluster === 'tradein'
+    || (cluster === 'backup' && isTradeInCustomer(customer) && customer.deviceAccepted !== true);
+}
+
+function pendingDeviceKey(stt: string | null | undefined, device: Pick<PrevDeviceData, 'scanQr' | 'sourceRecordId'>): string {
+  return `${stt ?? ''}|${device.scanQr?.trim().toUpperCase() || device.sourceRecordId || 'unknown'}`;
+}
+
 /** Cùng quy ước tô màu với `CustomerPopover` — theo TỪ KHOÁ, không so chuỗi cứng. */
 /**
  * Phần "máy thu cũ" của form Hoàn tất: giá trị điền sẵn theo khâu.
@@ -82,24 +92,20 @@ function buildDeviceDefaults(
   cluster: ClusterKey,
   action: 'tiep_nhan' | 'hoan_tat',
 ) {
-  const prev = customer.prevDevice;
-  const hoanTat = action === 'hoan_tat';
+  // Ưu tiên máy còn treo `Thu máy sau`, thay vì record mới nhất bất kỳ của
+  // khách. Với nhiều MTC, đây là máy thực sự cần được chọn/thu tiếp.
+  const isDeviceStage = cluster === 'tradein' || cluster === 'backup';
+  const prev = isDeviceStage
+    ? customer.prevDevices?.find((device) => device.thuLaiMay === 'Thu máy sau') ?? customer.prevDevice
+    : undefined;
+  const hoanTat = action === 'hoan_tat' && isDeviceStage;
 
   const coThuMaySau = prev?.thuLaiMay === 'Thu máy sau';
-  const duDuLieu = Boolean(
-    prev && prev.images.length > 0 && prev.scanQr?.trim() && prev.imei?.trim(),
-  );
-
-  // Thu cũ tiếp tục dùng dữ liệu đã nhập từ lần chọn "Thu máy sau".
-  const tiepTuc = hoanTat && cluster !== 'backup' && coThuMaySau;
-
-  // Ở Backup, chỉ tự chọn "Thu máy ngay" khi dòng "Thu máy sau" trước đó
-  // đã có đủ ảnh, QR và Serial. Khi thiếu dữ liệu, NV phải chủ động chọn lại.
-  const backupTuDongThuNgay = hoanTat && cluster === 'backup' && coThuMaySau && duDuLieu;
-  const dienSan = tiepTuc || backupTuDongThuNgay;
-  const thuLaiMay = cluster === 'backup'
-    ? backupTuDongThuNgay ? 'Thu máy ngay' : ''
-    : tiepTuc ? prev?.thuLaiMay ?? '' : '';
+  // Có MTC đã hẹn trước thì form Hoàn tất thu tiếp máy đó ngay. Không ghi
+  // lại "Thu máy sau", vì máy đã có định danh và đang cần được thu.
+  const thuMaySauNgay = hoanTat && coThuMaySau;
+  const dienSan = thuMaySauNgay;
+  const thuLaiMay = thuMaySauNgay ? 'Thu máy ngay' : '';
 
   return {
     values: {
@@ -318,7 +324,7 @@ function CustomerCard({
         <PersonnelInfo customer={customer} />
         {showTradeInQuantity && <TradeInQuantityInfo value={customer.oldDeviceQuantity} />}
         <InfoRow label="Ghi chú thanh toán" value={customer.paymentNote} />
-        <InfoRow label="Check nghiệm thu" value={customer.deviceAcceptedText} />
+        {showTradeInQuantity && <InfoRow label="Check nghiệm thu" value={customer.deviceAcceptedText} />}
         <ICloudDataInfo processed={customer.icloudDataProcessed} />
       </div>
     </div>
@@ -484,14 +490,25 @@ export default function StaffDeskScreen({
   // Chỉ còn phần lạc quan (`vuaThu`) ở đây — việc loại khách đang ngồi bàn này
   // nằm trong `staffMapper`, vì đó là logic dữ liệu chứ không phải trạng thái
   // màn hình.
-  const pendingDevice = useMemo(
-    () =>
-      view.pendingDevice.filter((c) => {
-        const at = c.stt ? vuaThu[c.stt] : undefined;
-        return !at || Date.now() - at > PENDING_TTL_MS;
-      }),
+  const pendingDevice = useMemo<StaffCustomer[]>(
+    () => view.pendingDevice
+      .map((customer) => {
+        const devices = customer.prevDevices ?? (customer.prevDevice ? [customer.prevDevice] : []);
+        const visibleDevices = devices.filter((device) => {
+          const at = vuaThu[pendingDeviceKey(customer.stt, device)];
+          return !at || Date.now() - at > PENDING_TTL_MS;
+        });
+        if (visibleDevices.length === 0) return null;
+        return { ...customer, prevDevice: visibleDevices[0], prevDevices: visibleDevices } as StaffCustomer;
+      })
+      .filter((customer): customer is StaffCustomer => Boolean(customer)),
     [view.pendingDevice, vuaThu],
   );
+  const pendingDeviceCount = pendingDevice.reduce(
+    (total, customer) => total + (customer.prevDevices?.length ?? (customer.prevDevice ? 1 : 0)),
+    0,
+  );
+  const showDeviceCollectionAction = view.cluster === 'tradein' || pendingDeviceCount > 0;
 
   // ── Đồng hồ phục vụ ────────────────────────────────────────────────────
   const timers = useStaffTimers();
@@ -595,12 +612,12 @@ export default function StaffDeskScreen({
   /**
    * Gửi record "chỉ thu máy" — không đi qua Tiếp nhận, không cần Điều phối.
    *
-   * Ghi 1 dòng `Hoàn tất` với `Thu lại máy = "Thu máy ngay"` cùng ảnh/QR/IMEI,
+   * Ghi 1 dòng `Thu máy nhanh` với `Thu lại máy = "Thu máy ngay"` cùng ảnh/QR/IMEI,
    * `Loại 2` theo ĐÚNG bàn đang thao tác (quyết định user 2026-08-18): thu ở
    * BK ghi "Backup", thu ở TC ghi "Thu cũ".
    *
    * Hai điều đã kiểm và chấp nhận:
-   * - Dòng này KHÔNG làm bàn đỏ: nó là "Hoàn tất", chỉ "Tiếp nhận" mới tính
+   * - Dòng này KHÔNG làm bàn đỏ: nó là "Thu máy nhanh", chỉ "Tiếp nhận" mới tính
    *   occupancy (xem `larkMapper.indexMasterByDeskCode`).
    * - Worker KHÔNG tính được leadtime vì không có dòng "Tiếp nhận" tương ứng.
    *   Nó chỉ ghi lý do vào `data.skipped`, record vẫn tạo bình thường. Đúng
@@ -613,11 +630,16 @@ export default function StaffDeskScreen({
     }
     const stt = khach.stt?.trim();
     if (!stt || sending) return;
+    const mtcCode = values.scanQr.trim().toUpperCase();
+    if (!/^MTC\.\d+$/.test(mtcCode)) {
+      setActionError('Mã QR MTC không hợp lệ. Dùng định dạng MTC.1, MTC.2…');
+      return;
+    }
     setActionError(null);
     setSending(true);
     try {
       if (simulation) {
-        setVuaThu((p) => ({ ...p, [stt]: Date.now() }));
+        setVuaThu((p) => ({ ...p, [pendingDeviceKey(stt, { scanQr: mtcCode })]: Date.now() }));
         const simulatedImages: PrevImage[] = [...values.anhGiuLai];
         if (guestSimulation?.roomCode) {
           for (const file of values.anhMoi.slice(0, Math.max(0, 3 - simulatedImages.length))) {
@@ -626,7 +648,7 @@ export default function StaffDeskScreen({
           }
         }
         guestSimulation?.quickDevice(stt, view.cluster, view.id, {
-          scanQr: values.scanQr.trim() || undefined,
+          scanQr: mtcCode,
           imei: values.imei.trim() || undefined,
           hinhNghiemThu: simulatedImages.map((image) => ({
             file_token: image.fileToken,
@@ -674,10 +696,10 @@ export default function StaffDeskScreen({
         thoiGian: new Date().toISOString(),
         thuLaiMay: 'Thu máy ngay',
         ...(tokens.length ? { hinhNghiemThu: tokens } : {}),
-        ...(values.scanQr.trim() ? { scanQr: values.scanQr.trim() } : {}),
+        scanQr: mtcCode,
         ...(values.imei.trim() ? { imei: values.imei.trim() } : {}),
       });
-      setVuaThu((p) => ({ ...p, [stt]: Date.now() }));
+      setVuaThu((p) => ({ ...p, [pendingDeviceKey(stt, { scanQr: mtcCode })]: Date.now() }));
       setThuMayOpen(false);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
@@ -1078,10 +1100,10 @@ export default function StaffDeskScreen({
           </h2>
 
           {primary ? (
-            <CustomerCard customer={primary} tone="current" timer={timerOf(primary.stt)} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} showTradeInQuantity={view.cluster === 'tradein'} />
+            <CustomerCard customer={primary} tone="current" timer={timerOf(primary.stt)} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} showTradeInQuantity={showBackupDeviceInfo(primary, view.cluster)} />
           ) : ghost ? (
             <>
-              <CustomerCard customer={ghost} tone="pending" timer={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} showTradeInQuantity={view.cluster === 'tradein'} />
+              <CustomerCard customer={ghost} tone="pending" timer={timerOf(ghost.stt)} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} showTradeInQuantity={showBackupDeviceInfo(ghost, view.cluster)} />
               <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
                 {simulation ? 'Đã ghi nhận trong phòng mô phỏng — đang đồng bộ…' : webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
               </p>
@@ -1110,7 +1132,7 @@ export default function StaffDeskScreen({
               <div className="mt-2 text-xs">
                 <ProductList value={ghost.productName} />
               </div>
-              {view.cluster === 'tradein' && <p className="mt-1 text-xs text-neutral-500">Thu cũ: {ghost.oldDeviceQuantity == null ? '—' : `${ghost.oldDeviceQuantity} máy`}</p>}
+              {showBackupDeviceInfo(ghost, view.cluster) && <p className="mt-1 text-xs text-neutral-500">Thu cũ: {ghost.oldDeviceQuantity == null ? '—' : `${ghost.oldDeviceQuantity} máy`}</p>}
               <p className="mt-1 text-xs font-semibold text-amber-700">
                 {simulation ? 'Đã ghi nhận trong phòng mô phỏng — đang đồng bộ…' : webhookMode ? 'Đã gửi Tiếp nhận — đang chờ Lark tạo record…' : 'Vừa bấm Tiếp nhận — đang chờ Lark cập nhật…'}
               </p>
@@ -1162,7 +1184,7 @@ export default function StaffDeskScreen({
                           setFormCustomer(c);
                           setFormAction('hoan_tat');
                         }}
-                        className="min-h-11 shrink-0 rounded-xl bg-red-600 px-3 py-2 text-sm font-bold text-white active:opacity-80 disabled:bg-neutral-300 disabled:text-neutral-900"
+                        className="min-h-11 shrink-0 rounded-xl bg-red-600 px-3 py-2 text-sm font-bold text-white active:opacity-80 disabled:bg-neutral-200 disabled:text-black"
                       >
                         Hoàn tất
                       </button>
@@ -1176,9 +1198,9 @@ export default function StaffDeskScreen({
                         </div>
                         <ProductInfo value={c.productName} />
                         <PersonnelInfo customer={c} />
-                        {view.cluster === 'tradein' && <TradeInQuantityInfo value={c.oldDeviceQuantity} />}
+                        {showBackupDeviceInfo(c, view.cluster) && <TradeInQuantityInfo value={c.oldDeviceQuantity} />}
                         <InfoRow label="Ghi chú thanh toán" value={c.paymentNote} />
-                        {view.cluster === 'tradein' && <InfoRow label="Check nghiệm thu" value={c.deviceAcceptedText} />}
+                        {showBackupDeviceInfo(c, view.cluster) && <InfoRow label="Check nghiệm thu" value={c.deviceAcceptedText} />}
                         <ICloudDataInfo processed={c.icloudDataProcessed} />
                       </div>
                     )}
@@ -1202,7 +1224,7 @@ export default function StaffDeskScreen({
               <div className="mt-2 max-w-[210px] text-xs">
                 <ProductList value={view.next?.productName} />
               </div>
-              {view.cluster === 'tradein' && <p className="mt-1 text-xs text-neutral-500">Thu cũ: {view.next?.oldDeviceQuantity == null ? '—' : `${view.next.oldDeviceQuantity} máy`}</p>}
+              {view.next && showBackupDeviceInfo(view.next, view.cluster) && <p className="mt-1 text-xs text-neutral-500">Thu cũ: {view.next.oldDeviceQuantity == null ? '—' : `${view.next.oldDeviceQuantity} máy`}</p>}
             </div>
             <span className={`text-6xl font-black leading-none ${nextStt ? 'text-amber-500' : 'text-neutral-200'}`}>
               {nextStt ?? '—'}
@@ -1319,7 +1341,7 @@ export default function StaffDeskScreen({
                     type="button"
                     onClick={() => void sendOrderToWarehouse()}
                     disabled={deskLocked || !orderCustomer?.stt || !orderHeader || !orderText.trim() || orderSending}
-                    className="min-h-12 flex-1 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white transition-colors active:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:bg-neutral-300 disabled:text-neutral-900"
+                    className="min-h-12 flex-1 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white transition-colors active:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:bg-neutral-200 disabled:text-black"
                   >
                     {orderSending ? 'Đang gửi…' : 'Gửi'}
                   </button>
@@ -1335,7 +1357,7 @@ export default function StaffDeskScreen({
             cần xử đúng người đang đứng trước mặt, gõ STT là ra. Bức tranh toàn
             cảnh "còn bao nhiêu máy chưa thu" là việc của Điều phối, xem nút
             "Chờ thu máy" trên dashboard. */}
-        {view.cluster !== 'consult' && (
+        {view.cluster !== 'consult' && showDeviceCollectionAction && (
           <button
             type="button"
             onClick={() => {
@@ -1345,10 +1367,10 @@ export default function StaffDeskScreen({
             disabled={deskLocked || !webhookMode}
             className="flex min-h-14 w-full items-center justify-center gap-2 rounded-3xl border-2 border-amber-400 bg-amber-50 text-base font-bold text-amber-800 active:bg-amber-100 disabled:opacity-40"
           >
-            Thu máy nhanh
-            {pendingDevice.length > 0 && (
+            {view.cluster === 'backup' ? 'Thu máy ngay' : 'Thu máy nhanh'}
+            {pendingDeviceCount > 0 && (
               <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs text-white">
-                {pendingDevice.length} chờ
+                {pendingDeviceCount} máy chờ
               </span>
             )}
           </button>
@@ -1402,7 +1424,7 @@ export default function StaffDeskScreen({
             disabled={deskLocked || !webhookMode || sending}
             aria-label="Tiếp nhận nhanh"
             title="Tiếp nhận nhanh"
-            className="flex min-h-[56px] w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm active:bg-emerald-100 disabled:border-neutral-300 disabled:bg-neutral-300 disabled:text-neutral-900"
+            className="flex min-h-[56px] w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm active:bg-emerald-100 disabled:border-neutral-300 disabled:bg-neutral-200 disabled:text-black"
           >
             <LightningIcon />
           </button>
@@ -1427,6 +1449,7 @@ export default function StaffDeskScreen({
         <ThuMayModal
           candidates={pendingDevice}
           deskLabel={view.label}
+          title={view.cluster === 'backup' ? 'Thu máy ngay' : 'Thu máy nhanh'}
           busy={sending}
           error={actionError}
           onSubmit={(khach, values) => void submitThuMay(khach, values)}

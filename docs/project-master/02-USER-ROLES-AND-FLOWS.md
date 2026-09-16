@@ -70,13 +70,13 @@ Nếu khách có nghiệp vụ máy cũ ở khâu khác, không tự nhập QR/I
 
 Khi chỉ thu lại máy đã hẹn trước:
 
-1. Chọn đúng khách.
-2. Mở luồng Thu máy.
-3. Kiểm tra QR, IMEI và ảnh cũ nếu có.
+1. Nhập STT khách.
+2. Chọn đúng máy theo mã QR `MTC.n`.
+3. Kiểm tra QR, IMEI và ảnh cũ của máy đó.
 4. Bổ sung/chụp lại tối đa ba ảnh tổng cộng theo UI.
-5. Submit trạng thái `Thu máy nhanh`.
+5. Xác nhận trạng thái `Thu máy nhanh` cho từng máy.
 
-Thu máy nhanh không tạo một khâu Hoàn tất mới.
+Mỗi mã `MTC.n` tạo một record `Thu máy nhanh`. Record `Thu máy sau` ban đầu vẫn được giữ.
 
 ## 5. Backup
 

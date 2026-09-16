@@ -61,7 +61,7 @@ Không rút `Thu cũ check` về boolean; giá trị có thể có nhiều optio
 | `thoiGian` | `Thời gian` | DateTime | Có | ISO → timestamp |
 | `checkBackup` | `Back up` | SingleSelect | Có | Chỉ khi áp dụng |
 | `thuLaiMay` | `Thu lại máy` | SingleSelect | Có | Thu máy ngay/sau |
-| `scanQr` | `Scan QR máy cũ` | Barcode | Có | Không tự đổi format |
+| `scanQr` | `Scan QR máy cũ` | Barcode | Có | Thu máy nhanh dùng mã định danh `MTC.1`, `MTC.2`… |
 | `imei` | `Scan IMEI` | Barcode | Có | Giữ chuỗi để không mất số 0 |
 | `hinhNghiemThu` | `Hình nghiệm thu máy cũ` | Attachment | Có | `[{file_token}]` |
 | `leadtimeGiay` | `Brower Leadtime` | Number | Có | App tính |
@@ -73,7 +73,7 @@ Không rút `Thu cũ check` về boolean; giá trị có thể có nhiều optio
 | --- | --- | --- | --- |
 | `tiep_nhan` | `Tiếp nhận` | Tư vấn/Thu cũ/Backup | Bắt đầu phục vụ |
 | `hoan_tat` | `Hoàn tất` | Tư vấn/Thu cũ/Backup | Hoàn tất một khâu |
-| `thu_may` | `Thu máy nhanh` | Theo bàn thao tác | Chỉ thu máy, không tạo leadtime khâu |
+| `thu_may` | `Thu máy nhanh` | Theo bàn thao tác | Mỗi máy một record; mã `MTC.n` định danh máy; không tạo leadtime khâu |
 | `ban_giao` | `Bàn giao kho` | Rỗng | Kho giao máy cho bàn TV |
 
 Không thay `Thu máy nhanh` hoặc `Bàn giao kho` bằng `Hoàn tất`; formula flow sẽ đọc sai.

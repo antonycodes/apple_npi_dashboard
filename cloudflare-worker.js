@@ -3229,6 +3229,24 @@ export default {
         }
       }
 
+      // Thu máy nhanh là bản ghi riêng cho từng máy. Mã MTC trong QR là khóa
+      // định danh để app và công thức Lark không gộp nhầm nhiều máy cùng STT.
+      // Giữ validation ở Worker để request tự gọi không thể ghi sai trạng thái
+      // hoặc tạo một record thu nhanh không có mã máy.
+      const isQuickDeviceCollection = warehouseAction === 'thu_may';
+      if (isQuickDeviceCollection) {
+        const missing = [
+          String(payload.stt ?? '').trim() ? '' : 'STT',
+          String(payload.trangThai ?? '').trim() === 'Thu máy nhanh' ? '' : 'Trạng thái Thu máy nhanh',
+          String(payload.thuLaiMay ?? '').trim() === 'Thu máy ngay' ? '' : 'Thu lại máy = Thu máy ngay',
+          ['Thu cũ', 'Backup'].includes(String(payload.phanLoai ?? '').trim()) ? '' : 'Loại 2 Thu cũ/Backup',
+          /^MTC\.\d+$/i.test(String(payload.scanQr ?? '').trim()) ? '' : 'Scan QR máy cũ dạng MTC.1, MTC.2…',
+        ].filter(Boolean);
+        if (missing.length > 0) {
+          return json({ code: -1, msg: `Dữ liệu Thu máy nhanh không hợp lệ: ${missing.join(', ')}` }, 400);
+        }
+      }
+
       try {
         const bearerToken = await getToken(env, host);
         const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
