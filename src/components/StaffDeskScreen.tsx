@@ -546,6 +546,7 @@ export default function StaffDeskScreen({
   const [simulationMessage, setSimulationMessage] = useState<string | null>(null);
   const [formAction, setFormAction] = useState<'tiep_nhan' | 'hoan_tat' | null>(null);
   const [formCustomer, setFormCustomer] = useState<StaffCustomer | null>(null);
+  const [expandedExtraKey, setExpandedExtraKey] = useState<string | null>(null);
   const [lockedReceiveStt, setLockedReceiveStt] = useState<string | null>(null);
   const [quickReceiveOpen, setQuickReceiveOpen] = useState(false);
   const [quickReceiveError, setQuickReceiveError] = useState<string | null>(null);
@@ -1121,37 +1122,69 @@ export default function StaffDeskScreen({
               <p className="text-xs font-bold uppercase tracking-wide text-neutral-400">
                 Khách khác đang phục vụ cùng lúc
               </p>
-              {extras.map((c) => (
-                <div key={`${c.stt}-${c.name}`} className="rounded-2xl bg-neutral-50 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="flex h-9 min-w-9 items-center justify-center rounded-xl bg-red-600 px-1.5 text-base font-black text-white">
-                        {c.stt ?? '•'}
-                      </span>
-                      <span className="min-w-0 truncate text-sm font-bold text-neutral-800">
-                        {c.name ?? 'Khách'}
-                      </span>
-                      <ElapsedBadge entry={timerOf(c.stt)} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} size="sm" />
+              {extras.map((c) => {
+                const extraKey = `${c.stt ?? 'unknown'}|${c.name ?? 'Khách'}`;
+                const expanded = expandedExtraKey === extraKey;
+                const detailId = `extra-customer-${extraKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+
+                return (
+                  <div key={extraKey} className="rounded-2xl bg-neutral-50 p-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedExtraKey((current) => current === extraKey ? null : extraKey)}
+                        aria-expanded={expanded}
+                        aria-controls={detailId}
+                        aria-label={`${expanded ? 'Thu gọn' : 'Xem chi tiết'} ${c.name ?? 'Khách'}`}
+                        className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                      >
+                        <span className="flex h-9 min-w-9 items-center justify-center rounded-xl bg-red-600 px-1.5 text-base font-black text-white">
+                          {c.stt ?? '•'}
+                        </span>
+                        <span className="min-w-0 flex-1 whitespace-normal break-words text-sm font-bold leading-5 text-neutral-800">
+                          {c.name ?? 'Khách'}
+                        </span>
+                        <span className="ml-auto hidden shrink-0 text-xs font-semibold text-neutral-400 sm:inline">
+                          {expanded ? 'Thu gọn' : 'Chi tiết'}
+                        </span>
+                        <span
+                          className={`shrink-0 text-neutral-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                          aria-hidden="true"
+                        >
+                          ▾
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!webhookMode || sending}
+                        onClick={() => {
+                          setActionError(null);
+                          setFormCustomer(c);
+                          setFormAction('hoan_tat');
+                        }}
+                        className="min-h-11 shrink-0 rounded-xl bg-red-600 px-3 py-2 text-sm font-bold text-white active:opacity-80 disabled:bg-neutral-300 disabled:text-neutral-900"
+                      >
+                        Hoàn tất
+                      </button>
                     </div>
-                    <div className="mt-2 text-xs">
-                      <ProductList value={c.productName} />
-                    </div>
-                    {view.cluster === 'tradein' && <p className="mt-1 text-xs text-neutral-500">Thu cũ: {c.oldDeviceQuantity == null ? '—' : `${c.oldDeviceQuantity} máy`}</p>}
-                    <button
-                      type="button"
-                      disabled={!webhookMode || sending}
-                      onClick={() => {
-                        setActionError(null);
-                        setFormCustomer(c);
-                        setFormAction('hoan_tat');
-                      }}
-                      className="min-h-11 shrink-0 rounded-xl bg-red-600 px-3 py-2 text-sm font-bold text-white active:opacity-80 disabled:bg-neutral-300 disabled:text-neutral-900"
-                    >
-                      Hoàn tất
-                    </button>
+
+                    {expanded && (
+                      <div id={detailId} className="mt-3 border-t border-neutral-200 pt-2">
+                        <div className="flex items-center justify-between gap-3 border-t border-neutral-100 py-2 text-sm">
+                          <span className="text-neutral-500">Thời gian phục vụ</span>
+                          <ElapsedBadge entry={timerOf(c.stt)} now={now} leadtimeMinutes={leadtimeMinutes} warningMinutesBefore={warningMinutesBefore} size="sm" />
+                        </div>
+                        <ProductInfo value={c.productName} />
+                        <PersonnelInfo customer={c} />
+                        {view.cluster === 'tradein' && <TradeInQuantityInfo value={c.oldDeviceQuantity} />}
+                        <InfoRow label="Ghi chú thanh toán" value={c.paymentNote} />
+                        {view.cluster === 'tradein' && <InfoRow label="Check nghiệm thu" value={c.deviceAcceptedText} />}
+                        <ICloudDataInfo processed={c.icloudDataProcessed} />
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
