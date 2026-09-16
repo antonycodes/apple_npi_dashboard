@@ -25,7 +25,7 @@ import type { CheckinFieldMap, DsMasterFieldMap, FieldConfig, MasterFieldMap } f
 import { toFieldConfig } from '@/config/larkSettings';
 import { ALL_POSITIONS } from '@/config/layoutConfig';
 import type { ClusterKey, DeskCustomer } from '@/types/desk';
-import { cellToBool, cellToNumber, cellToProducts, cellToString, cellToUrl, cellToUsername, mapDeskStates, normalizeDeskCode } from './larkMapper';
+import { cellToBool, cellToNumber, cellToProducts, cellToString, cellToUrl, cellToUsername, fieldValue, mapDeskStates, normalizeDeskCode } from './larkMapper';
 import type { LarkRecord, LarkTables } from './larkTypes';
 
 /** 1 ảnh nghiệm thu đã ghi vào Base từ lần trước. */
@@ -59,6 +59,18 @@ export interface StaffCustomer extends DeskCustomer {
   prevDevice?: PrevDeviceData | null;
   /** Khách đã kết thúc toàn bộ luồng trong Check-in. */
   endFlow?: boolean;
+}
+
+/** Những khách đã được xác nhận xoá iCloud và dữ liệu trong `Master`. */
+function indexICloudDataProcessedByStt(rows: LarkRecord[], fm: MasterFieldMap): Set<string> {
+  const result = new Set<string>();
+  for (const row of rows) {
+    const stt = cellToString(fieldValue(row.fields, fm.sttInput));
+    if (stt && cellToBool(fieldValue(row.fields, fm.daXoaICloudVaDuLieuKhach))) {
+      result.add(stt);
+    }
+  }
+  return result;
 }
 
 /** Toàn bộ những gì 1 màn hình nhân viên cần hiển thị. */
@@ -285,6 +297,7 @@ export function mapStaffDeskView(
   const checkinByStt = indexCheckinByStt(tables.checkin, fields.checkin);
   const deskUrls = indexDeskUrls(tables.dsMaster, fields.dsMaster);
   const rosterStaff = indexRosterStaffByDesk(tables.dsMaster, fields.dsMaster);
+  const icloudDataProcessedByStt = indexICloudDataProcessedByStt(tables.master, fields.master);
 
   const nextStt = state?.nextWaitingStt ?? null;
   const next = nextStt ? checkinByStt.get(nextStt) ?? { stt: nextStt, name: null } : null;
@@ -296,6 +309,7 @@ export function mapStaffDeskView(
   const withPrev = (c: StaffCustomer): StaffCustomer => ({
     ...c,
     oldDeviceQuantity: c.stt ? checkinByStt.get(c.stt)?.oldDeviceQuantity ?? null : null,
+    icloudDataProcessed: c.stt ? icloudDataProcessedByStt.has(c.stt) : null,
     prevDevice: c.stt ? prevByStt.get(c.stt) ?? null : null,
   });
 

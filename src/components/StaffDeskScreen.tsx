@@ -36,6 +36,7 @@ import { sendDispatchForm } from '@/services/dispatchWebhook';
 import type { PrevImage, StaffCustomer, StaffDeskView } from '@/services/staffMapper';
 import StaffReceiveFormModal, { type ReceiveFormValues } from './StaffReceiveFormModal';
 import ThuMayModal, { type ThuMayValues } from './ThuMayModal';
+import DispatchSummary from './DispatchSummary';
 import type { ClusterKey } from '@/types/desk';
 import { sendDeskAlert } from '@/services/dashboardRealtime';
 import { recordAuditEvent } from '@/services/auditLogApi';
@@ -247,6 +248,21 @@ function ProductInfo({ value }: { value: string | null | undefined }) {
   );
 }
 
+function PersonnelInfo({ customer }: { customer: StaffCustomer }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-t border-neutral-100 py-2">
+      <span className="shrink-0 text-sm text-neutral-500">Nhân sự</span>
+      <span className="min-w-0 break-words text-right text-sm font-semibold text-neutral-800">
+        <DispatchSummary customer={customer} />
+      </span>
+    </div>
+  );
+}
+
+function ICloudDataInfo({ processed }: { processed: boolean | null | undefined }) {
+  return <InfoRow label="iCloud và Data" value={processed ? 'Đã xử lý' : 'Chưa xử lý'} />;
+}
+
 function TradeInQuantityInfo({ value }: { value: number | null | undefined }) {
   return <InfoRow label="Số lượng thu cũ" value={value == null ? null : `${value} máy`} />;
 }
@@ -298,9 +314,11 @@ function CustomerCard({
 
       <div className="mt-3">
         <ProductInfo value={customer.productName} />
+        <PersonnelInfo customer={customer} />
         {showTradeInQuantity && <TradeInQuantityInfo value={customer.oldDeviceQuantity} />}
         <InfoRow label="Ghi chú thanh toán" value={customer.paymentNote} />
         <InfoRow label="Check nghiệm thu" value={customer.deviceAcceptedText} />
+        <ICloudDataInfo processed={customer.icloudDataProcessed} />
       </div>
     </div>
   );
