@@ -180,6 +180,7 @@ export default function DispatchFormModal({ desks, roster, customerLookup = [], 
     () => customerLookup.find((customer) => customer.stt?.trim() === stt.trim())?.name?.trim() ?? '',
     [customerLookup, stt],
   );
+  const changeOfMindMode = Boolean(khachDoiY || khachDoiYOpen);
   const msnv = khachDoiY ? '' : selected?.staffId ?? '';
   const submitBy = coordinatorSubmitBy;
   const canSubmit = Boolean(stt.trim() && (khachDoiY || (loai && deskId && selected && selectedDeskActive))) && status.kind !== 'sending';
@@ -329,49 +330,13 @@ export default function DispatchFormModal({ desks, roster, customerLookup = [], 
             />
           </Field>
 
-          <Field label="Khách đổi ý">
-            <div className="relative">
-              <button
-                type="button"
-                aria-expanded={khachDoiYOpen}
-                onClick={() => setKhachDoiYOpen((open) => !open)}
-                className={`${FIELD_BASE} flex items-center justify-between gap-3 border-neutral-300 bg-white text-left focus:border-brand focus:outline-none`}
-              >
-                <span className={khachDoiY ? 'text-neutral-800' : 'text-neutral-500'}>
-                  {khachDoiY || '— Chọn thay đổi —'}
-                </span>
-                <span aria-hidden="true" className="text-neutral-500">{khachDoiYOpen ? '⌃' : '⌄'}</span>
-              </button>
-              {khachDoiYOpen && (
-                <div className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-lg">
-                  {KHACH_DOI_Y_OPTIONS.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => {
-                        setKhachDoiY(option);
-                        setKhachDoiYOpen(false);
-                        setLoai('');
-                        setDeskId('');
-                        setDaySms(false);
-                      }}
-                      className={`block min-h-11 w-full px-3 py-2 text-left text-base hover:bg-neutral-50 ${khachDoiY === option ? 'bg-neutral-100 font-semibold text-neutral-900' : 'text-neutral-700'}`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Field>
-
           <Field label="Họ và tên khách">
             <div className={`${FIELD_BASE} border-neutral-200 bg-neutral-100 text-neutral-700`}>
               {customerName || '— Chưa tìm thấy tên theo STT —'}
             </div>
           </Field>
 
-          {!khachDoiY && (
+          {!changeOfMindMode && (
             <>
               <Field label="Phân loại">
                 <select
@@ -428,7 +393,7 @@ export default function DispatchFormModal({ desks, roster, customerLookup = [], 
             </>
           )}
 
-          {!khachDoiY && (
+          {!changeOfMindMode && (
             <Field label="Submit by">
               <input
                 value={submitBy || '— Chưa có MSNV điều phối trong Master_DS —'}
@@ -438,12 +403,84 @@ export default function DispatchFormModal({ desks, roster, customerLookup = [], 
             </Field>
           )}
 
-          {!khachDoiY && !webhook && (
+          {!changeOfMindMode && !webhook && (
             <p className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-700">
               Chưa cấu hình Webhook URL. Vào <b>Cài đặt → 4 · Webhook Điều phối</b> để dán URL
               webhook của Lark Base.
             </p>
           )}
+
+          <div className="space-y-2">
+            {!changeOfMindMode && (
+              <button
+                type="button"
+                aria-expanded={khachDoiYOpen}
+                aria-controls="change-of-mind-options"
+                onClick={() => {
+                  setKhachDoiYOpen(true);
+                  setLoai('');
+                  setDeskId('');
+                  setDaySms(false);
+                }}
+                className={`${FIELD_BASE} flex items-center justify-between gap-3 border-neutral-300 bg-white text-left font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 focus:border-brand focus:outline-none active:scale-[0.99]`}
+              >
+                <span>Khách đổi ý</span>
+                <span aria-hidden="true" className="text-neutral-500">Chọn</span>
+              </button>
+            )}
+
+            {changeOfMindMode && (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+                <span className="min-w-0 text-base font-semibold text-neutral-800">
+                  {khachDoiY || 'Chọn một thay đổi'}
+                </span>
+                {khachDoiY && (
+                  <button
+                    type="button"
+                    onClick={() => setKhachDoiYOpen(true)}
+                    className="shrink-0 text-sm font-semibold text-brand underline underline-offset-2 hover:opacity-80"
+                  >
+                    Đổi lựa chọn
+                  </button>
+                )}
+              </div>
+            )}
+
+            {khachDoiYOpen && (
+              <div id="change-of-mind-options" className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+                {KHACH_DOI_Y_OPTIONS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      setKhachDoiY(option);
+                      setKhachDoiYOpen(false);
+                      setLoai('');
+                      setDeskId('');
+                      setDaySms(false);
+                    }}
+                    className={`block min-h-11 w-full border-b border-neutral-100 px-3 py-2 text-left text-base last:border-0 hover:bg-neutral-50 ${khachDoiY === option ? 'bg-neutral-100 font-semibold text-neutral-900' : 'text-neutral-700'}`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {changeOfMindMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  setKhachDoiY('');
+                  setKhachDoiYOpen(false);
+                  setStatus({ kind: 'idle' });
+                }}
+                className="text-sm font-semibold text-neutral-500 underline underline-offset-2 hover:text-neutral-800"
+              >
+                Bỏ chọn khách đổi ý
+              </button>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
