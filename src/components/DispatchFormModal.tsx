@@ -8,10 +8,9 @@
  *
  * **Nguồn 2 ô select là roster `Master_DS`** (`RosterEntry`), KHÔNG phải các
  * bàn trên sơ đồ (2026-08-11, sửa sau ca test thật của user):
- *   - "Phân loại" = các giá trị "Loại" CÓ THẬT trong roster ("Tư vấn"/"Thu
- *     cũ"/"Backup"/"Kho") → khớp nguyên văn field single-select bên Base,
- *     không phải hardcode rồi cầu cho trùng. "Kho" không có trên sơ đồ nên
- *     danh sách này KHÔNG thể dựng từ `layoutConfig` được.
+ *   - "Phân loại" = chỉ các giá trị phục vụ điều phối ("Tư vấn"/"Thu cũ"/
+ *     "Backup") có thật trong roster → khớp nguyên văn field single-select
+ *     bên Base. Các loại khác trong `Master_DS` không hiện trong form này.
  *   - "Nhân sự" = NV được phân công cho mã bàn đó, có kể cả khi bàn đang
  *     trống. Bản đầu lấy tên từ bàn ĐANG CÓ KHÁCH (`staffName`) nên gửi lên
  *     Lark toàn `nhanSu: ""` mỗi khi điều phối vào bàn rảnh — đúng ca hay gặp
@@ -52,6 +51,8 @@ const FALLBACK_LOAI: Record<string, string> = {
   tradein: 'Thu cũ',
   backup: 'Backup',
 };
+
+const DISPATCH_LOAI_OPTIONS = ['Tư vấn', 'Thu cũ', 'Backup'] as const;
 
 const KHACH_DOI_Y_OPTIONS = [
   'Không thu cũ nữa',
@@ -158,8 +159,11 @@ export default function DispatchFormModal({ desks, roster, customerLookup = [], 
     }));
   }, [roster, desks]);
 
-  /** Các "Loại" có thật, giữ nguyên thứ tự xuất hiện trong Lark. */
-  const loaiChoices = useMemo(() => [...new Set(entries.map((e) => e.loai))], [entries]);
+  /** Chỉ hiện ba khâu mà form Điều phối có thể điều phối. */
+  const loaiChoices = useMemo(
+    () => DISPATCH_LOAI_OPTIONS.filter((choice) => entries.some((entry) => entry.loai === choice)),
+    [entries],
+  );
 
   const staffOptions = useMemo(
     () => (loai ? entries.filter((e) => e.loai === loai && isDeskActive(settings.deskAvailability, e.deskCode)) : []),
@@ -429,7 +433,7 @@ export default function DispatchFormModal({ desks, roster, customerLookup = [], 
               <input
                 value={submitBy || '— Chưa có MSNV điều phối trong Master_DS —'}
                 readOnly
-                className={`${FIELD_BASE} ${submitBy ? 'border-neutral-200 bg-neutral-100 text-neutral-700' : 'border-amber-300 bg-amber-50 text-amber-900'}`}
+                className={`${FIELD_BASE} ${submitBy ? 'border-neutral-200 bg-neutral-100 text-neutral-800' : 'border-amber-300 bg-amber-50 text-amber-900'}`}
               />
             </Field>
           )}

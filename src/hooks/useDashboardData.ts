@@ -96,7 +96,7 @@ function guestTables(tables: LarkTables, fields = DEFAULT_FIELD_CONFIG): LarkTab
     .slice(0, 10);
 
   const guestRoster = ALL_POSITIONS
-    .filter((position) => position.cluster === 'consult' || position.cluster === 'tradein')
+    .filter((position) => position.cluster === 'consult' || position.cluster === 'tradein' || position.cluster === 'backup')
     .map((position) => ({
       record_id: `guest_roster_${position.id}`,
       fields: {
@@ -110,8 +110,8 @@ function guestTables(tables: LarkTables, fields = DEFAULT_FIELD_CONFIG): LarkTab
     }));
 
   // Chỉ đưa 10 khách Check-in vào bản mô phỏng. Dùng roster an toàn của các
-  // mã bàn thay vì roster thật, để form Guest vẫn có cùng hành vi tra bàn mà
-  // không làm lộ danh sách nhân sự vận hành.
+  // mã bàn thuộc ba khâu điều phối thay vì roster thật, để form Guest vẫn có
+  // cùng hành vi tra bàn mà không làm lộ danh sách nhân sự vận hành.
   return {
     checkin: candidates,
     orders: candidates,
