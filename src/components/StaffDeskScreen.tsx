@@ -1049,16 +1049,18 @@ export default function StaffDeskScreen({
         sentBy: submitByMsnv || 'Tư vấn',
       };
       const result = simulation
-        ? { order: await guestSimulation?.sendWarehouseOrder(payload), webhookErrors: [] as string[] }
+        ? { order: await guestSimulation?.sendWarehouseOrder(payload), baseErrors: [] as string[], baseRecordId: null }
         : await warehouseOrders.send(payload);
       const created = result.order;
       if (!created) throw new Error('Phòng mô phỏng chưa kết nối.');
       setOrderHeader('');
       setOrderText('');
       setOrderMessage(
-        result.webhookErrors.length
-          ? 'Đã gửi order tới Kho, nhưng webhook Lark chưa nhận được.'
-          : 'Đã gửi order tới Kho và webhook Lark.',
+        simulation
+          ? 'Đã gửi order trong phòng mô phỏng.'
+          : result.baseErrors.length
+            ? 'Đã gửi order tới Kho, nhưng Base chưa cập nhật.'
+            : 'Đã gửi order tới Kho và Base.',
       );
     } catch (err) {
       setOrderMessage(err instanceof Error ? err.message : String(err));

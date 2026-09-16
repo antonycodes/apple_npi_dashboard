@@ -73,6 +73,7 @@ const TABLE_ENV = {
   master: 'TB_MASTER',
   dispatch: 'TB_DISPATCH',
   dsMaster: 'TB_DS_MASTER',
+  warehouseOrders: 'TB_WAREHOUSE_ORDERS',
 };
 
 // Một Worker phục vụ nhiều khu vực. Bot credentials dùng chung; Base và
@@ -972,6 +973,15 @@ const CHECKIN_FIELD_MAP = {
   orderCode: 'Mã đơn hàng',
   paymentConfirmation: 'Check UD Thanh toán',
   oldDeviceQuantity: 'Số lượng thu cũ',
+};
+
+/** Các cột của table một dòng cho mỗi bàn TV gửi order về Kho. */
+const WAREHOUSE_ORDER_FIELD_MAP = {
+  deskId: 'Mã TV',
+  rawText: 'Nội dung Orders',
+  stt: 'STT Khách',
+  orderType: 'Loại Order',
+  createdAt: 'Thời gian gửi Orders',
 };
 
 // Mã kiểu field Bitable (theo tài liệu Lark): 1 Text · 2 Number · 3 Single
@@ -2042,61 +2052,76 @@ async function notifyWarehouseOrderClaims(env, claims) {
   return errors;
 }
 
-/** Gửi nội dung Order do Tư vấn nhập sau khi inbox Kho đã lưu thành công. */
-async function notifyWarehouseInboxOrder(env, order) {
-  const url = String(env.LARK_WAREHOUSE_ORDER_WEBHOOK_URL || '').trim();
-  if (!url) return ['Webhook Kho chưa được cấu hình.'];
-  const productOrders = Array.isArray(order.productOrders)
-    ? [...new Map(order.productOrders
-      .filter((item) => /^DH[\p{L}\p{N}_-]+$/iu.test(String(item?.orderCode || '').trim()))
-      .map((item) => [String(item.orderCode).trim().toUpperCase(), item])).values()]
-    : [];
+/** Tìm và cập nhật dòng Mã TV tương ứng trong table Nhận Orders Kho. */
+async function writeWarehouseOrderToBase(env, order) {
+  const tableId = env.TB_WAREHOUSE_ORDERS;
+  if (!tableId) return { recordId: null, errors: ['Chưa cấu hình table ID Nhận Orders Kho.'] };
 
-  const createdAt = new Date(order.createdAt).toISOString();
-  const orderType = String(order.orderType || String(order.rawText || '').split('\n')[0] || '').trim().slice(0, 80);
-  // Không có mã DH vẫn phải ghi nhận order TV gửi về table theo Mã TV.
-  // Có mã DH thì giữ từng product event để không làm hỏng luồng Kho hiện tại.
-  const webhookOrders = productOrders.length ? productOrders : [{ label: '', product: '', orderCode: null }];
-  const errors = [];
-  for (const item of webhookOrders) {
-    const orderCode = item.orderCode ? String(item.orderCode).trim().toUpperCase() : null;
-    try {
-      const response = await fetch(url, {
+  const deskId = String(order?.deskId || '').trim();
+  if (!deskId) return { recordId: null, errors: ['Order thiếu Mã TV.'] };
+
+  const host = String(env.LARK_HOST || 'https://open.larksuite.com').replace(/\/+$/, '');
+  try {
+    const token = await getToken(env, host);
+    const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
+    const meta = await getRecordFieldMeta(env, host, appToken, token, tableId);
+    const deskField = WAREHOUSE_ORDER_FIELD_MAP.deskId;
+    const missingFields = Object.values(WAREHOUSE_ORDER_FIELD_MAP).filter((field) => !meta.has(field));
+    if (missingFields.length) return { recordId: null, errors: [`Table Nhận Orders Kho thiếu cột: ${missingFields.join(', ')}.`] };
+    const readonlyFields = Object.values(WAREHOUSE_ORDER_FIELD_MAP)
+      .filter((field) => READONLY_FIELD_TYPES.has(meta.get(field)?.type));
+    if (readonlyFields.length) return { recordId: null, errors: [`Table Nhận Orders Kho có cột không ghi được: ${readonlyFields.join(', ')}.`] };
+
+    const searchResponse = await fetchCoHanGio(
+      `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/search?page_size=100`,
+      {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({
-          action: 'tu_van_gui_order',
-          inboxId: order.orderCode,
-          orderCode,
-          productLabel: item.label,
-          product: item.product,
-          stt: order.stt,
-          deskId: order.deskId,
-          customerName: order.customerName,
-          noiDungOrder: order.rawText,
-          sentBy: order.sentBy,
-          createdAt,
-          'Mã đơn hàng': orderCode,
-          'KHO_Inbox Orders': order.rawText,
-          'STT': order.stt,
-          'Mã bàn': order.deskId,
-          'Họ và tên': order.customerName,
-          'Nội dung Order': order.rawText,
-          'Mã TV': order.deskId,
-          'STT Khách': order.stt,
-          'Loại Order': orderType,
-          'Nội dung Orders': order.rawText,
-          'Thời gian gửi Orders': createdAt,
-          'Submit by': order.sentBy,
-          'Thời gian': createdAt,
+          field_names: [deskField],
+          filter: {
+            conjunction: 'and',
+            conditions: [{ field_name: deskField, operator: 'is', value: [deskId] }],
+          },
+          automatic_fields: false,
         }),
-      });
-      if (!response.ok) errors.push(`${orderCode || order.deskId}: HTTP ${response.status}`);
-    } catch (error) {
-      errors.push(`${orderCode || order.deskId}: ${String(error?.message || error)}`);
+      },
+    );
+    const searchBody = await searchResponse.json();
+    if (!searchResponse.ok || searchBody.code !== 0) {
+      return { recordId: null, errors: [`Tìm dòng ${deskField} lỗi: ${searchBody.msg || searchResponse.status}`] };
     }
+
+    const matches = searchBody.data?.items ?? [];
+    if (matches.length === 0) return { recordId: null, errors: [`Không tìm thấy dòng ${deskField} = ${deskId}.`] };
+    if (matches.length > 1) return { recordId: null, errors: [`Có ${matches.length} dòng trùng ${deskField} = ${deskId}.`] };
+
+    const payload = {
+      ...order,
+      createdAt: new Date(order.createdAt).toISOString(),
+    };
+    const { fields, written, skipped } = buildRecordFields(payload, WAREHOUSE_ORDER_FIELD_MAP, meta);
+    if (written.length === 0) {
+      return { recordId: null, errors: [`Không map được cột nào trong table Nhận Orders Kho. ${skipped.join(' | ')}`] };
+    }
+
+    const recordId = matches[0]?.record_id;
+    const updateResponse = await fetchCoHanGio(
+      `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/${recordId}`,
+      {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ fields }),
+      },
+    );
+    const updateBody = await updateResponse.json();
+    if (!updateResponse.ok || updateBody.code !== 0) {
+      return { recordId: null, errors: [`Cập nhật dòng ${deskField} = ${deskId} lỗi: ${updateBody.msg || updateResponse.status}`] };
+    }
+    return { recordId, errors: [] };
+  } catch (error) {
+    return { recordId: null, errors: [`Ghi table Nhận Orders Kho lỗi: ${String(error?.message || error)}`] };
   }
-  return errors;
 }
 
 /**
@@ -2302,8 +2327,8 @@ export class WarehouseOrderInbox extends DurableObject {
     };
     this.orders = [...this.orders, order].slice(-200);
     await this.ctx.storage.put('orders', this.orders);
-    const webhookErrors = await notifyWarehouseInboxOrder(scopedSiteEnv(this.env, this.site), order);
-    return json({ code: 0, msg: 'success', data: { order, orders: this.orders, webhookErrors } });
+    const baseResult = await writeWarehouseOrderToBase(scopedSiteEnv(this.env, this.site), order);
+    return json({ code: 0, msg: 'success', data: { order, orders: this.orders, baseRecordId: baseResult.recordId, baseErrors: baseResult.errors } });
   }
 }
 

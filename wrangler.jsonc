@@ -25,7 +25,9 @@
   // vars trong file này, biến thêm tay trên dashboard sẽ bị xoá khi deploy.
   // (Secret thì ngược lại — luôn được giữ, xem "secrets" bên dưới.)
   "vars": {
-    "LARK_HOST": "https://open.larksuite.com"
+    "LARK_HOST": "https://open.larksuite.com",
+    "HN_TB_WAREHOUSE_ORDERS": "tblMQveraQIvLOFR",
+    "HCM_TB_WAREHOUSE_ORDERS": "tblmGe2Auro2zv87"
   },
   // Cấu hình DÙNG CHUNG cho mọi máy điều phối (danh sách điều phối viên).
   // Trước đây mọi thứ chỉ nằm trong localStorage từng máy nên không máy nào

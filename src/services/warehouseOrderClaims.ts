@@ -103,7 +103,7 @@ export async function downloadWarehouseOrderLog(apiUrl: string): Promise<Blob> {
 export async function sendWarehouseOrder(
   apiUrl: string,
   order: Omit<WarehouseInboxOrder, 'id' | 'orderCode' | 'createdAt'> & { orderCode?: string },
-): Promise<{ order: WarehouseInboxOrder; webhookErrors: string[] }> {
+): Promise<{ order: WarehouseInboxOrder; baseRecordId: string | null; baseErrors: string[] }> {
   const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/warehouse-orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -112,12 +112,13 @@ export async function sendWarehouseOrder(
   const body = await response.json() as {
     code: number;
     msg?: string;
-    data?: { order?: WarehouseInboxOrder; webhookErrors?: string[] };
+    data?: { order?: WarehouseInboxOrder; baseRecordId?: string | null; baseErrors?: string[] };
   };
   if (!response.ok || body.code !== 0 || !body.data?.order) throw new Error(body.msg || 'Không thể gửi order tới Kho.');
   recordAuditEvent({ action: 'Gửi order tới Kho', stage: 'Kho', deskCode: order.deskId, stt: order.stt ?? '', customerName: order.customerName ?? '', result: 'success' });
   return {
     order: body.data.order,
-    webhookErrors: Array.isArray(body.data.webhookErrors) ? body.data.webhookErrors : [],
+    baseRecordId: body.data.baseRecordId ?? null,
+    baseErrors: Array.isArray(body.data.baseErrors) ? body.data.baseErrors : [],
   };
 }
