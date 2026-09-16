@@ -37,6 +37,14 @@ interface ProductOrderDetails {
 /** `file_token` không phải URL — ảnh Bitable phải đi qua `/media/<token>` của worker. */
 /** Số khách đã hoàn tất hiện thẳng trong cột; dư ra xem trong popup. */
 const MAX_COMPLETED_INLINE = 3;
+const ORDER_TYPE_HEADERS = ['#Lấy hàng cho khách', '#Trả hàng về kho'] as const;
+
+function orderTypeLabel(rawText: string): string {
+  const firstLine = rawText.split(/\r?\n/, 1)[0]?.trim();
+  return ORDER_TYPE_HEADERS.includes(firstLine as (typeof ORDER_TYPE_HEADERS)[number])
+    ? firstLine
+    : '#Chưa phân loại';
+}
 
 function mediaUrl(fileToken: string): string {
   const guestUrl = guestMediaUrl(fileToken);
@@ -66,8 +74,7 @@ function OrderStatusBlock({ orders, compact = false, onInspect }: { orders: Ware
         const content = (
           <>
             <span className="shrink-0" aria-hidden="true">📦</span>
-            <span className="min-w-0 flex-1 truncate font-semibold text-neutral-700" title={order.rawText}>Nội dung Order · {order.orderCode}</span>
-            <span className="shrink-0 font-semibold text-amber-700">Có order</span>
+            <span className="min-w-0 flex-1 truncate font-semibold text-neutral-700" title={`Mã inbox: ${order.orderCode}`}>Có Order - {orderTypeLabel(order.rawText)}</span>
           </>
         );
         const rowClass = ['flex w-full items-center gap-1.5 rounded border border-emerald-300 bg-emerald-50 px-1.5 py-1 text-left text-[10px] leading-tight', 'hover:bg-white'];
@@ -304,7 +311,7 @@ function CustomerDetailsModal({ customer, desk, orders, claims, onInspectOrder, 
   );
 }
 
-function OrderDetailsModal({ order, canDelete, onDelete, onClose }: { order: WarehouseInboxOrder; canDelete: boolean; onDelete?: (order: WarehouseInboxOrder) => Promise<void>; onClose: () => void }) {
+export function OrderDetailsModal({ order, canDelete, onDelete, onClose }: { order: WarehouseInboxOrder; canDelete: boolean; onDelete?: (order: WarehouseInboxOrder) => Promise<void>; onClose: () => void }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const handleDelete = async () => {

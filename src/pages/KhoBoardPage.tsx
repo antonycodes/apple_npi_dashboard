@@ -8,10 +8,10 @@
  * Chuỗi page/hook/component/mapper riêng (KhoBoard + useKhoBoardData +
  * khoMapper) — không đụng tới màn hình STT hay dashboard chính.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeftIcon } from '@/components/AppShellIcons';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
-import KhoBoard from '@/components/KhoBoard';
+import KhoBoard, { OrderDetailsModal } from '@/components/KhoBoard';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useKhoBoardData } from '@/hooks/useKhoBoardData';
@@ -22,6 +22,7 @@ import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { useAdminInfo } from '@/config/adminSession';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import type { ClusterKey } from '@/types/desk';
+import type { WarehouseInboxOrder } from '@/types/warehouse';
 
 type ClusterFilter = ClusterKey | 'all';
 
@@ -46,6 +47,10 @@ const COLUMNS: Record<ClusterFilter, number> = {
 
 const COLUMN_WIDTHS_KEY = 'vhws-kho-column-widths-v1';
 const MIN_COLUMN_WIDTH = 180;
+const ORDER_SIDEBAR_WIDTH_KEY = 'vhws-kho-order-sidebar-width-v1';
+const DEFAULT_ORDER_SIDEBAR_WIDTH = 340;
+const MIN_ORDER_SIDEBAR_WIDTH = 280;
+const MAX_ORDER_SIDEBAR_WIDTH = 480;
 
 type ColumnWidths = Partial<Record<ClusterFilter, Record<string, number>>>;
 
@@ -60,11 +65,83 @@ function readColumnWidths(): ColumnWidths {
   }
 }
 
+function readOrderSidebarWidth(): number {
+  try {
+    const raw = window.localStorage.getItem(ORDER_SIDEBAR_WIDTH_KEY);
+    const width = raw ? Number(raw) : DEFAULT_ORDER_SIDEBAR_WIDTH;
+    return Number.isFinite(width) ? Math.min(MAX_ORDER_SIDEBAR_WIDTH, Math.max(MIN_ORDER_SIDEBAR_WIDTH, width)) : DEFAULT_ORDER_SIDEBAR_WIDTH;
+  } catch {
+    return DEFAULT_ORDER_SIDEBAR_WIDTH;
+  }
+}
+
+function orderTypeLabel(rawText: string): string {
+  const firstLine = rawText.split(/\r?\n/, 1)[0]?.trim();
+  return firstLine === '#Lấy hàng cho khách' || firstLine === '#Trả hàng về kho'
+    ? firstLine
+    : '#Chưa phân loại';
+}
+
+function orderSummary(rawText: string): string {
+  const lines = rawText.split(/\r?\n/);
+  const content = lines[0]?.trim().startsWith('#') ? lines.slice(1).join(' ') : rawText;
+  return content.trim() || 'Không có nội dung chi tiết';
+}
+
+function OrderInboxSidebar({ orders, onInspect }: { orders: WarehouseInboxOrder[]; onInspect: (order: WarehouseInboxOrder) => void }) {
+  const sortedOrders = [...orders].sort((a, b) => b.createdAt - a.createdAt);
+
+  return (
+    <section className="flex min-h-0 flex-1 flex-col" aria-label="Order Inbox">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-200 px-3 py-3">
+        <div>
+          <h2 className="text-sm font-black tracking-tight text-neutral-900">ORDER INBOX</h2>
+          <p className="mt-0.5 text-[11px] text-neutral-500">Order mới nhất nằm trên cùng</p>
+        </div>
+        <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-black text-amber-800">
+          {sortedOrders.length}
+        </span>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {sortedOrders.length === 0 ? (
+          <p className="px-2 py-8 text-center text-xs text-neutral-400">Chưa có order chờ xử lý.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {sortedOrders.map((order) => (
+              <li key={order.id}>
+                <button
+                  type="button"
+                  onClick={() => onInspect(order)}
+                  className="w-full rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 text-left transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1"
+                >
+                  <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-neutral-500">
+                    <span>{order.deskId || 'Chưa rõ bàn'} · STT {order.stt || '—'}</span>
+                    <time dateTime={new Date(order.createdAt).toISOString()}>
+                      {order.createdAt ? new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                    </time>
+                  </div>
+                  <p className="mt-1 text-xs font-black text-neutral-800">Có Order - {orderTypeLabel(order.rawText)}</p>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-neutral-600" title={orderSummary(order.rawText)}>
+                    {orderSummary(order.rawText)}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function KhoBoardPage({ guestMode = false, onGuestBack }: { guestMode?: boolean; onGuestBack?: () => void }) {
   const [filter, setFilter] = useState<ClusterFilter>('consult');
-  const [hideEmpty, setHideEmpty] = useState(false);
+  const [showFullDesks, setShowFullDesks] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>(readColumnWidths);
+  const [orderSidebarWidth, setOrderSidebarWidth] = useState(readOrderSidebarWidth);
+  const [sidebarOrderDetails, setSidebarOrderDetails] = useState<WarehouseInboxOrder | null>(null);
+  const orderSidebarResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const settings = useLarkSettings();
   const session = useAdminInfo();
   const guestSimulation = useGuestSimulation();
@@ -78,8 +155,8 @@ export default function KhoBoardPage({ guestMode = false, onGuestBack }: { guest
     guestMode,
   );
   const shown = useMemo(
-    () => (hideEmpty ? desks.filter((d) => d.customers.some((c) => c.status === 'received')) : desks),
-    [desks, hideEmpty],
+    () => (showFullDesks ? desks : desks.filter((d) => d.customers.some((c) => c.status === 'received'))),
+    [desks, showFullDesks],
   );
   useEffect(() => {
     try {
@@ -88,6 +165,33 @@ export default function KhoBoardPage({ guestMode = false, onGuestBack }: { guest
       // Không làm gián đoạn thao tác Kho nếu trình duyệt chặn localStorage.
     }
   }, [columnWidths]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ORDER_SIDEBAR_WIDTH_KEY, String(orderSidebarWidth));
+    } catch {
+      // Không làm gián đoạn thao tác Kho nếu trình duyệt chặn localStorage.
+    }
+  }, [orderSidebarWidth]);
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const resize = orderSidebarResizeRef.current;
+      if (!resize || event.pointerId !== resize.pointerId) return;
+      const nextWidth = resize.startWidth - (event.clientX - resize.startX);
+      setOrderSidebarWidth(Math.min(MAX_ORDER_SIDEBAR_WIDTH, Math.max(MIN_ORDER_SIDEBAR_WIDTH, Math.round(nextWidth))));
+    };
+    const handlePointerEnd = (event: PointerEvent) => {
+      if (orderSidebarResizeRef.current && event.pointerId !== orderSidebarResizeRef.current.pointerId) return;
+      orderSidebarResizeRef.current = null;
+    };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+    };
+  }, []);
   const handleColumnResize = useCallback((columnIndex: number, width: number) => {
     setColumnWidths((current) => ({
       ...current,
@@ -104,6 +208,15 @@ export default function KhoBoardPage({ guestMode = false, onGuestBack }: { guest
       return next;
     });
   }, [filter]);
+  const handleOrderSidebarResizeStart = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    orderSidebarResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: orderSidebarWidth,
+    };
+  }, [orderSidebarWidth]);
   const activeColumnWidths = columnWidths[filter] ?? {};
   const larkConnected = !guestMode && !isMock && !error && Boolean(lastUpdated);
   const visibleOrders = guestMode ? guestSimulation?.orders ?? [] : warehouseOrders.orders;
@@ -193,11 +306,11 @@ export default function KhoBoardPage({ guestMode = false, onGuestBack }: { guest
           <label className="flex items-center gap-1.5 text-xs text-neutral-600">
             <input
               type="checkbox"
-              checked={hideEmpty}
-              onChange={(e) => setHideEmpty(e.target.checked)}
+              checked={showFullDesks}
+              onChange={(e) => setShowFullDesks(e.target.checked)}
               className="h-3.5 w-3.5"
             />
-            Ẩn bàn chưa có khách
+            Hiển thị full bàn
           </label>
           <label className="flex items-center gap-1.5 text-xs text-neutral-600">
             <input
@@ -236,26 +349,59 @@ export default function KhoBoardPage({ guestMode = false, onGuestBack }: { guest
         )}
       </header>
 
-      <main className="min-h-0 flex-1 overflow-auto px-2 py-2 md:px-4 md:py-3">
-        {shown.length === 0 ? (
-          <p className="py-10 text-center text-sm text-neutral-400">
-            {loading ? 'Đang tải…' : 'Chưa có bàn nào có khách.'}
-          </p>
-        ) : (
-          <KhoBoard
-            desks={shown}
-            showCompleted={showCompleted}
-            columns={COLUMNS[filter]}
-            columnWidths={activeColumnWidths}
-            onColumnResize={handleColumnResize}
-            inboxOrders={visibleOrders}
-            claims={visibleClaims}
-            onUnlockOrder={session?.role === 'admin' ? orderClaims.unlock : undefined}
-            canDeleteOrder={session?.role === 'admin'}
-            onDeleteOrder={session?.role === 'admin' ? async (order) => warehouseOrders.remove(order.id) : undefined}
-          />
+      <div className="min-h-0 flex-1 overflow-hidden lg:flex">
+        <main className="min-h-0 min-w-0 flex-1 overflow-auto px-2 py-2 md:px-4 md:py-3">
+          {shown.length === 0 ? (
+            <p className="py-10 text-center text-sm text-neutral-400">
+              {loading ? 'Đang tải…' : 'Chưa có bàn nào có khách.'}
+            </p>
+          ) : (
+            <KhoBoard
+              desks={shown}
+              showCompleted={showCompleted}
+              columns={COLUMNS[filter]}
+              columnWidths={activeColumnWidths}
+              onColumnResize={handleColumnResize}
+              inboxOrders={visibleOrders}
+              claims={visibleClaims}
+              onUnlockOrder={session?.role === 'admin' ? orderClaims.unlock : undefined}
+              canDeleteOrder={session?.role === 'admin'}
+              onDeleteOrder={session?.role === 'admin' ? async (order) => warehouseOrders.remove(order.id) : undefined}
+            />
+          )}
+        </main>
+        {!showFullDesks && (
+          <aside
+            className="relative hidden min-h-0 shrink-0 flex-col border-l border-neutral-200 bg-white lg:flex"
+            style={{ width: orderSidebarWidth }}
+          >
+            <button
+              type="button"
+              aria-label="Kéo để chỉnh độ rộng Order Box"
+              title="Kéo để chỉnh độ rộng Order Box"
+              onPointerDown={handleOrderSidebarResizeStart}
+              className="group absolute left-0 top-0 bottom-0 z-20 flex w-5 -translate-x-1/2 cursor-col-resize touch-none items-center justify-center bg-transparent"
+            >
+              <span className="h-12 w-1 rounded-full bg-neutral-300 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+            </button>
+            <OrderInboxSidebar
+              orders={visibleOrders.filter((order) => shown.some((desk) => desk.id === order.deskId))}
+              onInspect={setSidebarOrderDetails}
+            />
+          </aside>
         )}
-      </main>
+      </div>
+      {sidebarOrderDetails && (
+        <OrderDetailsModal
+          order={sidebarOrderDetails}
+          canDelete={session?.role === 'admin'}
+          onDelete={session?.role === 'admin' ? async (order) => {
+            await warehouseOrders.remove(order.id);
+            setSidebarOrderDetails(null);
+          } : undefined}
+          onClose={() => setSidebarOrderDetails(null)}
+        />
+      )}
       <SleepOverlay />
     </div>
   );
