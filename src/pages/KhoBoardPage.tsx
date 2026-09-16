@@ -51,6 +51,7 @@ const ORDER_SIDEBAR_WIDTH_KEY = 'vhws-kho-order-sidebar-width-v1';
 const DEFAULT_ORDER_SIDEBAR_WIDTH = 340;
 const MIN_ORDER_SIDEBAR_WIDTH = 280;
 const MAX_ORDER_SIDEBAR_WIDTH = 480;
+const ORDER_INBOX_PAGE_SIZE = 5;
 
 type ColumnWidths = Partial<Record<ClusterFilter, Record<string, number>>>;
 
@@ -89,7 +90,21 @@ function orderSummary(rawText: string): string {
 }
 
 function OrderInboxSidebar({ orders, onInspect }: { orders: WarehouseInboxOrder[]; onInspect: (order: WarehouseInboxOrder) => void }) {
-  const sortedOrders = [...orders].sort((a, b) => b.createdAt - a.createdAt);
+  const [page, setPage] = useState(0);
+  const sortedOrders = useMemo(
+    () => [...orders].sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id)),
+    [orders],
+  );
+  const pageCount = Math.ceil(sortedOrders.length / ORDER_INBOX_PAGE_SIZE);
+  const currentPage = Math.min(page, Math.max(pageCount - 1, 0));
+  const visibleOrders = sortedOrders.slice(
+    currentPage * ORDER_INBOX_PAGE_SIZE,
+    (currentPage + 1) * ORDER_INBOX_PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, Math.max(pageCount - 1, 0)));
+  }, [pageCount]);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label="Order Inbox">
@@ -107,8 +122,8 @@ function OrderInboxSidebar({ orders, onInspect }: { orders: WarehouseInboxOrder[
           <p className="px-2 py-8 text-center text-xs text-neutral-400">Chưa có order chờ xử lý.</p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {sortedOrders.map((order) => (
-              <li key={order.id}>
+            {visibleOrders.map((order) => (
+              <li key={order.id} className="shrink-0">
                 <button
                   type="button"
                   onClick={() => onInspect(order)}
@@ -130,6 +145,33 @@ function OrderInboxSidebar({ orders, onInspect }: { orders: WarehouseInboxOrder[
           </ul>
         )}
       </div>
+      {pageCount > 1 && (
+        <nav className="flex shrink-0 items-center justify-between gap-2 border-t border-neutral-200 px-3 py-2" aria-label="Phân trang Order Inbox">
+          <span className="text-[11px] font-semibold text-neutral-500">
+            Trang {currentPage + 1}/{pageCount}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.max(current - 1, 0))}
+              disabled={currentPage === 0}
+              aria-label="Xem trang order trước"
+              className="rounded border border-neutral-300 px-2 py-1 text-xs font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.min(current + 1, pageCount - 1))}
+              disabled={currentPage === pageCount - 1}
+              aria-label="Xem trang order tiếp theo"
+              className="rounded border border-neutral-300 px-2 py-1 text-xs font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              →
+            </button>
+          </div>
+        </nav>
+      )}
     </section>
   );
 }
