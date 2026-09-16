@@ -981,7 +981,7 @@ const WAREHOUSE_ORDER_FIELD_MAP = {
   rawText: 'Nội dung Orders',
   stt: 'STT Khách',
   orderType: 'Loại Order',
-  createdAt: 'Thời gian gửi Orders',
+  createdAt: 'Thời gian gửi orders',
 };
 
 // Mã kiểu field Bitable (theo tài liệu Lark): 1 Text · 2 Number · 3 Single
@@ -2052,7 +2052,7 @@ async function notifyWarehouseOrderClaims(env, claims) {
   return errors;
 }
 
-/** Tìm và cập nhật dòng Mã TV tương ứng trong table Nhận Orders Kho. */
+/** Tạo record mới cho mỗi order TV gửi vào table Nhận Orders Kho. */
 async function writeWarehouseOrderToBase(env, order) {
   const tableId = env.TB_WAREHOUSE_ORDERS;
   if (!tableId) return { recordId: null, errors: ['Chưa cấu hình table ID Nhận Orders Kho.'] };
@@ -2065,36 +2065,11 @@ async function writeWarehouseOrderToBase(env, order) {
     const token = await getToken(env, host);
     const appToken = await resolveAppToken(env, host, env.LARK_APP_TOKEN);
     const meta = await getRecordFieldMeta(env, host, appToken, token, tableId);
-    const deskField = WAREHOUSE_ORDER_FIELD_MAP.deskId;
     const missingFields = Object.values(WAREHOUSE_ORDER_FIELD_MAP).filter((field) => !meta.has(field));
     if (missingFields.length) return { recordId: null, errors: [`Table Nhận Orders Kho thiếu cột: ${missingFields.join(', ')}.`] };
     const readonlyFields = Object.values(WAREHOUSE_ORDER_FIELD_MAP)
       .filter((field) => READONLY_FIELD_TYPES.has(meta.get(field)?.type));
     if (readonlyFields.length) return { recordId: null, errors: [`Table Nhận Orders Kho có cột không ghi được: ${readonlyFields.join(', ')}.`] };
-
-    const searchResponse = await fetchCoHanGio(
-      `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/search?page_size=100`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=utf-8' },
-        body: JSON.stringify({
-          field_names: [deskField],
-          filter: {
-            conjunction: 'and',
-            conditions: [{ field_name: deskField, operator: 'is', value: [deskId] }],
-          },
-          automatic_fields: false,
-        }),
-      },
-    );
-    const searchBody = await searchResponse.json();
-    if (!searchResponse.ok || searchBody.code !== 0) {
-      return { recordId: null, errors: [`Tìm dòng ${deskField} lỗi: ${searchBody.msg || searchResponse.status}`] };
-    }
-
-    const matches = searchBody.data?.items ?? [];
-    if (matches.length === 0) return { recordId: null, errors: [`Không tìm thấy dòng ${deskField} = ${deskId}.`] };
-    if (matches.length > 1) return { recordId: null, errors: [`Có ${matches.length} dòng trùng ${deskField} = ${deskId}.`] };
 
     const payload = {
       ...order,
@@ -2105,20 +2080,19 @@ async function writeWarehouseOrderToBase(env, order) {
       return { recordId: null, errors: [`Không map được cột nào trong table Nhận Orders Kho. ${skipped.join(' | ')}`] };
     }
 
-    const recordId = matches[0]?.record_id;
-    const updateResponse = await fetchCoHanGio(
-      `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/${recordId}`,
+    const createResponse = await fetchCoHanGio(
+      `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`,
       {
-        method: 'PUT',
+        method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({ fields }),
       },
     );
-    const updateBody = await updateResponse.json();
-    if (!updateResponse.ok || updateBody.code !== 0) {
-      return { recordId: null, errors: [`Cập nhật dòng ${deskField} = ${deskId} lỗi: ${updateBody.msg || updateResponse.status}`] };
+    const createBody = await createResponse.json();
+    if (!createResponse.ok || createBody.code !== 0) {
+      return { recordId: null, errors: [`Tạo record Nhận Orders Kho lỗi: ${createBody.msg || createResponse.status}`] };
     }
-    return { recordId, errors: [] };
+    return { recordId: createBody.data?.record?.record_id || createBody.data?.record?.id || null, errors: [] };
   } catch (error) {
     return { recordId: null, errors: [`Ghi table Nhận Orders Kho lỗi: ${String(error?.message || error)}`] };
   }
