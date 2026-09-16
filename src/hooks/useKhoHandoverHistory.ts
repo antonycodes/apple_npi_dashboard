@@ -6,12 +6,13 @@ import { cellToString, fieldValue, normalizeDeskCode } from '@/services/larkMapp
 import type { LarkRecord } from '@/services/larkTypes';
 import type { KhoStaffInfo } from '@/services/khoMapper';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
-import type { WarehouseHandoverRecord } from '@/types/warehouse';
+import type { WarehouseHandoverRecord, WarehouseMachineDirection } from '@/types/warehouse';
 import { TIMEOUT_MESSAGE, withRequestTimeout } from './requestTimeout';
 import { startSerializedPolling } from './serializedPolling';
 
 export interface KhoHandoverHistoryItem {
   id: string;
+  direction: WarehouseMachineDirection;
   deskCode: string;
   recipientName: string | null;
   submittedBy: string | null;
@@ -46,8 +47,10 @@ function mapHistory(
 ): KhoHandoverHistoryItem[] {
   const fm = toFieldConfig().master;
   return rows
-    .filter((row) => cellToString(fieldValue(row.fields, fm.status))?.trim() === 'Bàn giao kho')
+    .filter((row) => ['Bàn giao kho', 'Trả kho'].includes(cellToString(fieldValue(row.fields, fm.status))?.trim() ?? ''))
     .map((row) => {
+      const status = cellToString(fieldValue(row.fields, fm.status))?.trim();
+      const direction: WarehouseMachineDirection = status === 'Trả kho' ? 'from_tv' : 'to_tv';
       const scanQr = cellToString(fieldValue(row.fields, fm.scanQr));
       const deskValue = cellToString(fieldValue(row.fields, fm.deskCode));
       // Bàn nhận được xác định bởi QR kho quét. Một số dòng workflow không
@@ -68,6 +71,7 @@ function mapHistory(
         : [];
       return {
         id: row.record_id,
+        direction,
         deskCode,
         recipientName: staffByDesk.get(deskCode)?.name ?? cellToString(fieldValue(row.fields, fm.name)),
         submittedBy: cellToString(fieldValue(row.fields, fm.submitBy)),
@@ -92,6 +96,7 @@ function mapGuestHistory(
   return handovers
     .map((item) => ({
       id: item.id,
+      direction: item.direction ?? 'to_tv',
       deskCode: item.deskCode,
       recipientName: staffByDesk.get(item.deskCode)?.name ?? item.recipientName,
       submittedBy: item.submittedBy,

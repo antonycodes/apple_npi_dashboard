@@ -1,6 +1,5 @@
 /**
- * staffActionWebhook — gửi 2 thao tác "Tiếp nhận" / "Hoàn tất" của nhân viên
- * ghi trực tiếp record thao tác vào bảng `Master`.
+ * staffActionWebhook — gửi thao tác nhân viên và luân chuyển máy của Kho.
  *
  * Đường GHI MỘT CHIỀU, tách hẳn khỏi luồng đọc: app không đọc lại phản hồi để
  * dựng UI — trạng thái thật vẫn do vòng polling 5s đọc từ Lark quyết định (xem
@@ -22,6 +21,7 @@ export interface StaffActionPayload {
    * Nhánh xử lý bên worker/automation. KHÔNG ghi vào cột nào của Base.
    *
    * `ban_giao` = kho giao MÁY MỚI cho nhân viên Tư vấn (xem `KhoHandoverForm`).
+   * `tra_kho` = kho nhận lại máy TV không bán được.
    * Cùng lý do với `thu_may`: không phải một khâu phục vụ nên không có mốc bắt
    * đầu nào để trừ ra leadtime — worker chỉ tính leadtime khi `hoan_tat`.
    *
@@ -32,7 +32,7 @@ export interface StaffActionPayload {
    * một con số vô nghĩa (khoảng cách từ lúc nhận khách ở khâu trước tới lúc
    * cầm máy), làm hỏng chính số liệu leadtime dùng để đánh giá hiệu quả.
    */
-  action: 'tiep_nhan' | 'hoan_tat' | 'thu_may' | 'ban_giao';
+  action: 'tiep_nhan' | 'hoan_tat' | 'thu_may' | 'ban_giao' | 'tra_kho';
   /**
    * Trạng thái ghi vào `Master."Trạng thái"` — gửi luôn để Worker xử lý
    * tự nối.
@@ -49,7 +49,7 @@ export interface StaffActionPayload {
    * ngay dòng đó là gì. Cột `Check nghiệm thu` không lọc theo trạng thái nên
    * vẫn tính đủ.
    */
-  trangThai?: 'Tiếp nhận' | 'Hoàn tất' | 'Thu máy nhanh' | 'Bàn giao kho';
+  trangThai?: 'Tiếp nhận' | 'Hoàn tất' | 'Thu máy nhanh' | 'Bàn giao kho' | 'Trả kho';
   /** STT khách (từ `Master_Check in`). */
   stt: string;
   /** Họ và tên khách — khoá join của mọi bảng bên Lark. */
@@ -100,12 +100,12 @@ export interface StaffActionPayload {
    */
   hinhNghiemThu?: string[];
   /**
-   * Nội dung QR NV vừa quét (hoặc gõ tay) — cột `Scan QR máy cũ`.
+   * Nội dung QR bàn TV vừa quét (hoặc gõ tay) — cột `Scan QR máy cũ`.
    *
    * Dùng CHUNG cho 2 việc (quyết định user 2026-08-19): QR máy thu cũ ở khâu
-   * Thu cũ, và QR nhân viên Tư vấn nhận máy ở thao tác bàn giao của kho. Phân
-   * biệt bằng `Trạng thái` của dòng ("Bàn giao kho"), không phải bằng cột riêng.
-   */
+   * Thu cũ, QR bàn TV nhận máy và QR bàn TV trả máy. Phân biệt bằng
+   * `Trạng thái` của dòng ("Bàn giao kho"/"Trả kho"), không phải cột riêng.
+  */
   scanQr?: string;
   /** IMEI máy thu cũ. */
   imei?: string;
@@ -170,7 +170,7 @@ export async function sendStaffAction(
       throw new Error(`Webhook trả về HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
     }
     recordAuditEvent({
-      action: payload.action === 'tiep_nhan' ? 'Tiếp nhận khách' : payload.action === 'hoan_tat' ? 'Hoàn tất khách' : payload.action === 'thu_may' ? 'Thu máy nhanh' : 'Bàn giao kho',
+      action: payload.action === 'tiep_nhan' ? 'Tiếp nhận khách' : payload.action === 'hoan_tat' ? 'Hoàn tất khách' : payload.action === 'thu_may' ? 'Thu máy nhanh' : payload.action === 'tra_kho' ? 'Trả kho' : 'Bàn giao kho',
       stage: payload.phanLoai || 'Kho',
       deskCode: payload.maBan,
       msnv: payload.msnv,

@@ -277,7 +277,7 @@ export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
 
 export const MASTER_FIELD_LABELS: Record<keyof MasterFieldMap, string> = {
   deskCode: 'Mã bàn (TV_MãNV — khớp mã bàn trên sơ đồ)',
-  status: 'Trạng thái (Tiếp nhận/Hoàn tất)',
+  status: 'Trạng thái (Tiếp nhận/Hoàn tất/Bàn giao kho/Trả kho)',
   name: 'Họ và tên',
   staff: 'NV phụ trách (person field — KHÔNG dùng để suy bàn)',
   submitBy: 'MSNV người gửi (Submit by — dự phòng suy bàn qua DS Master)',

@@ -1798,6 +1798,7 @@ export class GuestSimulationRoom extends DurableObject {
       } else if (action === 'handover') {
         const deskCode = typeof handover?.deskCode === 'string' ? handover.deskCode.trim().slice(0, 40) : '';
         const scanQrValue = typeof handover?.scanQr === 'string' ? handover.scanQr.trim().slice(0, 200) : '';
+        const direction = handover?.direction === 'from_tv' ? 'from_tv' : 'to_tv';
         const submittedBy = typeof handover?.submittedBy === 'string' ? handover.submittedBy.trim().slice(0, 120) : '';
         const recipientName = typeof handover?.recipientName === 'string' ? handover.recipientName.trim().slice(0, 160) : null;
         const tokenPrefix = `guest-r2:${this.state.roomCode}:`;
@@ -1807,12 +1808,15 @@ export class GuestSimulationRoom extends DurableObject {
               name: typeof image?.name === 'string' ? image.name.trim().slice(0, 120) : undefined,
             })).filter((image) => image.fileToken.startsWith(tokenPrefix))
           : [];
-        if (!deskCode || !scanQrValue || !images.length) {
-          return json({ code: -1, msg: 'Guest bàn giao thiếu mã bàn, QR hoặc ảnh nghiệm thu.' }, 400);
+        if (!/^TV\d+$/i.test(deskCode) || !scanQrValue || !images.length) {
+          return json({ code: -1, msg: direction === 'from_tv'
+            ? 'Guest nhận máy thiếu mã bàn TV, QR hoặc ảnh nghiệm thu.'
+            : 'Guest bàn giao thiếu mã bàn TV, QR hoặc ảnh nghiệm thu.' }, 400);
         }
         this.state.handovers = [...(this.state.handovers || []), {
           id: crypto.randomUUID(),
           deskCode,
+          direction,
           recipientName,
           submittedBy: submittedBy || null,
           scanQr: scanQrValue,
@@ -3175,6 +3179,33 @@ export default {
 
       if (payload.maBan && await isDeskBlocked(env, payload.maBan)) {
         return json({ code: -1, msg: 'Bàn ' + String(payload.maBan).trim() + ' đang bị khóa — không thể thao tác.' }, 423);
+      }
+
+      // Luân chuyển máy Kho không thuộc queue khách hàng và không có STT.
+      // Worker giữ validation này để hai nút Kho không thể ghi sai hướng.
+      const warehouseAction = String(payload.action ?? '').trim();
+      const isWarehouseMovement = warehouseAction === 'ban_giao' || warehouseAction === 'tra_kho';
+      if (isWarehouseMovement) {
+        const expectedStatus = warehouseAction === 'tra_kho' ? 'Trả kho' : 'Bàn giao kho';
+        const deskCode = String(payload.maBan ?? '').trim();
+        const imageCount = Array.isArray(payload.hinhNghiemThu)
+          ? payload.hinhNghiemThu.filter((token) => String(token ?? '').trim()).length
+          : 0;
+        const missing = [
+          String(payload.trangThai ?? '').trim() === expectedStatus ? '' : `Trạng thái ${expectedStatus}`,
+          /^TV\d+$/i.test(deskCode) ? '' : 'Mã bàn TV',
+          String(payload.submitBy ?? '').trim() ? '' : 'MSNV Kho (Submit by)',
+          String(payload.scanQr ?? '').trim() ? '' : 'QR bàn TV',
+          imageCount > 0 ? '' : 'ảnh xác nhận',
+        ].filter(Boolean);
+        if (missing.length > 0) {
+          return json({ code: -1, msg: `Thiếu dữ liệu luân chuyển máy: ${missing.join(', ')}` }, 400);
+        }
+        // Kho là điểm trung chuyển, không phải khâu của khách hàng. Ép bỏ
+        // các field queue dù client gửi nhầm giá trị.
+        payload.stt = '';
+        payload.hoTen = '';
+        payload.phanLoai = '';
       }
 
       // Hoàn tất ở Thu cũ/Backup chỉ hợp lệ khi có đủ bằng chứng nghiệm thu.

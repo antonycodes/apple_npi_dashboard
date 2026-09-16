@@ -538,7 +538,10 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         const next = await postAction('handover', '', 'consult', 'KHO', {
           handover: JSON.stringify(handover),
         });
-        return Boolean(next?.handovers?.some((item) => item.id && item.deskCode === handover.deskCode && item.time));
+        return Boolean(next?.handovers?.some((item) => item.id
+          && item.deskCode === handover.deskCode
+          && item.direction === handover.direction
+          && item.time));
       },
       async sendWarehouseOrder(order) {
         // Guest staff views use `Guest_TV1`, while Guest Kho maps desks to the

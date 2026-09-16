@@ -1,7 +1,7 @@
 /**
  * KhoAppPage — module KHO trong app gộp (`#/app`, tài khoản có `Loại` = "Kho").
  *
- * Hai tab: **Bàn giao** (việc chính — giao máy cho NV Tư vấn) và **Bảng kho**
+ * Hai tab: **Bàn giao** (giao máy cho TV hoặc nhận máy trả lại) và **Bảng kho**
  * (chính là bảng kanban `#/khoview`, thu gọn cho điện thoại). Tách khỏi
  * `KhoBoardPage` vì hai màn phục vụ hai người khác nhau: bảng kanban dành cho
  * màn hình lớn treo ở kho, còn màn này nằm trong tay người đang bê máy.
@@ -28,6 +28,7 @@ import { uploadGuestImage } from '@/services/guestMedia';
 import { sendStaffAction } from '@/services/staffActionWebhook';
 import SleepOverlay from '@/components/SleepOverlay';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
+import type { WarehouseMachineDirection } from '@/types/warehouse';
 
 type Tab = 'handover' | 'board';
 
@@ -56,6 +57,10 @@ export default function KhoAppPage({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
+  const [machineDirection, setMachineDirection] = useState<WarehouseMachineDirection>(() => {
+    if (typeof window === 'undefined') return 'to_tv';
+    return window.sessionStorage.getItem('kho-machine-direction') === 'from_tv' ? 'from_tv' : 'to_tv';
+  });
 
   const { staffByDesk, loading, error: dataError, lastUpdated, isMock, refresh } =
     useKhoHandoverData(guestMode);
@@ -94,6 +99,7 @@ export default function KhoAppPage({
     setOkMessage(null);
     setSending(true);
     try {
+      const isReturn = values.direction === 'from_tv';
       if (guestMode) {
         if (!guestSimulation?.roomCode) throw new Error('Phòng mô phỏng chưa kết nối. Hãy mở Guest Điều phối trước.');
         const images: Array<{ fileToken: string; name?: string }> = [];
@@ -111,6 +117,7 @@ export default function KhoAppPage({
         }
         const staff = staffByDesk.get(values.deskCode);
         const saved = await guestSimulation.recordHandover({
+          direction: values.direction,
           deskCode: values.deskCode,
           recipientName: staff?.name ?? null,
           submittedBy: claimedMsnv,
@@ -118,11 +125,13 @@ export default function KhoAppPage({
           images,
         });
         if (!saved) throw new Error('Không thể lưu lượt bàn giao vào phòng mô phỏng.');
-        setOkMessage(`Thành công · mô phỏng bàn giao cho ${values.deskCode}.`);
+        setOkMessage(isReturn ? `Thành công · mô phỏng nhận máy từ ${values.deskCode}.` : `Thành công · mô phỏng bàn giao cho ${values.deskCode}.`);
         handoverHistory.refresh();
         setSending(false);
         return;
       }
+      const khoMsnv = String(session?.msnv || '').trim();
+      if (!khoMsnv) throw new Error('Chưa xác định được MSNV Kho đang đăng nhập.');
       // Upload TUẦN TỰ như đường Hoàn tất — sóng hội trường hay nghẽn, bắn
       // cùng lúc dễ timeout cả loạt và không biết đứt ở ảnh thứ mấy.
       const tokens: string[] = [];
@@ -140,25 +149,23 @@ export default function KhoAppPage({
       }
 
       await sendStaffAction(webhookUrl, {
-        action: 'ban_giao',
-        trangThai: 'Bàn giao kho',
-        // Bàn giao ghi theo NGƯỜI NHẬN, không theo khách (bỏ STT 2026-08-19
-        // theo yêu cầu user) — worker bỏ qua key rỗng nên 2 cột này không bị
-        // ghi đè bằng chuỗi rỗng.
+        action: isReturn ? 'tra_kho' : 'ban_giao',
+        trangThai: isReturn ? 'Trả kho' : 'Bàn giao kho',
+        // Kho không thuộc luồng khách hàng, nên không ghi STT và tên khách.
         stt: '',
         hoTen: '',
-        // Bàn NHẬN máy — lấy từ QR, không phải bàn của kho.
+        // `maBan` là bàn TV liên quan, lấy từ QR.
         maBan: values.deskCode,
         // `Submit by` = người bấm nút, tức tài khoản kho đang đăng nhập.
-        msnv: session?.msnv || session?.username || '',
+        msnv: khoMsnv,
         // Không ghi `Loại 2` — xem `StaffActionPayload.phanLoai`.
         phanLoai: '',
-        submitBy: session?.msnv || session?.username || '',
+        submitBy: khoMsnv,
         thoiGian: new Date().toISOString(),
         scanQr: values.scanQr,
         ...(tokens.length ? { hinhNghiemThu: tokens } : {}),
       });
-      setOkMessage(`Đã bàn giao cho ${values.deskCode}.`);
+      setOkMessage(isReturn ? `Đã nhận máy từ ${values.deskCode}.` : `Đã bàn giao máy cho ${values.deskCode}.`);
       refresh();
       handoverHistory.refresh();
     } catch (err) {
@@ -252,7 +259,41 @@ export default function KhoAppPage({
       <main className="min-h-0 flex-1">
         {tab === 'handover' ? (
           <>
+            <div className="mx-auto w-full max-w-[430px] px-4 pt-3">
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-neutral-200 bg-white p-1.5" role="group" aria-label="Chọn nghiệp vụ luân chuyển máy">
+                {([
+                  { key: 'to_tv', label: 'Bàn giao máy cho TV' },
+                  { key: 'from_tv', label: 'Nhận máy từ TV' },
+                ] as Array<{ key: WarehouseMachineDirection; label: string }>).map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    aria-pressed={machineDirection === option.key}
+                    onClick={() => {
+                      setMachineDirection(option.key);
+                      window.sessionStorage.setItem('kho-machine-direction', option.key);
+                      setError(null);
+                      setOkMessage(null);
+                    }}
+                    className={[
+                      'min-h-12 rounded-xl px-2 text-sm font-bold transition-colors active:scale-[0.98]',
+                      machineDirection === option.key
+                        ? option.key === 'to_tv'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-red-600 text-white'
+                        : option.key === 'to_tv'
+                          ? 'text-blue-700 hover:bg-blue-50'
+                          : 'text-red-700 hover:bg-red-50',
+                    ].join(' ')}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <KhoHandoverForm
+              key={machineDirection}
+              direction={machineDirection}
               staffByDesk={staffByDesk}
               loading={loading}
               busy={sending}

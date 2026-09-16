@@ -17,9 +17,9 @@ function formatTime(time: number) {
 export default function KhoHandoverHistory({ items, loading, error }: { items: KhoHandoverHistoryItem[]; loading: boolean; error: string | null }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   return (
-    <section className="mx-auto w-full max-w-[430px] px-4 pb-5" aria-label="Danh sách đã bàn giao">
+    <section className="mx-auto w-full max-w-[430px] px-4 pb-5" aria-label="Danh sách luân chuyển máy">
       <div className="mb-2 flex items-center justify-between border-b border-neutral-200 pb-2">
-        <h2 className="text-base font-black text-neutral-900">Đã bàn giao</h2>
+        <h2 className="text-base font-black text-neutral-900">Lịch sử luân chuyển máy</h2>
         {items.length > 0 && <span className="text-xs font-semibold text-neutral-500">{items.length} lượt</span>}
       </div>
       {loading && <p className="rounded-xl border border-neutral-200 bg-white px-3 py-4 text-sm text-neutral-500">Đang tải danh sách…</p>}
@@ -29,15 +29,19 @@ export default function KhoHandoverHistory({ items, loading, error }: { items: K
         {items.map((item) => (
           <article key={item.id} className="rounded-xl border border-neutral-200 bg-white px-3 py-3">
             <button type="button" className="w-full text-left" aria-expanded={expandedId === item.id} onClick={() => setExpandedId((current) => current === item.id ? null : item.id)}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-neutral-900">Bàn giao cho {item.deskCode}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-neutral-900">
+                    {item.direction === 'from_tv' ? `Nhận máy từ ${item.deskCode}` : `Bàn giao máy cho ${item.deskCode}`}
+                  </p>
                   <p className="mt-0.5 text-xs text-neutral-500">{formatTime(item.time)} · Người ghi: {item.submittedBy || '—'}</p>
                 </div>
-                <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">Đã giao</span>
+                <span className={['shrink-0 rounded-full px-2 py-1 text-[11px] font-bold', item.direction === 'from_tv' ? 'bg-sky-50 text-sky-700' : 'bg-emerald-50 text-emerald-700'].join(' ')}>
+                  {item.direction === 'from_tv' ? 'Đã nhận' : 'Đã giao'}
+                </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-2 text-xs text-neutral-500">
-                <span>{item.images.length ? 'Bấm để xem ảnh nghiệm thu' : 'Không có ảnh nghiệm thu'}</span>
+                <span>{item.images.length ? 'Bấm để xem ảnh' : 'Không có ảnh'}</span>
                 <span className="shrink-0">Ảnh: {item.images.length}/3</span>
               </div>
             </button>

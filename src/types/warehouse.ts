@@ -40,9 +40,12 @@ export interface WarehouseInboxOrder {
   deletedBy?: string;
 }
 
-/** Lượt bàn giao máy trong phòng Guest; không ghi vào Lark Base. */
+export type WarehouseMachineDirection = 'to_tv' | 'from_tv';
+
+/** Lượt luân chuyển máy trong phòng Guest; không ghi vào Lark Base. */
 export interface WarehouseHandoverRecord {
   id: string;
+  direction?: WarehouseMachineDirection;
   deskCode: string;
   recipientName: string | null;
   submittedBy: string | null;

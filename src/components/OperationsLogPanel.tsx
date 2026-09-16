@@ -24,6 +24,7 @@ const POSITION_CLUSTERS: Array<{ key: Exclude<PositionCluster, 'all'>; label: st
 interface WarehouseEvent {
   id: string;
   time: number | null;
+  direction: 'to_tv' | 'from_tv';
   deskCode: string;
   scanQr: string;
   submitBy: string;
@@ -127,13 +128,16 @@ function latestMasterByStt(tables: LarkTables, fields: FieldConfig): Map<string,
 
 function warehouseEventsFromMaster(tables: LarkTables, fields: FieldConfig): WarehouseEvent[] {
   return tables.master
-    .filter((row) => cellToString(fieldValue(row.fields, fields.master.status)) === 'Bàn giao kho')
+    .filter((row) => ['Bàn giao kho', 'Trả kho'].includes(cellToString(fieldValue(row.fields, fields.master.status))?.trim() ?? ''))
     .map((row) => {
       const rawTime = cellToString(fieldValue(row.fields, fields.master.time));
       const parsedTime = Number(rawTime) || Date.parse(rawTime ?? '') || 0;
+      const status = cellToString(fieldValue(row.fields, fields.master.status))?.trim();
+      const direction: WarehouseEvent['direction'] = status === 'Trả kho' ? 'from_tv' : 'to_tv';
       return {
         id: row.record_id,
         time: parsedTime || null,
+        direction,
         deskCode: cellToString(fieldValue(row.fields, fields.master.deskCode)) || '—',
         scanQr: cellToString(fieldValue(row.fields, fields.master.scanQr)) || '—',
         submitBy: cellToString(fieldValue(row.fields, fields.master.submitBy)) || '—',
@@ -240,14 +244,14 @@ export default function OperationsLogPanel({ tables, fields, loading }: {
     ...filteredWarehouseEvents.map((event) => ({
       'Loại dòng': 'Kho',
       STT: '—',
-      'Khách hàng': 'Bàn giao Kho',
+      'Khách hàng': event.direction === 'from_tv' ? 'Nhận máy từ TV' : 'Bàn giao máy cho TV',
       'Check-in': formatDate(event.time),
       'Khâu 1': '—',
       'Khâu 2': '—',
       'Khâu 3': '—',
       'Cân nhắc giá': '—',
       'Thu máy nhanh': '—',
-      Kho: `Đã bàn giao · ${event.deskCode}`,
+      Kho: `${event.direction === 'from_tv' ? 'Đã nhận máy' : 'Đã bàn giao máy'} · ${event.deskCode}`,
       'End flow': '—',
     })),
   ], [filteredWarehouseEvents, latestByStt, visible]);
@@ -316,10 +320,10 @@ export default function OperationsLogPanel({ tables, fields, loading }: {
         </div>
       </section>}
       {(stage === 'all' || stage === 'warehouse') && <section id="warehouse-log" className="mt-5 overflow-hidden border border-neutral-200 bg-white">
-        <div className="border-b border-neutral-200 px-4 py-3"><h2 className="font-black text-neutral-950">Nhật ký bàn giao Kho</h2><p className="mt-1 text-xs text-neutral-500">Nguồn: Master · Trạng thái “Bàn giao kho”. Các dòng này không có STT khách.</p></div>
-        <div className="overflow-x-auto"><table className="min-w-[700px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-700"><tr>{['Thời gian', 'Bàn nhận', 'QR máy', 'Người thao tác', 'Kết quả'].map((item) => <th key={item} className="border-b border-neutral-200 px-3 py-3 font-bold">{item}</th>)}</tr></thead><tbody>
-          {filteredWarehouseEvents.map((event) => <tr key={event.id} className="border-b border-neutral-100"><td className="whitespace-nowrap px-3 py-3 text-xs">{formatDate(event.time)}</td><td className="px-3 py-3 font-bold">{event.deskCode}</td><td className="px-3 py-3 text-xs">{event.scanQr}</td><td className="px-3 py-3 text-xs">{event.submitBy}</td><td className="px-3 py-3 font-semibold text-emerald-700">Đã bàn giao</td></tr>)}
-          {!loading && !filteredWarehouseEvents.length && <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-neutral-500">Chưa có dữ liệu bàn giao Kho theo bộ lọc.</td></tr>}
+        <div className="border-b border-neutral-200 px-4 py-3"><h2 className="font-black text-neutral-950">Nhật ký luân chuyển máy Kho</h2><p className="mt-1 text-xs text-neutral-500">Nguồn: Master · Giao máy cho TV và nhận máy TV trả lại. Các dòng này không có STT khách.</p></div>
+        <div className="overflow-x-auto"><table className="min-w-[760px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-700"><tr>{['Thời gian', 'Chiều', 'Bàn TV', 'QR bàn', 'Người thao tác', 'Kết quả'].map((item) => <th key={item} className="border-b border-neutral-200 px-3 py-3 font-bold">{item}</th>)}</tr></thead><tbody>
+          {filteredWarehouseEvents.map((event) => <tr key={event.id} className="border-b border-neutral-100"><td className="whitespace-nowrap px-3 py-3 text-xs">{formatDate(event.time)}</td><td className="px-3 py-3 text-xs font-bold">{event.direction === 'from_tv' ? 'TV → KHO' : 'KHO → TV'}</td><td className="px-3 py-3 font-bold">{event.deskCode}</td><td className="px-3 py-3 text-xs">{event.scanQr}</td><td className="px-3 py-3 text-xs">{event.submitBy}</td><td className={`px-3 py-3 font-semibold ${event.direction === 'from_tv' ? 'text-sky-700' : 'text-emerald-700'}`}>{event.direction === 'from_tv' ? 'Đã nhận máy' : 'Đã bàn giao máy'}</td></tr>)}
+          {!loading && !filteredWarehouseEvents.length && <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-neutral-500">Chưa có dữ liệu luân chuyển máy Kho theo bộ lọc.</td></tr>}
         </tbody></table></div>
       </section>}
     </>
