@@ -98,8 +98,7 @@ export default function StaffReceiveFormModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [busy, changeMindConfirmOpen, onClose]);
 
-  // Khi chưa đánh dấu khách cân nhắc giá, giữ nguyên đầy đủ luồng cũ.
-  // Đánh dấu sẽ ẩn toàn bộ lựa chọn Backup/thu máy và phần nhập máy.
+  // Cân nhắc giá hoặc đổi ý sẽ ẩn các trường thu máy liên quan.
   const showBackupCheck = action === 'hoan_tat'
     && cluster !== 'backup'
     && !values.khachKhongDongYGiaThuCu
@@ -112,9 +111,12 @@ export default function StaffReceiveFormModal({
     ? (['Thu máy ngay'] as const)
     : (['Thu máy ngay', 'Thu máy sau'] as const);
   // 3 field chỉ bung ra sau khi chọn một option.
-  const showPriceConsideration = action === 'hoan_tat' && cluster === 'tradein';
+  const showPriceConsideration = action === 'hoan_tat'
+    && cluster === 'tradein'
+    && !values.thuLaiMay;
   const showICloudDeletion = action === 'hoan_tat'
     && (cluster === 'tradein' || cluster === 'backup')
+    && !values.khachKhongDongYGiaThuCu
     && !customerChangedMind;
   const showDeviceFields = showThuLaiMay
     && values.thuLaiMay.length > 0
@@ -212,7 +214,20 @@ export default function StaffReceiveFormModal({
                     <button
                       key={opt}
                       type="button"
-                      onClick={() => set('thuLaiMay', values.thuLaiMay === opt ? '' : opt)}
+                      onClick={() => {
+                        const next = values.thuLaiMay === opt ? '' : opt;
+                        if (next) setCustomerChangedMind(false);
+                        setValues((current) => ({
+                          ...current,
+                          thuLaiMay: next,
+                          ...(next
+                            ? {
+                                khachKhongDongYGiaThuCu: false,
+                                daXoaICloudVaDuLieuKhach: false,
+                              }
+                            : {}),
+                        }));
+                      }}
                       aria-pressed={values.thuLaiMay === opt}
                       className={`min-h-11 flex-1 rounded-xl border px-2 text-sm font-bold ${
                         values.thuLaiMay === opt
@@ -243,6 +258,7 @@ export default function StaffReceiveFormModal({
                         khachKhongDongYGiaThuCu: checked,
                         ...(checked
                           ? {
+                              daXoaICloudVaDuLieuKhach: false,
                               checkBackup: '',
                               thuLaiMay: '',
                               hinhNghiemThu: [],
