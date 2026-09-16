@@ -2051,12 +2051,15 @@ async function notifyWarehouseInboxOrder(env, order) {
       .filter((item) => /^DH[\p{L}\p{N}_-]+$/iu.test(String(item?.orderCode || '').trim()))
       .map((item) => [String(item.orderCode).trim().toUpperCase(), item])).values()]
     : [];
-  if (!productOrders.length) return ['Khách chưa có Mã đơn hàng DH để cập nhật KHO_Inbox Orders.'];
 
   const createdAt = new Date(order.createdAt).toISOString();
+  const orderType = String(order.orderType || String(order.rawText || '').split('\n')[0] || '').trim().slice(0, 80);
+  // Không có mã DH vẫn phải ghi nhận order TV gửi về table theo Mã TV.
+  // Có mã DH thì giữ từng product event để không làm hỏng luồng Kho hiện tại.
+  const webhookOrders = productOrders.length ? productOrders : [{ label: '', product: '', orderCode: null }];
   const errors = [];
-  for (const item of productOrders) {
-    const orderCode = String(item.orderCode).trim().toUpperCase();
+  for (const item of webhookOrders) {
+    const orderCode = item.orderCode ? String(item.orderCode).trim().toUpperCase() : null;
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -2079,13 +2082,18 @@ async function notifyWarehouseInboxOrder(env, order) {
           'Mã bàn': order.deskId,
           'Họ và tên': order.customerName,
           'Nội dung Order': order.rawText,
+          'Mã TV': order.deskId,
+          'STT Khách': order.stt,
+          'Loại Order': orderType,
+          'Nội dung Orders': order.rawText,
+          'Thời gian gửi Orders': createdAt,
           'Submit by': order.sentBy,
           'Thời gian': createdAt,
         }),
       });
-      if (!response.ok) errors.push(`${orderCode}: HTTP ${response.status}`);
+      if (!response.ok) errors.push(`${orderCode || order.deskId}: HTTP ${response.status}`);
     } catch (error) {
-      errors.push(`${orderCode}: ${String(error?.message || error)}`);
+      errors.push(`${orderCode || order.deskId}: ${String(error?.message || error)}`);
     }
   }
   return errors;
@@ -2277,6 +2285,7 @@ export class WarehouseOrderInbox extends DurableObject {
       id: crypto.randomUUID(),
       orderCode: String(body?.orderCode || `INBOX-${crypto.randomUUID().slice(0, 8)}`).trim().slice(0, 120),
       rawText,
+      orderType: String(body?.orderType || '').trim().slice(0, 80) || null,
       productOrders: Array.isArray(body?.productOrders)
         ? body.productOrders.slice(0, 20).map((item) => ({
             label: String(item?.label || '').trim().slice(0, 40),

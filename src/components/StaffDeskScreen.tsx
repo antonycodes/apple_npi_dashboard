@@ -1041,6 +1041,7 @@ export default function StaffDeskScreen({
     try {
       const payload = {
         rawText: `${orderHeader}\n\n${rawText}`,
+        orderType: orderHeader,
         productOrders: orderCustomer.productOrders ?? [],
         deskId: view.id,
         stt: orderCustomer.stt,

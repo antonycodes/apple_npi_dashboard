@@ -28,6 +28,8 @@ export interface WarehouseInboxOrder {
   eventId?: string;
   orderCode: string;
   rawText: string;
+  /** Loại order được chọn tại form Tư vấn. */
+  orderType?: string;
   /** Các mã đơn hàng thật của khách nhận cùng nội dung Order từ Tư vấn. */
   productOrders?: Array<{ label: string; product: string; orderCode: string | null }>;
   deskId: string;
