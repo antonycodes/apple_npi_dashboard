@@ -129,9 +129,17 @@ function OrderInboxSidebar({ orders, onInspect }: { orders: WarehouseInboxOrder[
                   onClick={() => onInspect(order)}
                   className="w-full rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 text-left transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1"
                 >
-                  <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-neutral-500">
-                    <span>{order.deskId || 'Chưa rõ bàn'} · STT {order.stt || '—'}</span>
-                    <time dateTime={new Date(order.createdAt).toISOString()}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs font-black text-neutral-900">
+                      <span className="rounded-md bg-sky-100 px-1.5 py-1 text-sky-800">
+                        {order.deskId || 'Chưa rõ bàn'}
+                      </span>
+                      <span className="text-neutral-400" aria-hidden="true">·</span>
+                      <span className="rounded-md bg-orange-100 px-1.5 py-1 text-orange-800">
+                        STT {order.stt || '—'}
+                      </span>
+                    </span>
+                    <time className="shrink-0 text-[11px] font-bold text-neutral-500" dateTime={new Date(order.createdAt).toISOString()}>
                       {order.createdAt ? new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                     </time>
                   </div>

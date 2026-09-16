@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WarehouseInboxOrder } from '@/types/warehouse';
 import { deleteWarehouseOrder, fetchWarehouseOrders, sendWarehouseOrder } from '@/services/warehouseOrderClaims';
 
@@ -35,14 +35,5 @@ export function useWarehouseOrders(apiUrl: string | undefined, enabled: boolean)
     await deleteWarehouseOrder(apiUrl, orderId);
     setOrders((current) => current.filter((item) => item.id !== orderId));
   }, [apiUrl]);
-  const latestOrders = useMemo(() => {
-    const latest = new Map<string, WarehouseInboxOrder>();
-    for (const order of orders) {
-      const key = order.stt?.trim() ? `${order.deskId}\u0000${order.stt.trim()}` : order.id;
-      const previous = latest.get(key);
-      if (!previous || order.createdAt >= previous.createdAt) latest.set(key, order);
-    }
-    return [...latest.values()].sort((a, b) => a.createdAt - b.createdAt);
-  }, [orders]);
-  return { orders: latestOrders, error, refresh, send, remove };
+  return { orders, error, refresh, send, remove };
 }
