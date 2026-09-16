@@ -52,6 +52,8 @@ export interface ReceiveFormValues {
   imei: string;
 }
 
+type ChangeMindStatus = 'sending' | 'sent' | 'error';
+
 export default function StaffReceiveFormModal({
   customer,
   deskLabel,
@@ -60,6 +62,7 @@ export default function StaffReceiveFormModal({
   action,
   busy,
   error,
+  changeMindStatus,
   onSubmit,
   onCustomerChangedMind,
   onClose,
@@ -73,6 +76,7 @@ export default function StaffReceiveFormModal({
   action: 'tiep_nhan' | 'hoan_tat';
   busy: boolean;
   error: string | null;
+  changeMindStatus?: ChangeMindStatus | null;
   onSubmit: (values: ReceiveFormValues) => void;
   onCustomerChangedMind?: (values: ReceiveFormValues) => Promise<boolean>;
   onClose: () => void;
@@ -425,7 +429,7 @@ export default function StaffReceiveFormModal({
               else onSubmit(values);
             }}
             disabled={!canSubmit || (customerChangedMind && !onCustomerChangedMind)}
-            className={`min-h-[56px] flex-[2] rounded-2xl text-base font-bold text-white shadow-sm active:opacity-80 disabled:bg-neutral-200 disabled:text-neutral-700 ${action === 'tiep_nhan' ? 'bg-emerald-600' : 'bg-red-600'}`}
+            className={`min-h-[56px] flex-[2] rounded-2xl text-base font-bold text-white shadow-sm active:opacity-80 disabled:bg-neutral-300 disabled:text-neutral-900 ${action === 'tiep_nhan' ? 'bg-emerald-600' : 'bg-red-600'}`}
           >
             {busy || changeMindSending
               ? 'Đang gửi…'
@@ -474,9 +478,15 @@ export default function StaffReceiveFormModal({
               onClick={confirmChangeMind}
               disabled={changeMindSending || !onCustomerChangedMind}
               aria-label="Xác nhận khách đồng ý thay đổi"
-              className="mt-6 min-h-14 w-full rounded-xl bg-red-700 px-4 text-base font-bold text-white active:bg-red-800 disabled:bg-neutral-200 disabled:text-neutral-700"
+              className="mt-6 min-h-14 w-full rounded-xl bg-red-700 px-4 text-base font-bold text-white active:bg-red-800 disabled:bg-neutral-300 disabled:text-neutral-900"
             >
-              {changeMindSending ? 'Đang gửi về Lark…' : 'Xác nhận'}
+              {changeMindStatus === 'sent'
+                ? 'Đã gửi bản ghi'
+                : changeMindStatus === 'error'
+                  ? 'Đã nhận phản hồi lỗi'
+                  : changeMindSending
+                    ? 'Đang gửi bản ghi…'
+                    : 'Xác nhận'}
             </button>
             {error && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">✗ {error}</p>}
             <p className="mt-3 text-xs leading-5 text-neutral-500">

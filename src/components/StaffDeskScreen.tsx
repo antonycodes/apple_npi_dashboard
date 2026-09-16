@@ -47,6 +47,7 @@ const PENDING_TTL_MS = 120_000;
 
 /** Gửi webhook xong mà bấy nhiêu lâu Lark vẫn chưa hiện record → cảnh báo. */
 const CONFIRM_WARN_MS = 15_000;
+const CHANGE_MIND_FEEDBACK_MS = 350;
 
 const ORDER_HEADERS = ['#Lấy hàng cho khách', '#Trả hàng về kho'] as const;
 type OrderHeader = (typeof ORDER_HEADERS)[number];
@@ -541,6 +542,7 @@ export default function StaffDeskScreen({
   const webhookUrl = staffActionWebhookUrl(settings);
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [changeMindStatus, setChangeMindStatus] = useState<'sending' | 'sent' | 'error' | null>(null);
   const [simulationMessage, setSimulationMessage] = useState<string | null>(null);
   const [formAction, setFormAction] = useState<'tiep_nhan' | 'hoan_tat' | null>(null);
   const [formCustomer, setFormCustomer] = useState<StaffCustomer | null>(null);
@@ -870,18 +872,24 @@ export default function StaffDeskScreen({
   const submitCustomerChangedMind = async (values: ReceiveFormValues): Promise<boolean> => {
     if (sending) return false;
     setActionError(null);
+    setChangeMindStatus('sending');
     setSending(true);
     try {
+      const stt = values.stt.trim();
+      const customerName = values.hoTen.trim() || formCustomer?.name?.trim() || '';
       if (simulation) {
+        completeCustomer(stt);
+        setChangeMindStatus('sent');
+        await new Promise((resolve) => window.setTimeout(resolve, CHANGE_MIND_FEEDBACK_MS));
         setFormAction(null);
         setFormCustomer(null);
-        setSimulationMessage(`Đã ghi nhận mô phỏng · STT ${values.stt.trim()} không thu cũ nữa.`);
+        setSimulationMessage(`Đã ghi nhận mô phỏng · STT ${stt} không thu cũ nữa.`);
         return true;
       }
 
       const submitter = submitByMsnv || view.staffId?.trim() || '';
-      await sendDispatchForm(dispatchWebhookUrl(settings), {
-        stt: values.stt.trim(),
+      const result = await sendDispatchForm(dispatchWebhookUrl(settings), {
+        stt,
         phanLoai: '',
         maBan: '',
         nhanSu: '',
@@ -892,13 +900,55 @@ export default function StaffDeskScreen({
         dieuPhoiViTri: view.id,
         submitBy: submitter,
         khachDoiY: 'Không thu cũ nữa',
-      });
+      }, { requireWorkerSuccess: true });
+
+      completeCustomer(stt);
+      if (result.confirmed) {
+        setChangeMindStatus('sent');
+      } else {
+        recordAuditEvent({
+          action: 'Khách đổi ý không thu cũ nữa',
+          stage: STAGE_LABEL[view.cluster],
+          deskCode: view.id,
+          msnv: submitter,
+          staffName: view.staffName ?? undefined,
+          stt,
+          customerName,
+          customerKey: `${stt}|${customerName}`,
+          result: 'error',
+          detail: 'Đã gửi nhưng không nhận được phản hồi xác nhận từ Worker.',
+        });
+        setChangeMindStatus('error');
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, CHANGE_MIND_FEEDBACK_MS));
       setFormAction(null);
       setFormCustomer(null);
       return true;
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
-      return false;
+      const stt = values.stt.trim();
+      const customerName = values.hoTen.trim() || formCustomer?.name?.trim() || '';
+      const submitter = submitByMsnv || view.staffId?.trim() || '';
+      const detail = err instanceof Error ? err.message : String(err);
+      recordAuditEvent({
+        action: 'Khách đổi ý không thu cũ nữa',
+        stage: STAGE_LABEL[view.cluster],
+        deskCode: view.id,
+        msnv: submitter,
+        staffName: view.staffName ?? undefined,
+        stt,
+        customerName,
+        customerKey: `${stt}|${customerName}`,
+        result: 'error',
+        detail,
+      });
+      // Theo quyết định vận hành: lỗi được đưa vào Kiểm soát hệ thống, không
+      // mở lại popup hoặc giữ nhân viên tại màn hình khách cũ.
+      completeCustomer(stt);
+      setChangeMindStatus('error');
+      await new Promise((resolve) => window.setTimeout(resolve, CHANGE_MIND_FEEDBACK_MS));
+      setFormAction(null);
+      setFormCustomer(null);
+      return true;
     } finally {
       setSending(false);
     }
@@ -1095,7 +1145,7 @@ export default function StaffDeskScreen({
                         setFormCustomer(c);
                         setFormAction('hoan_tat');
                       }}
-                      className="min-h-11 shrink-0 rounded-xl bg-red-600 px-3 py-2 text-sm font-bold text-white active:opacity-80 disabled:bg-neutral-200 disabled:text-neutral-700"
+                      className="min-h-11 shrink-0 rounded-xl bg-red-600 px-3 py-2 text-sm font-bold text-white active:opacity-80 disabled:bg-neutral-300 disabled:text-neutral-900"
                     >
                       Hoàn tất
                     </button>
@@ -1236,7 +1286,7 @@ export default function StaffDeskScreen({
                     type="button"
                     onClick={() => void sendOrderToWarehouse()}
                     disabled={deskLocked || !orderCustomer?.stt || !orderHeader || !orderText.trim() || orderSending}
-                    className="min-h-12 flex-1 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white transition-colors active:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:bg-neutral-200 disabled:text-neutral-700"
+                    className="min-h-12 flex-1 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white transition-colors active:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:bg-neutral-300 disabled:text-neutral-900"
                   >
                     {orderSending ? 'Đang gửi…' : 'Gửi'}
                   </button>
@@ -1305,6 +1355,7 @@ export default function StaffDeskScreen({
             locked={deskLocked || receiveLocked}
             onPress={() => {
               setActionError(null);
+              setChangeMindStatus(null);
               setFormCustomer(view.next);
               setFormAction('tiep_nhan');
             }}
@@ -1318,7 +1369,7 @@ export default function StaffDeskScreen({
             disabled={deskLocked || !webhookMode || sending}
             aria-label="Tiếp nhận nhanh"
             title="Tiếp nhận nhanh"
-            className="flex min-h-[56px] w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm active:bg-emerald-100 disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-700"
+            className="flex min-h-[56px] w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm active:bg-emerald-100 disabled:border-neutral-300 disabled:bg-neutral-300 disabled:text-neutral-900"
           >
             <LightningIcon />
           </button>
@@ -1331,6 +1382,7 @@ export default function StaffDeskScreen({
               const customer = primary ?? ghost;
               if (!customer) return;
               setActionError(null);
+              setChangeMindStatus(null);
               setFormCustomer(customer);
               setFormAction('hoan_tat');
             }}
@@ -1371,6 +1423,7 @@ export default function StaffDeskScreen({
           }}
           busy={sending}
           error={actionError}
+          changeMindStatus={changeMindStatus}
           onSubmit={(values) => void submitAction(values)}
           onCustomerChangedMind={view.cluster === 'tradein' && formAction === 'hoan_tat'
             ? submitCustomerChangedMind

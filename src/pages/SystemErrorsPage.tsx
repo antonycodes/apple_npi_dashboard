@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeftIcon, RefreshIcon } from '@/components/AppShellIcons';
 import { canViewAll, useAdminInfo, logoutToApp } from '@/config/adminSession';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { isTradeInCustomer } from '@/utils/tradeInFilter';
+import { fetchAuditLogs, type AuditLogItem } from '@/services/auditLogApi';
 import errorMatrixMarkdown from '../../docs/HE-THONG-ERROR-MATRIX.md?raw';
 
 type Severity = 'critical' | 'warning' | 'info';
@@ -79,14 +80,37 @@ export default function SystemErrorsPage() {
   const [filter, setFilter] = useState<'all' | Severity>('all');
   const [view, setView] = useState<'live' | 'guide'>('live');
   const [guideQuery, setGuideQuery] = useState('');
+  const [auditErrors, setAuditErrors] = useState<AuditLogItem[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFetchError, setAuditFetchError] = useState<string | null>(null);
   const issues = useMemo(() => buildIssues(data), [data]);
   const matrix = useMemo(() => parseMatrix(errorMatrixMarkdown), []);
   const visible = filter === 'all' ? issues : issues.filter((issue) => issue.severity === filter);
   const count = (severity: Severity) => issues.filter((issue) => issue.severity === severity).length;
+  const refreshAuditErrors = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const rows = await fetchAuditLogs({ stage: 'Thu cũ' });
+      setAuditErrors(rows.filter((row) => row.result === 'error' && row.action === 'Khách đổi ý không thu cũ nữa').slice(0, 20));
+      setAuditFetchError(null);
+    } catch (error) {
+      setAuditFetchError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (canViewAll(session)) void refreshAuditErrors();
+  }, [refreshAuditErrors, session]);
+  const refreshAll = () => {
+    data.refresh();
+    void refreshAuditErrors();
+  };
+  const formatAuditTime = (value: string) => new Date(value).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'medium' });
   if (!canViewAll(session)) return <main className="min-h-screen bg-[#f7f6f3] p-6"><p className="mx-auto max-w-3xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Bạn không có quyền xem Kiểm soát hệ thống.</p></main>;
 
   return <main className="min-h-screen bg-[#f7f6f3] px-4 py-6 text-neutral-800 sm:px-6"><div className="mx-auto max-w-6xl">
-    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-200 pb-5"><div><a href="/app" className="inline-flex items-center gap-2 text-sm font-bold text-neutral-700 hover:text-neutral-900"><ArrowLeftIcon className="h-4 w-4" /> Quản trị</a><h1 className="mt-4 text-2xl font-black tracking-tight text-neutral-950">Kiểm soát hệ thống</h1><p className="mt-1 max-w-2xl text-sm text-neutral-700">Phát hiện lỗi đang tồn tại và tra cứu hướng xử lý theo từng vị trí.</p></div><div className="flex items-center gap-2"><button type="button" onClick={data.refresh} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50"><RefreshIcon className="h-4 w-4" /> Kiểm tra lại</button><button type="button" onClick={logoutToApp} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold text-red-700 hover:bg-red-50">Đăng xuất</button></div></header>
+    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-200 pb-5"><div><a href="/app" className="inline-flex items-center gap-2 text-sm font-bold text-neutral-700 hover:text-neutral-900"><ArrowLeftIcon className="h-4 w-4" /> Quản trị</a><h1 className="mt-4 text-2xl font-black tracking-tight text-neutral-950">Kiểm soát hệ thống</h1><p className="mt-1 max-w-2xl text-sm text-neutral-700">Phát hiện lỗi đang tồn tại và tra cứu hướng xử lý theo từng vị trí.</p></div><div className="flex items-center gap-2"><button type="button" onClick={refreshAll} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold hover:bg-neutral-50"><RefreshIcon className="h-4 w-4" /> Kiểm tra lại</button><button type="button" onClick={logoutToApp} className="min-h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold text-red-700 hover:bg-red-50">Đăng xuất</button></div></header>
     <nav aria-label="Nội dung kiểm soát hệ thống" className="mt-5 flex w-fit gap-1 rounded-lg bg-neutral-100 p-1"><button type="button" onClick={() => setView('live')} className={`rounded-md px-3 py-2 text-sm font-bold ${view === 'live' ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-700 hover:text-neutral-950'}`}>Đang phát hiện</button><button type="button" onClick={() => setView('guide')} className={`rounded-md px-3 py-2 text-sm font-bold ${view === 'guide' ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-700 hover:text-neutral-950'}`}>Bảng lỗi & hướng xử lý</button></nav>
     {view === 'live' ? <>
     <section className="mt-6 grid gap-3 sm:grid-cols-3">{(['critical', 'warning', 'info'] as Severity[]).map((severity) => { const meta = SEVERITY_META[severity]; return <button key={severity} type="button" onClick={() => setFilter(filter === severity ? 'all' : severity)} className={`border p-4 text-left transition hover:border-neutral-400 ${filter === severity ? 'ring-2 ring-neutral-900 ring-offset-2' : ''}`}><p className="text-xs font-bold text-neutral-500">{meta.label}</p><p className="mt-1 text-2xl font-black text-neutral-950">{count(severity)}</p></button>; })}</section>
@@ -95,6 +119,7 @@ export default function SystemErrorsPage() {
       {!data.loading && visible.map((issue) => { const meta = SEVERITY_META[issue.severity]; return <article key={issue.id} className="px-4 py-5 sm:px-5"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-3"><span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${meta.dot}`} /><div><h3 className="font-black text-neutral-950">{issue.title}</h3><p className="mt-1 text-xs font-semibold text-neutral-500">Vị trí: {issue.source}</p></div></div><span className={`border px-2 py-1 text-[11px] font-bold ${meta.tone}`}>{meta.label}</span></div><p className="mt-4 text-sm text-neutral-700">{issue.detail}</p><div className="mt-4 grid gap-3 border-t border-neutral-100 pt-4 text-sm md:grid-cols-2"><div><p className="text-xs font-bold uppercase tracking-wide text-neutral-400">Điều kiện cần và đủ</p><ul className="mt-1 list-disc space-y-1 pl-5 text-neutral-600">{issue.required.map((item) => <li key={item}>{item}</li>)}</ul></div><div><p className="text-xs font-bold uppercase tracking-wide text-neutral-400">Vị trí kiểm tra chính xác</p><p className="mt-1 text-neutral-600">{issue.location}</p><p className="mt-3 text-xs font-bold uppercase tracking-wide text-neutral-400">Hướng xử lý</p><p className="mt-1 text-neutral-600">{issue.action}</p></div></div></article>; })}
       {!data.loading && !visible.length && <p className="px-5 py-12 text-center text-sm text-neutral-500">Không có lỗi phù hợp với bộ lọc.</p>}
     </div></section>
+    <section className="mt-5 border border-red-200 bg-white"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-100 px-4 py-4 sm:px-5"><div><h2 className="font-black text-neutral-950">Lỗi gửi bản ghi gần đây</h2><p className="mt-1 text-xs text-neutral-500">Nguồn: audit log · Khách đổi ý không thu cũ nữa</p></div>{auditLoading && <span className="text-xs font-semibold text-neutral-500">Đang tải…</span>}</div>{auditFetchError ? <p className="px-5 py-5 text-sm font-semibold text-red-700">Không đọc được audit log: {auditFetchError}</p> : auditErrors.length ? <div className="divide-y divide-red-100">{auditErrors.map((item) => <article key={item.id} className="px-4 py-4 sm:px-5"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-black text-red-800">Worker/Lark không ghi được bản ghi</h3><p className="mt-1 text-xs font-semibold text-neutral-500">{formatAuditTime(item.event_at)} · {item.site.toUpperCase()} · Bàn {item.deskCode || '—'}</p></div><span className="border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-bold text-red-800">Lỗi</span></div><p className="mt-3 text-sm text-neutral-800">STT {item.stt || '—'} · {item.customerName || 'Chưa có tên khách'}</p><p className="mt-1 break-words text-sm text-red-700">{item.detail || 'Không có chi tiết lỗi.'}</p><p className="mt-2 text-xs text-neutral-500">MSNV: {item.msnv || '—'} · Nhân sự: {item.staffName || '—'}</p></article>)}</div> : <p className="px-5 py-8 text-center text-sm text-neutral-500">Chưa có lỗi gửi bản ghi Khách đổi ý.</p>}</section>
     </> : <section className="mt-5 border border-neutral-200 bg-white"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-4 py-4 sm:px-5"><div><h2 className="font-black text-neutral-950">Bảng lỗi & hướng xử lý</h2><p className="mt-1 text-xs text-neutral-500">Nguồn: `docs/HE-THONG-ERROR-MATRIX.md`. Tìm trạng thái tại `Master_Điều phối` trước.</p></div><input value={guideQuery} onChange={(event) => setGuideQuery(event.target.value)} placeholder="Tìm lỗi, vị trí hoặc hướng xử lý" className="min-h-10 w-full rounded-lg border border-neutral-300 px-3 text-sm sm:w-80" /></div><div className="space-y-6 p-4 sm:p-5">{matrix.map((section) => { const rows = section.rows.filter((row) => !guideQuery.trim() || row.join(' ').toLocaleLowerCase('vi').includes(guideQuery.trim().toLocaleLowerCase('vi'))); return <div key={section.title}><h3 className="mb-3 font-black text-neutral-950">{section.title}</h3><div className="overflow-x-auto border border-neutral-200"><table className="min-w-[980px] w-full border-collapse text-left text-sm"><thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500"><tr>{section.headers.map((header) => <th key={header} className="border-b border-neutral-200 px-3 py-3 font-bold">{header}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`${section.title}-${rowIndex}`} className="border-b border-neutral-100 align-top last:border-0">{row.map((cell, cellIndex) => <td key={`${rowIndex}-${cellIndex}`} className="px-3 py-3 text-neutral-700">{cell}</td>)}</tr>)}{!rows.length && <tr><td colSpan={section.headers.length} className="px-3 py-8 text-center text-sm text-neutral-500">Không có dòng phù hợp.</td></tr>}</tbody></table></div></div>; })}</div></section>}
   </div></main>;
 }

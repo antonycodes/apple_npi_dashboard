@@ -57,10 +57,16 @@ export interface DispatchSendResult {
   written?: string[];
 }
 
+export interface DispatchSendOptions {
+  /** Yêu cầu phản hồi Worker có `code: 0`, thay vì chỉ dựa vào HTTP 2xx. */
+  requireWorkerSuccess?: boolean;
+}
+
 /** Điều phối phải ghi thẳng vào bảng dispatch để không mất record khi burst. */
 export async function sendDispatchForm(
   url: string,
   payload: DispatchFormPayload,
+  options: DispatchSendOptions = {},
 ): Promise<DispatchSendResult> {
   if (!url) {
     throw new Error('Chưa cấu hình Webhook URL — vào "Cài đặt Lark" → mục Webhook Điều phối.');
@@ -93,15 +99,18 @@ export async function sendDispatchForm(
       }
       throw new Error(`Webhook trả về HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
     }
-    let written: string[] | undefined;
+    let responseBody: { code?: unknown; msg?: string; data?: { written?: unknown } } | undefined;
     try {
-      const parsed = await res.json() as { data?: { written?: unknown } };
-      if (Array.isArray(parsed.data?.written)) {
-        written = parsed.data.written.filter((value): value is string => typeof value === 'string');
-      }
+      responseBody = JSON.parse(await res.text()) as typeof responseBody;
     } catch {
       // Webhook cũ có thể trả text hoặc body rỗng.
     }
+    if (options.requireWorkerSuccess && responseBody?.code !== 0) {
+      throw new Error(`Worker phản hồi không thành công${responseBody?.msg ? ` — ${responseBody.msg}` : ''}`);
+    }
+    const written = Array.isArray(responseBody?.data?.written)
+      ? responseBody.data.written.filter((value): value is string => typeof value === 'string')
+      : undefined;
     recordAuditEvent({ action: payload.daySms ? 'Đẩy SMS điều phối' : 'Gọi điều phối', stage: payload.phanLoai || 'Điều phối', deskCode: payload.maBan, msnv: payload.msnv, staffName: payload.nhanSu, stt: payload.stt, customerName: '', result: 'success' });
     return { confirmed: true, written };
   } catch (err) {
