@@ -1040,7 +1040,7 @@ export default function StaffDeskScreen({
     setOrderMessage(null);
     try {
       const payload = {
-        rawText: `${orderHeader}\n\n${rawText}`,
+        rawText,
         orderType: orderHeader,
         productOrders: orderCustomer.productOrders ?? [],
         deskId: view.id,
