@@ -70,6 +70,20 @@ function statusLabel(stage: SmsStageJourney): string {
   return 'Chưa bắt đầu';
 }
 
+function statusTone(status: SmsStageJourney['status']): string {
+  if (status === 'completed') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  if (status === 'active') return 'border-sky-200 bg-sky-50 text-sky-800';
+  if (status === 'not-applicable') return 'border-neutral-200 bg-neutral-100 text-neutral-800';
+  return 'border-amber-200 bg-amber-50 text-amber-800';
+}
+
+const STATUS_LEGEND: Array<{ status: SmsStageJourney['status']; label: string }> = [
+  { status: 'pending', label: 'Chưa bắt đầu' },
+  { status: 'active', label: 'Đang xử lý' },
+  { status: 'completed', label: 'Hoàn tất' },
+  { status: 'not-applicable', label: 'Không áp dụng' },
+];
+
 type OrderedStage = {
   key: StageKey;
   stage: SmsStageJourney;
@@ -281,6 +295,10 @@ export default function OperationsLogPanel({ tables, fields, loading }: {
       </section>
       {stage !== 'warehouse' && <section id="customer-log" className="mt-5 overflow-hidden border border-neutral-200 bg-white">
         <div className="border-b border-neutral-200 px-4 py-4 sm:px-5"><h2 className="font-black text-neutral-950">Nhật ký khách hàng</h2><p className="mt-1 text-xs text-neutral-500">Các khâu được hiển thị theo thứ tự bắt đầu thực tế của từng khách.</p></div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-neutral-100 px-4 py-3 text-xs sm:px-5" aria-label="Chú giải trạng thái">
+          <span className="font-bold text-neutral-600">Trạng thái:</span>
+          {STATUS_LEGEND.map(({ status, label }) => <span key={status} className={`inline-flex items-center rounded-md border px-2 py-1 font-bold ${statusTone(status)}`}><span aria-hidden="true" className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" />{label}</span>)}
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-[980px] w-full border-collapse text-left text-sm">
             <thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-700">
@@ -305,12 +323,12 @@ export default function OperationsLogPanel({ tables, fields, loading }: {
                       const itemStage = stages[index];
                       return (
                         <td key={itemStage?.key ?? `empty-stage-${index}`} className="px-3 py-3">
-                          {itemStage ? <><p className="text-xs font-bold text-neutral-500">{itemStage.stage.label}</p><p className="font-semibold">{statusLabel(itemStage.stage)}</p><p className="text-xs text-neutral-500">{itemStage.stage.deskCode || '—'} · {formatDuration(itemStage.stage.elapsedMs)}</p></> : <span className="text-neutral-400">—</span>}
+                          {itemStage ? <><p className="text-xs font-bold text-neutral-500">{itemStage.stage.label}</p><p><span className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-bold ${statusTone(itemStage.stage.status)}`}><span aria-hidden="true" className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" />{statusLabel(itemStage.stage)}</span></p><p className="mt-1 text-xs text-neutral-500">{itemStage.stage.deskCode || '—'} · {formatDuration(itemStage.stage.elapsedMs)}</p></> : <span className="text-neutral-400">—</span>}
                         </td>
                       );
                     })}
                     <td className="px-3 py-3 font-semibold">{latest?.priceConsideration ? 'Có' : 'Không'}</td>
-                    <td className="px-3 py-3"><p className="font-bold">{item.endFlow ? 'End flow' : 'Đang xử lý'}</p>{latest?.quickDevice && <p className="text-xs text-amber-700">Thu máy nhanh</p>}</td>
+                    <td className="px-3 py-3"><p><span className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-bold ${statusTone(item.endFlow ? 'completed' : 'active')}`}><span aria-hidden="true" className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" />{item.endFlow ? 'End flow' : 'Đang xử lý'}</span></p>{latest?.quickDevice && <p className="mt-1 text-xs text-amber-700">Thu máy nhanh</p>}</td>
                   </tr>
                 );
               })}
