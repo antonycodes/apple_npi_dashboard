@@ -19,7 +19,7 @@ interface EndFlowTableProps {
  * nhận cuối cùng và tô màu đỏ.
  */
 function DeviceReceiptModal({ customer, onClose }: { customer: WaitingCustomer; onClose: () => void }) {
-  const receipt = customer.deviceReceipt;
+  const receipts = customer.deviceReceipts ?? [];
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -31,26 +31,38 @@ function DeviceReceiptModal({ customer, onClose }: { customer: WaitingCustomer; 
       <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-bold text-neutral-900">Thông tin máy đã nghiệm thu</h3>
+            <h3 className="text-lg font-bold text-neutral-900">Thông tin máy đã nghiệm thu ({receipts.length})</h3>
             <p className="text-sm text-neutral-500">STT {customer.stt ?? '—'} · {customer.name ?? '—'}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Đóng" className="rounded px-2 py-1 text-2xl leading-none text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">×</button>
         </div>
-        <div className="mt-4 grid gap-2 rounded-xl bg-neutral-50 p-4 text-sm sm:grid-cols-2">
-          <div><span className="text-neutral-500">Serial Number</span><p className="font-semibold text-neutral-800">{receipt?.imei || '—'}</p></div>
-          <div><span className="text-neutral-500">QR máy cũ</span><p className="font-semibold text-neutral-800">{receipt?.scanQr || '—'}</p></div>
-        </div>
-        <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">Ảnh nghiệm thu</p>
-        {receipt?.images.length ? (
-          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {receipt.images.map((image) => {
-              const query = image.sourceRecordId
-                ? `?table=master&record_id=${encodeURIComponent(image.sourceRecordId)}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${image.sourceRevision ? `&rev=${image.sourceRevision}` : ''}`
-                : '';
-              return <img key={image.fileToken} src={guestMediaUrl(image.fileToken) ?? `${workerBaseUrl()}/media/${encodeURIComponent(image.fileToken)}${query}`} alt={image.name ?? 'Ảnh nghiệm thu'} className="max-h-64 w-full rounded-xl object-contain" />;
+        {receipts.length ? (
+          <div className="mt-4 space-y-3">
+            {receipts.map((receipt, index) => {
+              const deviceLabel = receipt.scanQr?.trim() || `MTC.${index + 1}`;
+              return (
+                <section key={`${deviceLabel}-${index}`} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                  <h4 className="text-base font-bold text-neutral-900">{deviceLabel}</h4>
+                  <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                    <div><span className="text-neutral-500">Serial Number</span><p className="font-semibold text-neutral-800">{receipt.imei || '—'}</p></div>
+                    <div><span className="text-neutral-500">QR máy cũ</span><p className="font-semibold text-neutral-800">{receipt.scanQr || '—'}</p></div>
+                  </div>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">Ảnh nghiệm thu</p>
+                  {receipt.images.length ? (
+                    <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {receipt.images.map((image, imageIndex) => {
+                        const query = image.sourceRecordId
+                          ? `?table=master&record_id=${encodeURIComponent(image.sourceRecordId)}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${image.sourceRevision ? `&rev=${image.sourceRevision}` : ''}`
+                          : '';
+                        return <img key={`${image.fileToken}-${imageIndex}`} src={guestMediaUrl(image.fileToken) ?? `${workerBaseUrl()}/media/${encodeURIComponent(image.fileToken)}${query}`} alt={image.name ?? `Ảnh nghiệm thu ${deviceLabel}`} className="max-h-64 w-full rounded-xl object-contain" />;
+                      })}
+                    </div>
+                  ) : <p className="mt-2 text-sm text-neutral-400">Không có ảnh nghiệm thu.</p>}
+                </section>
+              );
             })}
           </div>
-        ) : <p className="mt-2 text-sm text-neutral-400">Không có ảnh nghiệm thu.</p>}
+        ) : <p className="mt-4 text-sm text-neutral-400">Chưa có dữ liệu máy nghiệm thu.</p>}
       </div>
     </div>
   );

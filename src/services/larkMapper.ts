@@ -70,6 +70,7 @@ import type {
   ClusterKey,
   DeskCustomer,
   DeskLiveState,
+  DeviceReceipt,
   RosterEntry,
   WaitingCustomer,
 } from '@/types/desk';
@@ -284,8 +285,9 @@ function indexCheckinByName(rows: LarkRecord[], fm: CheckinFieldMap): Map<string
   return m;
 }
 
-function indexDeviceReceiptByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<string, WaitingCustomer['deviceReceipt']> {
-  const result = new Map<string, { time: number; value: NonNullable<WaitingCustomer['deviceReceipt']> }>();
+/** Index the newest receipt row for each MTC belonging to an STT. */
+function indexDeviceReceiptByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<string, DeviceReceipt[]> {
+  const result = new Map<string, Map<string, { time: number; value: DeviceReceipt }>>();
   for (const row of rows) {
     const stt = cellToString(row.fields[fm.sttInput]);
     // Đồng bộ với lookup trong form Thu cũ/Backup: chỉ lấy dòng đã ghi
@@ -310,12 +312,21 @@ function indexDeviceReceiptByStt(rows: LarkRecord[], fm: MasterFieldMap): Map<st
           return [{ fileToken: token.trim(), name: typeof part.name === 'string' ? part.name : null, sourceRecordId: row.record_id, sourceRevision }];
         })
       : [];
-    const value = { imei: cellToString(row.fields[fm.imei]), scanQr: cellToString(row.fields[fm.scanQr]), images };
+    const scanQr = cellToString(row.fields[fm.scanQr]);
+    const value = { imei: cellToString(row.fields[fm.imei]), scanQr, images };
     const time = Number(row.fields[fm.time]) || 0;
-    const previous = result.get(stt);
-    if (!previous || time >= previous.time) result.set(stt, { time, value });
+    const deviceKey = scanQr?.toUpperCase() || `record:${row.record_id}`;
+    const devices = result.get(stt) ?? new Map<string, { time: number; value: DeviceReceipt }>();
+    const previous = devices.get(deviceKey);
+    if (!previous || time >= previous.time) devices.set(deviceKey, { time, value });
+    result.set(stt, devices);
   }
-  return new Map([...result].map(([stt, entry]) => [stt, entry.value]));
+  return new Map([...result].map(([stt, devices]) => [
+    stt,
+    [...devices.values()]
+      .sort((a, b) => (a.value.scanQr ?? '').localeCompare(b.value.scanQr ?? '', undefined, { numeric: true }) || a.time - b.time)
+      .map((entry) => entry.value),
+  ]));
 }
 
 function indexMasterHyperlinkByName(rows: LarkRecord[], fm: MasterFieldMap): Map<string, string> {
@@ -893,7 +904,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
   const { checkin, master, dispatch, dsMaster } = fields;
   const checkinByName = indexCheckinByName(tables.checkin, checkin);
   const tradeInConsiderationByName = indexTradeInConsiderationByName(tables.master, master);
-  const deviceReceiptByStt = indexDeviceReceiptByStt(tables.master, master);
+  const deviceReceiptsByStt = indexDeviceReceiptByStt(tables.master, master);
   const hyperlinkByName = indexMasterHyperlinkByName(tables.master, master);
   const staffNameByDeskCode = indexStaffNameByDeskCode(tables.dsMaster, dsMaster);
   const deskCodeByStaffId = indexDeskCodeByStaffId(tables.dsMaster, dsMaster);
@@ -1101,7 +1112,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       dsBackupReceived: dd?.dsBackupReceived ?? false,
       doneInFlow: ci.doneInFlow,
       endFlowTime: ci.endFlowTime,
-      deviceReceipt: deviceReceiptByStt.get(ci.stt ?? '') ?? null,
+      deviceReceipts: deviceReceiptsByStt.get(ci.stt ?? '') ?? [],
     });
   }
 

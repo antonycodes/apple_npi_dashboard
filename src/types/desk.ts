@@ -94,16 +94,19 @@ export interface WaitingCustomer extends DeskCustomer {
   doneInFlow?: string | null;
   /** Thời gian End-flow từ Master_Check in. */
   endFlowTime?: string | null;
-  deviceReceipt?: {
-    imei: string | null;
-    scanQr: string | null;
-    images: Array<{
-      fileToken: string;
-      name: string | null;
-      sourceRecordId?: string;
-      sourceRevision?: number;
-    }>;
-  } | null;
+  deviceReceipts?: DeviceReceipt[] | null;
+}
+
+/** Thông tin nghiệm thu của một máy thu cũ. */
+export interface DeviceReceipt {
+  imei: string | null;
+  scanQr: string | null;
+  images: Array<{
+    fileToken: string;
+    name: string | null;
+    sourceRecordId?: string;
+    sourceRevision?: number;
+  }>;
 }
 
 /**
