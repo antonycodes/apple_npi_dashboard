@@ -308,7 +308,7 @@ function CheckinForm({
 
         <label className="block">
           <span className="text-sm font-bold text-neutral-700">Xác nhận ưu đãi thanh toán</span>
-          <span className="mt-1 block text-xs text-neutral-500">Nhập ghi chú số đuôi thẻ hoặc tên ngân hàng nếu có.</span>
+          <span className="mt-1 block text-xs text-neutral-500">Nhập ghi chú theo cú pháp Tên ngân hàng - 4 số đầu - 6 số đuôi của thẻ. Ví dụ ACB 1234 - 987654</span>
           <input value={paymentConfirmation} onChange={(event) => setPaymentConfirmation(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-neutral-300 px-3 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
         </label>
 
