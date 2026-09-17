@@ -45,6 +45,7 @@ import { isTradeInCustomer } from '@/utils/tradeInFilter';
 
 /** Trạng thái lạc quan tự huỷ sau 2 phút (NV mở link rồi bỏ ngang). */
 const PENDING_TTL_MS = 120_000;
+const DESK_ALERT_COOLDOWN_MS = 15_000;
 
 /** Gửi webhook xong mà bấy nhiêu lâu Lark vẫn chưa hiện record → cảnh báo. */
 const CONFIRM_WARN_MS = 15_000;
@@ -644,10 +645,34 @@ export default function StaffDeskScreen({
   const [quickReceiveError, setQuickReceiveError] = useState<string | null>(null);
   /** Sheet "chỉ thu máy" đang mở hay không (NV gõ STT bên trong sheet). */
   const [thuMayOpen, setThuMayOpen] = useState(false);
-  const [deskAlertMessage, setDeskAlertMessage] = useState<string | null>(null);
+  const [deskAlertError, setDeskAlertError] = useState<string | null>(null);
+  const [deskAlertCooldownUntil, setDeskAlertCooldownUntil] = useState<number | null>(null);
+  const [deskAlertCooldownSeconds, setDeskAlertCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!deskAlertCooldownUntil) {
+      setDeskAlertCooldownSeconds(0);
+      return;
+    }
+
+    const updateCooldown = () => {
+      const left = Math.max(0, deskAlertCooldownUntil - Date.now());
+      setDeskAlertCooldownSeconds(Math.ceil(left / 1000));
+      if (left === 0) setDeskAlertCooldownUntil(null);
+    };
+    updateCooldown();
+    const timer = window.setInterval(updateCooldown, 1000);
+    return () => window.clearInterval(timer);
+  }, [deskAlertCooldownUntil]);
+
+  const deskAlertCoolingDown = Boolean(deskAlertCooldownUntil);
+  const startDeskAlertCooldown = () => {
+    setDeskAlertCooldownUntil(Date.now() + DESK_ALERT_COOLDOWN_MS);
+  };
 
   const callCoordinator = () => {
-    if (deskLocked) return;
+    if (deskLocked || deskAlertCoolingDown) return;
+    setDeskAlertError(null);
     if (simulation) {
       guestSimulation?.callCoordinator(
         view.id,
@@ -655,7 +680,7 @@ export default function StaffDeskScreen({
         primary?.stt ?? ghost?.stt ?? null,
         primary?.name ?? ghost?.name ?? null,
       );
-      setDeskAlertMessage('Đã báo Điều phối trong phòng mô phỏng.');
+      startDeskAlertCooldown();
       return;
     }
     const sent = sendDeskAlert(realtimeApiUrl, {
@@ -680,8 +705,10 @@ export default function StaffDeskScreen({
         result: 'success',
         detail: 'Alert realtime đã gửi đến Dashboard Điều phối',
       });
+      startDeskAlertCooldown();
+      return;
     }
-    setDeskAlertMessage(sent ? 'Đã báo Điều phối.' : 'Chưa kết nối Dashboard Điều phối. Vui lòng thử lại.');
+    setDeskAlertError('Chưa kết nối Dashboard Điều phối. Vui lòng thử lại.');
   };
 
   /**
@@ -1606,13 +1633,17 @@ export default function StaffDeskScreen({
         <button
           type="button"
           onClick={callCoordinator}
-          disabled={deskLocked || (!simulation && !realtimeApiUrl)}
-          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-3xl border-2 border-amber-300 bg-amber-50 text-base font-bold text-amber-800 shadow-sm active:bg-amber-100 disabled:opacity-40"
+          disabled={deskLocked || deskAlertCoolingDown || (!simulation && !realtimeApiUrl)}
+          className={`flex min-h-14 w-full items-center justify-center gap-2 rounded-3xl border-2 text-base font-bold shadow-sm disabled:opacity-70 ${
+            deskAlertCoolingDown
+              ? 'border-emerald-500 bg-emerald-500 text-white'
+              : 'border-amber-300 bg-amber-50 text-amber-800 active:bg-amber-100'
+          }`}
         >
           <BellIcon />
-          Gọi Điều phối
+          {deskAlertCoolingDown ? `Đã gọi Điều phối · ${deskAlertCooldownSeconds}s` : 'Gọi Điều phối'}
         </button>
-        {deskAlertMessage && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{deskAlertMessage}</p>}
+        {deskAlertError && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{deskAlertError}</p>}
 
         {/* ── Lịch sử khách đã tiếp nhận · hoàn tất (sổ xuống) ─────────── */}
         <CompletedHistorySection customers={view.completedHistory} showTradeInQuantity={view.cluster === 'tradein'} />
