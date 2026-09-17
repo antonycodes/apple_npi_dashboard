@@ -63,6 +63,8 @@ export function pendingDeviceIdentity(
 
 /** 1 khách trên màn hình NV — như `DeskCustomer`, thêm URL cho nút bấm. */
 export interface StaffCustomer extends DeskCustomer {
+  /** Số điện thoại lấy từ `Master_Check in`, chỉ dùng trên màn hình NV. */
+  phone?: string | null;
   /** Link mở form Tiếp nhận trong Lark cho đúng khách này (chỉ khách kế tiếp mới cần). */
   receiveUrl?: string | null;
   /** Dữ liệu máy cũ đã ghi lần trước — null nếu chưa từng ghi. */
@@ -138,6 +140,7 @@ function indexCheckinByStt(rows: LarkRecord[], fm: CheckinFieldMap): Map<string,
     m.set(stt, {
       stt,
       name: cellToString(r.fields[fm.name]),
+      phone: cellToString(r.fields[fm.phone]),
       productName: cellToProducts(r.fields, fm.product),
       oldDeviceQuantity: Number.isFinite(quantity) ? quantity : null,
       paymentNote: cellToString(r.fields[fm.note]),
@@ -372,6 +375,7 @@ export function mapStaffDeskView(
   const prevDevicesByStt = indexPrevDevicesByStt(tables.master, fields.master);
   const withPrev = (c: StaffCustomer): StaffCustomer => ({
     ...c,
+    phone: c.stt ? checkinByStt.get(c.stt)?.phone ?? null : null,
     oldDeviceQuantity: c.stt ? checkinByStt.get(c.stt)?.oldDeviceQuantity ?? null : null,
     icloudDataProcessed: c.stt ? icloudDataProcessedByStt.has(c.stt) : null,
     prevDevice: c.stt ? prevByStt.get(c.stt) ?? null : null,

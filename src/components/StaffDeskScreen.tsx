@@ -267,6 +267,68 @@ function ProductInfo({ value }: { value: string | null | undefined }) {
   );
 }
 
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('Clipboard unavailable');
+}
+
+function PhoneInfo({ value }: { value: string | null | undefined }) {
+  const [copyState, setCopyState] = useState<'idle' | 'success' | 'error'>('idle');
+  const phone = value?.trim() ?? '';
+
+  const handleCopy = async () => {
+    if (!phone) return;
+    try {
+      await copyTextToClipboard(phone);
+      setCopyState('success');
+      window.setTimeout(() => setCopyState('idle'), 1500);
+    } catch {
+      setCopyState('error');
+      window.setTimeout(() => setCopyState('idle'), 2000);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      disabled={!phone}
+      aria-label={phone ? `Sao chép số điện thoại ${phone}` : 'Chưa có số điện thoại'}
+      className="flex min-h-10 w-full items-start justify-between gap-3 border-t border-neutral-100 py-2 text-left disabled:cursor-default"
+    >
+      <span className="shrink-0 text-sm text-neutral-500">Số điện thoại</span>
+      <span className="flex min-w-0 items-center justify-end gap-1.5 text-right text-sm font-semibold text-neutral-800">
+        <span className="break-words">{phone || '—'}</span>
+        {phone && (
+          copyState === 'success' ? (
+            <span aria-hidden="true" className="text-emerald-600">✓</span>
+          ) : (
+            <img src="/copy-icon.png" alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
+          )
+        )}
+        {copyState === 'success' && <span className="text-xs font-bold text-emerald-600">Đã sao chép</span>}
+        {copyState === 'error' && <span className="text-xs font-bold text-red-600">Không thể sao chép</span>}
+        <span className="sr-only">
+          {copyState === 'success' ? 'Đã sao chép' : copyState === 'error' ? 'Không thể sao chép' : ''}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function PersonnelInfo({ customer }: { customer: StaffCustomer }) {
   return (
     <div className="flex items-start justify-between gap-3 border-t border-neutral-100 py-2">
@@ -332,6 +394,7 @@ function CustomerCard({
       </div>
 
       <div className="mt-3">
+        <PhoneInfo value={customer.phone} />
         <ProductInfo value={customer.productName} />
         <PersonnelInfo customer={customer} />
         {showTradeInQuantity && <TradeInQuantityInfo value={customer.oldDeviceQuantity} />}
