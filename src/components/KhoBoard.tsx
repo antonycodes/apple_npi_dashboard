@@ -23,6 +23,7 @@ import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 import type { WarehouseInboxOrder, WarehouseOrderClaims } from '@/types/warehouse';
 import { warehouseClaimantFull, warehouseClaimedAt } from '@/utils/warehouseClaimant';
 import { warehouseClaimMatchesCustomer, warehouseOrderMatchesCustomer } from '@/utils/warehouseClaim';
+import { warehouseOrderTypeLabel } from '@/utils/warehouseOrderType';
 import ProductList from './ProductList';
 import OrderMessageText from './OrderMessageText';
 
@@ -37,14 +38,6 @@ interface ProductOrderDetails {
 /** `file_token` không phải URL — ảnh Bitable phải đi qua `/media/<token>` của worker. */
 /** Số khách đã hoàn tất hiện thẳng trong cột; dư ra xem trong popup. */
 const MAX_COMPLETED_INLINE = 3;
-const ORDER_TYPE_HEADERS = ['#Lấy hàng cho khách', '#Trả hàng về kho'] as const;
-
-function orderTypeLabel(rawText: string): string {
-  const firstLine = rawText.split(/\r?\n/, 1)[0]?.trim();
-  return ORDER_TYPE_HEADERS.includes(firstLine as (typeof ORDER_TYPE_HEADERS)[number])
-    ? firstLine
-    : '#Chưa phân loại';
-}
 
 function mediaUrl(fileToken: string): string {
   const guestUrl = guestMediaUrl(fileToken);
@@ -74,7 +67,7 @@ function OrderStatusBlock({ orders, compact = false, onInspect }: { orders: Ware
         const content = (
           <>
             <span className="shrink-0" aria-hidden="true">📦</span>
-            <span className="min-w-0 flex-1 truncate font-semibold text-neutral-700" title={`Mã inbox: ${order.orderCode}`}>Có Order - {orderTypeLabel(order.rawText)}</span>
+            <span className="min-w-0 flex-1 truncate font-semibold text-neutral-700" title={`Mã inbox: ${order.orderCode}`}>Có Order - {warehouseOrderTypeLabel(order.orderType, order.rawText)}</span>
           </>
         );
         const rowClass = ['flex w-full items-center gap-1.5 rounded border border-emerald-300 bg-emerald-50 px-1.5 py-1 text-left text-[10px] leading-tight', 'hover:bg-white'];

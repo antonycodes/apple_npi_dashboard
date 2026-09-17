@@ -23,6 +23,7 @@ import { useAdminInfo } from '@/config/adminSession';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import type { ClusterKey } from '@/types/desk';
 import type { WarehouseInboxOrder } from '@/types/warehouse';
+import { warehouseOrderTypeLabel } from '@/utils/warehouseOrderType';
 
 type ClusterFilter = ClusterKey | 'all';
 
@@ -74,13 +75,6 @@ function readOrderSidebarWidth(): number {
   } catch {
     return DEFAULT_ORDER_SIDEBAR_WIDTH;
   }
-}
-
-function orderTypeLabel(rawText: string): string {
-  const firstLine = rawText.split(/\r?\n/, 1)[0]?.trim();
-  return firstLine === '#Lấy hàng cho khách' || firstLine === '#Trả hàng về kho'
-    ? firstLine
-    : '#Chưa phân loại';
 }
 
 function orderSummary(rawText: string): string {
@@ -143,7 +137,7 @@ function OrderInboxSidebar({ orders, onInspect }: { orders: WarehouseInboxOrder[
                       {order.createdAt ? new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                     </time>
                   </div>
-                  <p className="mt-1 text-xs font-black text-neutral-800">Có Order - {orderTypeLabel(order.rawText)}</p>
+                  <p className="mt-1 text-xs font-black text-neutral-800">Có Order - {warehouseOrderTypeLabel(order.orderType, order.rawText)}</p>
                   <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-neutral-600" title={orderSummary(order.rawText)}>
                     {orderSummary(order.rawText)}
                   </p>
