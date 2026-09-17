@@ -135,7 +135,9 @@ export default function StaffReceiveFormModal({
     && needsDeviceCollection
     && !values.khachKhongDongYGiaThuCu
     && !customerChangedMind;
-  const thuLaiMayOptions = cluster === 'backup' || hasPendingTradeInDevices
+  // Thu cũ luôn giữ đủ 2 lựa chọn để xử lý khách có nhiều máy. Chỉ Backup
+  // giữ cách hiện tại: chỉ cho phép `Thu máy ngay`.
+  const thuLaiMayOptions = cluster === 'backup'
     ? (['Thu máy ngay'] as const)
     : (['Thu máy ngay', 'Thu máy sau'] as const);
   // 3 field chỉ bung ra sau khi chọn một option.
