@@ -1781,6 +1781,7 @@ export class GuestSimulationRoom extends DurableObject {
         ? deviceBatch.slice(0, 20).map((device) => ({
             scanQr: typeof device?.scanQr === 'string' ? device.scanQr.trim().slice(0, 200) : '',
             imei: typeof device?.imei === 'string' ? device.imei.trim().slice(0, 80) : '',
+            daXoaICloudVaDuLieuKhach: device?.daXoaICloudVaDuLieuKhach === true,
             hinhNghiemThu: Array.isArray(device?.hinhNghiemThu)
               ? device.hinhNghiemThu.slice(0, 3).map((image) => ({
                   file_token: typeof image?.file_token === 'string' ? image.file_token.trim().slice(0, 160) : '',
@@ -1936,6 +1937,7 @@ export class GuestSimulationRoom extends DurableObject {
                 at: Date.now(),
                 ...(scanQr ? { scanQr } : {}),
                 ...(imei ? { imei } : {}),
+                ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
                 ...(hinhNghiemThu?.length ? { hinhNghiemThu } : {}),
               }
             : item,
@@ -1950,6 +1952,7 @@ export class GuestSimulationRoom extends DurableObject {
             thuLaiMay: 'Thu máy ngay',
             ...(scanQr ? { scanQr } : {}),
             ...(imei ? { imei } : {}),
+            ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
             ...(hinhNghiemThu?.length ? { hinhNghiemThu } : {}),
           });
         }
@@ -1977,6 +1980,7 @@ export class GuestSimulationRoom extends DurableObject {
             thuLaiMay: 'Thu máy ngay',
             scanQr: device.scanQr.toUpperCase(),
             ...(device.imei ? { imei: device.imei } : {}),
+            ...(device.daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
             ...(device.hinhNghiemThu.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
           };
         });

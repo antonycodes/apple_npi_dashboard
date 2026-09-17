@@ -24,6 +24,7 @@ export interface ThuMayValues {
   anhMoi: File[];
   scanQr: string;
   imei: string;
+  daXoaICloudVaDuLieuKhach: boolean;
 }
 
 const MAX_ANH = 3;
@@ -81,6 +82,7 @@ export default function ThuMayModal({
     anhMoi: [],
     scanQr: '',
     imei: '',
+    daXoaICloudVaDuLieuKhach: false,
   });
   const set = <K extends keyof ThuMayValues>(k: K, v: ThuMayValues[K]) =>
     setValues((p) => ({ ...p, [k]: v }));
@@ -96,7 +98,7 @@ export default function ThuMayModal({
     setLoiTra(null);
     setChon(found);
     setChonMay(null);
-    setValues({ anhGiuLai: [], anhMoi: [], scanQr: '', imei: '' });
+    setValues({ anhGiuLai: [], anhMoi: [], scanQr: '', imei: '', daXoaICloudVaDuLieuKhach: false });
   };
 
   const selectDevice = (device: PrevDeviceData) => {
@@ -106,6 +108,7 @@ export default function ThuMayModal({
       anhMoi: [],
       scanQr: device.scanQr ?? '',
       imei: device.imei ?? '',
+      daXoaICloudVaDuLieuKhach: false,
     });
     setLoiTra(null);
   };
@@ -267,6 +270,16 @@ export default function ThuMayModal({
                   <SerialScanButton onScan={(v) => set('imei', v.trim())} />
                 </div>
               </div>
+
+              <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={values.daXoaICloudVaDuLieuKhach}
+                  onChange={(event) => set('daXoaICloudVaDuLieuKhach', event.target.checked)}
+                  className="h-5 w-5 accent-emerald-600"
+                />
+                <span className="text-sm font-semibold text-neutral-700">Đã xóa iCloud và dữ liệu khách</span>
+              </label>
             </>
           )}
 

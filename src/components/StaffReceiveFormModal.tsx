@@ -62,6 +62,7 @@ export interface PendingDeviceFormValue {
   hinhNghiemThu: File[];
   scanQr: string;
   imei: string;
+  daXoaICloudVaDuLieuKhach: boolean;
 }
 
 type ChangeMindStatus = 'sending' | 'sent' | 'error';
@@ -137,6 +138,7 @@ export default function StaffReceiveFormModal({
       hinhNghiemThu: [],
       scanQr: device.scanQr ?? '',
       imei: device.imei ?? '',
+      daXoaICloudVaDuLieuKhach: false,
     };
     const imageCount = form.anhGiuLai.length + form.hinhNghiemThu.length;
     const missing = [
@@ -176,6 +178,7 @@ export default function StaffReceiveFormModal({
     && (cluster === 'tradein' || cluster === 'backup')
     && !values.khachKhongDongYGiaThuCu
     && !customerChangedMind
+    && !showPendingDeviceSelection
     && (!showPendingDeviceSelection || selectedPendingDevices.length === pendingDevices.length);
   const showDeviceFields = showThuLaiMay
     && values.thuLaiMay.length > 0
@@ -395,6 +398,7 @@ export default function StaffReceiveFormModal({
                     hinhNghiemThu: [],
                     scanQr: device.scanQr ?? '',
                     imei: device.imei ?? '',
+                    daXoaICloudVaDuLieuKhach: false,
                   };
                   const devicePhotoSlots: PhotoSlot[] = [
                     ...form.anhGiuLai.map((image) => ({ kind: 'existing' as const, image })),
@@ -431,6 +435,7 @@ export default function StaffReceiveFormModal({
                                       hinhNghiemThu: [],
                                       scanQr: device.scanQr ?? '',
                                       imei: device.imei ?? '',
+                                      daXoaICloudVaDuLieuKhach: false,
                                     },
                                   }
                                 : Object.fromEntries(
@@ -543,6 +548,21 @@ export default function StaffReceiveFormModal({
                                 }))}
                               />
                             </div>
+                            <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={form.daXoaICloudVaDuLieuKhach}
+                                onChange={(event) => setValues((current) => ({
+                                  ...current,
+                                  pendingDeviceValues: {
+                                    ...current.pendingDeviceValues,
+                                    [key]: { ...form, daXoaICloudVaDuLieuKhach: event.target.checked },
+                                  },
+                                }))}
+                                className="h-5 w-5 accent-emerald-600"
+                              />
+                              <span className="text-sm font-semibold text-neutral-700">Đã xóa iCloud và dữ liệu khách</span>
+                            </label>
                           </div>
                           {missing.length > 0 && (
                             <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">

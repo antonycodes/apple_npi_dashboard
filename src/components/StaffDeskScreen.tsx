@@ -662,6 +662,7 @@ export default function StaffDeskScreen({
         guestSimulation?.quickDevice(stt, view.cluster, view.id, {
           scanQr: mtcCode,
           imei: values.imei.trim() || undefined,
+          ...(values.daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
           hinhNghiemThu: simulatedImages.map((image) => ({
             file_token: image.fileToken,
             ...(image.name ? { name: image.name } : {}),
@@ -710,6 +711,7 @@ export default function StaffDeskScreen({
         ...(tokens.length ? { hinhNghiemThu: tokens } : {}),
         scanQr: mtcCode,
         ...(values.imei.trim() ? { imei: values.imei.trim() } : {}),
+        ...(values.daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
       });
       setVuaThu((p) => ({ ...p, [pendingDeviceKey(stt, { scanQr: mtcCode })]: Date.now() }));
       setThuMayOpen(false);
@@ -755,6 +757,7 @@ export default function StaffDeskScreen({
           hinhNghiemThu: [],
           scanQr: device.scanQr ?? '',
           imei: device.imei ?? '',
+          daXoaICloudVaDuLieuKhach: false,
         };
         const missing = [
           form.anhGiuLai.length + form.hinhNghiemThu.length > 0 ? '' : 'ảnh nghiệm thu',
@@ -800,6 +803,7 @@ export default function StaffDeskScreen({
               hinhNghiemThu: [],
               scanQr: device.scanQr ?? '',
               imei: device.imei ?? '',
+              daXoaICloudVaDuLieuKhach: false,
             };
             const images = [...form.anhGiuLai];
             for (const file of form.hinhNghiemThu.slice(0, Math.max(0, 3 - images.length))) {
@@ -809,6 +813,7 @@ export default function StaffDeskScreen({
             guestPendingDevices.push({
               scanQr: form.scanQr.trim() || undefined,
               imei: form.imei.trim() || undefined,
+              daXoaICloudVaDuLieuKhach: form.daXoaICloudVaDuLieuKhach,
               hinhNghiemThu: images.map((image) => ({
                 file_token: image.fileToken,
                 ...(image.name ? { name: image.name } : {}),
@@ -821,7 +826,6 @@ export default function StaffDeskScreen({
             view.id,
             guestPendingDevices,
             completesBackupAfterDeviceBatch,
-            values.daXoaICloudVaDuLieuKhach,
           );
           if (completesBackupAfterDeviceBatch) completeCustomer(stt);
           setFormAction(null);
@@ -951,6 +955,7 @@ export default function StaffDeskScreen({
             hinhNghiemThu: [],
             scanQr: device.scanQr ?? '',
             imei: device.imei ?? '',
+            daXoaICloudVaDuLieuKhach: false,
           };
           const hinhNghiemThu = form.anhGiuLai.map((image) => image.fileToken);
           for (const [i, file] of form.hinhNghiemThu.slice(0, Math.max(0, 3 - hinhNghiemThu.length)).entries()) {
@@ -981,6 +986,7 @@ export default function StaffDeskScreen({
             hinhNghiemThu,
             scanQr: form.scanQr.trim().toUpperCase(),
             imei: form.imei.trim() || undefined,
+            ...(form.daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
           });
           setVuaThu((current) => ({
             ...current,
@@ -1000,7 +1006,6 @@ export default function StaffDeskScreen({
             phanLoai: STAGE_LABEL[view.cluster],
             submitBy: submitByMsnv,
             thoiGian: new Date().toISOString(),
-            ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
             ...leadtime,
           });
           completeCustomer(stt);

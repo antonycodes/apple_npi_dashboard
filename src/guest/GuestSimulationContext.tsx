@@ -29,6 +29,7 @@ interface GuestDeviceData {
   scanQr?: string;
   imei?: string;
   hinhNghiemThu?: Array<{ file_token: string; name?: string }>;
+  daXoaICloudVaDuLieuKhach?: boolean;
 }
 
 interface GuestSimulationValue {
@@ -505,6 +506,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
           ...(deviceKey ? { scanQr: deviceKey } : {}),
           ...(device?.imei ? { imei: device.imei } : {}),
           ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
+          ...(device?.daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
         };
         // Giữ record `Thu máy sau` ban đầu để mô phỏng đúng audit trail; mỗi
         // MTC được xác nhận tạo thêm một record `Thu máy ngay` riêng.
@@ -534,6 +536,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
             ...(device?.scanQr ? { scanQr: device.scanQr } : {}),
             ...(device?.imei ? { imei: device.imei } : {}),
             ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: JSON.stringify(device.hinhNghiemThu) } : {}),
+            ...(device?.daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: 'true' } : {}),
         });
       },
       completePendingDevices(stt, stage, guestDeskId, devices, completeStage, daXoaICloudVaDuLieuKhach = false) {
@@ -560,6 +563,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
           ...(device?.scanQr ? { scanQr: device.scanQr.trim().toUpperCase() } : {}),
           ...(device?.imei ? { imei: device.imei } : {}),
           ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
+          ...(device?.daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
         }));
         const nextAssignments = [
           ...assignments,
@@ -592,6 +596,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
             ...(device?.scanQr ? { scanQr: device.scanQr.trim().toUpperCase() } : {}),
             ...(device?.imei ? { imei: device.imei } : {}),
             ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
+            ...(device?.daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: 'true' } : {}),
           }))),
           completeStage: completeStage ? 'true' : 'false',
           ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: 'true' } : {}),
