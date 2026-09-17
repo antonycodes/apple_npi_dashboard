@@ -22,7 +22,8 @@ import { toRuntimeConfig, useLarkSettings } from '@/config/larkSettings';
 import { useAdminInfo } from '@/config/adminSession';
 import { useGuestSimulation } from '@/guest/GuestSimulationContext';
 import type { ClusterKey } from '@/types/desk';
-import type { WarehouseInboxOrder } from '@/types/warehouse';
+import type { WarehouseInboxOrder, WarehouseOrderClaims } from '@/types/warehouse';
+import { warehouseOrderClaimProgress } from '@/utils/warehouseClaim';
 import { warehouseOrderTypeLabel } from '@/utils/warehouseOrderType';
 
 type ClusterFilter = ClusterKey | 'all';
@@ -83,7 +84,7 @@ function orderSummary(rawText: string): string {
   return content.trim() || 'Không có nội dung chi tiết';
 }
 
-function OrderInboxSidebar({ orders, onInspect }: { orders: WarehouseInboxOrder[]; onInspect: (order: WarehouseInboxOrder) => void }) {
+function OrderInboxSidebar({ orders, claims, onInspect }: { orders: WarehouseInboxOrder[]; claims: WarehouseOrderClaims; onInspect: (order: WarehouseInboxOrder) => void }) {
   const [page, setPage] = useState(0);
   const sortedOrders = useMemo(
     () => [...orders].sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id)),
@@ -116,34 +117,52 @@ function OrderInboxSidebar({ orders, onInspect }: { orders: WarehouseInboxOrder[
           <p className="px-2 py-8 text-center text-xs text-neutral-400">Chưa có order chờ xử lý.</p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {visibleOrders.map((order) => (
-              <li key={order.id} className="shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onInspect(order)}
-                  className="w-full rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 text-left transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="flex min-w-0 items-center gap-1.5 text-xs font-black text-neutral-900">
-                      <span className="rounded-md bg-sky-100 px-1.5 py-1 text-sky-800">
-                        {order.deskId || 'Chưa rõ bàn'}
+            {visibleOrders.map((order) => {
+              const progress = warehouseOrderClaimProgress(order, claims);
+              const fullyClaimed = progress.total > 0 && progress.claimed === progress.total;
+              const partiallyClaimed = progress.claimed > 0 && !fullyClaimed;
+              const progressTone = fullyClaimed
+                ? 'border-red-300 bg-red-50/80 focus-visible:ring-red-400'
+                : partiallyClaimed
+                  ? 'border-amber-300 bg-amber-50/80 focus-visible:ring-amber-400'
+                  : 'border-emerald-200 bg-emerald-50/70 focus-visible:ring-emerald-400';
+              return (
+                <li key={order.id} className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => onInspect(order)}
+                    className={`w-full rounded-lg border p-2.5 text-left transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${progressTone}`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5 text-xs font-black text-neutral-900">
+                        <span className="rounded-md bg-sky-100 px-1.5 py-1 text-sky-800">
+                          {order.deskId || 'Chưa rõ bàn'}
+                        </span>
+                        <span className="text-neutral-400" aria-hidden="true">·</span>
+                        <span className="rounded-md bg-orange-100 px-1.5 py-1 text-orange-800">
+                          STT {order.stt || '—'}
+                        </span>
+                        {progress.total > 0 && (
+                          <span className={[
+                            'rounded-md px-1.5 py-1',
+                            fullyClaimed || partiallyClaimed ? 'bg-red-100 text-red-800' : 'bg-white text-neutral-800',
+                          ].join(' ')}>
+                            {progress.claimants.length > 0 ? `${progress.claimants.join(', ')} · ` : ''}({progress.claimed} ĐH / {progress.total} ĐH)
+                          </span>
+                        )}
                       </span>
-                      <span className="text-neutral-400" aria-hidden="true">·</span>
-                      <span className="rounded-md bg-orange-100 px-1.5 py-1 text-orange-800">
-                        STT {order.stt || '—'}
-                      </span>
-                    </span>
-                    <time className="shrink-0 text-[11px] font-bold text-neutral-500" dateTime={new Date(order.createdAt).toISOString()}>
-                      {order.createdAt ? new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                    </time>
-                  </div>
-                  <p className="mt-1 text-xs font-black text-neutral-800">Có Order - {warehouseOrderTypeLabel(order.orderType, order.rawText)}</p>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-neutral-600" title={orderSummary(order.rawText)}>
-                    {orderSummary(order.rawText)}
-                  </p>
-                </button>
-              </li>
-            ))}
+                      <time className="shrink-0 text-[11px] font-bold text-neutral-500" dateTime={new Date(order.createdAt).toISOString()}>
+                        {order.createdAt ? new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                      </time>
+                    </div>
+                    <p className="mt-1 text-xs font-black text-neutral-800">Có Order - {warehouseOrderTypeLabel(order.orderType, order.rawText)}</p>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-neutral-600" title={orderSummary(order.rawText)}>
+                      {orderSummary(order.rawText)}
+                    </p>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -430,6 +449,7 @@ export default function KhoBoardPage({ guestMode = false, onGuestBack }: { guest
             </button>
             <OrderInboxSidebar
               orders={visibleOrders.filter((order) => shown.some((desk) => desk.id === order.deskId))}
+              claims={visibleClaims}
               onInspect={setSidebarOrderDetails}
             />
           </aside>

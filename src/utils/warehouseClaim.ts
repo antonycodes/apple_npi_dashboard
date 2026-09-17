@@ -1,4 +1,4 @@
-import type { WarehouseInboxOrder, WarehouseOrderClaim } from '@/types/warehouse';
+import type { WarehouseInboxOrder, WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
 
 interface ClaimCustomer {
   stt: string | null;
@@ -38,4 +38,24 @@ export function warehouseOrderMatchesCustomer(
   const customerName = normalize(customer.name);
   if (orderName && customerName && orderName !== customerName) return false;
   return true;
+}
+
+/** Tiến độ nhận đơn hiển thị trên từng card Order Inbox. */
+export function warehouseOrderClaimProgress(
+  order: Pick<WarehouseInboxOrder, 'productOrders' | 'stt' | 'customerName'>,
+  claims: WarehouseOrderClaims,
+): { claimed: number; total: number; claimants: string[] } {
+  const orderCodes = Array.from(new Set(
+    (order.productOrders ?? [])
+      .map((item) => item.orderCode?.trim())
+      .filter((code): code is string => Boolean(code)),
+  ));
+  const customer = { stt: order.stt, name: order.customerName };
+  const matchedClaims = orderCodes
+    .map((code) => claims[code.toUpperCase()])
+    .filter((claim): claim is WarehouseOrderClaim => warehouseClaimMatchesCustomer(claim, customer));
+  const claimants = Array.from(new Set(
+    matchedClaims.map((claim) => claim.claimedDesk?.trim() || claim.claimedBy?.trim() || 'KHO'),
+  ));
+  return { claimed: matchedClaims.length, total: orderCodes.length, claimants };
 }
