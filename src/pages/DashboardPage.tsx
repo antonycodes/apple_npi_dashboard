@@ -30,6 +30,13 @@ import { SITE_BRAND } from '@/config/siteBrand';
 export default function DashboardPage({ readOnly = false, simulation = false, onGuestBack }: { readOnly?: boolean; simulation?: boolean; onGuestBack?: () => void } = {}) {
   const { desks, summary, waitingCheckin, waitingDispatch, endFlow, roster, unresolvedDeskNames, pendingDevice, loading, error, lastUpdated, isMock, refresh } =
     useDashboardData({ guestMode: simulation });
+  const pendingDeviceCount = useMemo(
+    () => pendingDevice.reduce(
+      (total, customer) => total + (customer.prevDevices?.length ?? (customer.prevDevice ? 1 : 0)),
+      0,
+    ),
+    [pendingDevice],
+  );
   const session = useAdminInfo();
   const settings = useLarkSettings();
   const guestRoom = useGuestSimulation();
@@ -403,7 +410,7 @@ export default function DashboardPage({ readOnly = false, simulation = false, on
                   setDispatchStt(''); // mở tay từ thanh lọc → form trống
                   setShowDispatchForm((v) => !v);
                 }}
-                pendingDeviceCount={pendingDevice.length}
+                pendingDeviceCount={pendingDeviceCount}
                 pendingDeviceOpen={showPendingDevice}
                 onTogglePendingDevice={() => setShowPendingDevice((v) => !v)}
               />

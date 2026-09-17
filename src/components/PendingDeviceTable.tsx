@@ -1,5 +1,5 @@
 /**
- * PendingDeviceTable — bảng khách còn máy cũ CHƯA THU, mở từ nút "Chờ thu máy"
+ * PendingDeviceTable — bảng từng máy cũ CHƯA THU, mở từ nút "Chờ thu máy"
  * cạnh nút End Flow trên dashboard điều phối.
  *
  * Điều phối cần biết còn bao nhiêu máy chưa cầm về để nhắc bàn nào rảnh thì
@@ -10,7 +10,40 @@
 import { useEffect, useState } from 'react';
 import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
-import type { StaffCustomer } from '@/services/staffMapper';
+import type { PrevDeviceData, StaffCustomer } from '@/services/staffMapper';
+
+interface PendingDeviceRow {
+  customer: StaffCustomer;
+  device: PrevDeviceData;
+  index: number;
+}
+
+interface PendingDeviceGroup {
+  rows: PendingDeviceRow[];
+}
+
+function pendingDeviceRows(customers: StaffCustomer[]): PendingDeviceRow[] {
+  return customers.flatMap((customer) => {
+    const devices = customer.prevDevices ?? (customer.prevDevice ? [customer.prevDevice] : []);
+    return devices.map((device, index) => ({ customer, device, index }));
+  });
+}
+
+function pendingDeviceGroups(rows: PendingDeviceRow[]): PendingDeviceGroup[] {
+  return rows.reduce<PendingDeviceGroup[]>((groups, row) => {
+    const previous = groups.at(-1);
+    const previousRow = previous?.rows[0];
+    const sameCustomer = previousRow
+      && (previousRow.customer.stt ?? '').trim() === (row.customer.stt ?? '').trim()
+      && (previousRow.customer.name ?? '').trim() === (row.customer.name ?? '').trim();
+    if (sameCustomer) {
+      previous.rows.push(row);
+      return groups;
+    }
+    groups.push({ rows: [row] });
+    return groups;
+  }, []);
+}
 
 function mediaUrl(fileToken: string, recordId?: string, revision?: number): string {
   const guestUrl = guestMediaUrl(fileToken);
@@ -39,12 +72,14 @@ function CloseIcon() {
 
 function DeviceImagesModal({
   customer,
+  device,
   onClose,
 }: {
   customer: StaffCustomer;
+  device: PrevDeviceData;
   onClose: () => void;
 }) {
-  const images = customer.prevDevice?.images ?? [];
+  const images = device.images;
   const [selected, setSelected] = useState(0);
 
   useEffect(() => {
@@ -80,7 +115,7 @@ function DeviceImagesModal({
         </div>
         <div className="flex min-h-0 items-center justify-center overflow-hidden rounded-xl bg-neutral-100">
           <img
-            src={mediaUrl(current.fileToken, current.sourceRecordId ?? customer.prevDevice?.sourceRecordId, current.sourceRevision ?? customer.prevDevice?.sourceRevision)}
+            src={mediaUrl(current.fileToken, current.sourceRecordId ?? device.sourceRecordId, current.sourceRevision ?? device.sourceRevision)}
             alt={current.name ?? `Ảnh máy cũ ${selected + 1}`}
             className="max-h-[68vh] max-w-full object-contain"
           />
@@ -95,7 +130,7 @@ function DeviceImagesModal({
                 aria-label={`Xem ảnh ${index + 1}`}
                 className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 ${index === selected ? 'border-brand' : 'border-transparent'}`}
               >
-                <img src={mediaUrl(image.fileToken, image.sourceRecordId ?? customer.prevDevice?.sourceRecordId, image.sourceRevision ?? customer.prevDevice?.sourceRevision)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                <img src={mediaUrl(image.fileToken, image.sourceRecordId ?? device.sourceRecordId, image.sourceRevision ?? device.sourceRevision)} alt="" loading="lazy" className="h-full w-full object-cover" />
               </button>
             ))}
           </div>
@@ -112,7 +147,9 @@ export default function PendingDeviceTable({
   customers: StaffCustomer[];
   onClose: () => void;
 }) {
-  const [imageCustomer, setImageCustomer] = useState<StaffCustomer | null>(null);
+  const rows = pendingDeviceRows(customers);
+  const groups = pendingDeviceGroups(rows);
+  const [imageCustomer, setImageCustomer] = useState<PendingDeviceRow | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -133,7 +170,7 @@ export default function PendingDeviceTable({
       >
         <div className="mb-1 flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-neutral-800">
-            Chờ thu máy ({customers.length})
+            Chờ thu máy ({rows.length})
           </h2>
           <button
             type="button"
@@ -144,7 +181,7 @@ export default function PendingDeviceTable({
             ×
           </button>
         </div>
-        {customers.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="py-6 text-center text-sm italic text-neutral-400">
             Không còn máy nào chờ thu.
           </p>
@@ -161,38 +198,42 @@ export default function PendingDeviceTable({
                 </tr>
               </thead>
               <tbody>
-                {customers.map((c) => (
-                  <tr key={c.stt ?? c.name} className="border-b border-neutral-100 last:border-0">
-                    <td className="whitespace-nowrap py-2 pr-3">
-                      <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-amber-500 px-2 text-xs font-bold text-white">
-                        {c.stt ?? '—'}
-                      </span>
-                    </td>
-                    <td className="max-w-0 truncate whitespace-nowrap py-2 pr-3 font-medium text-neutral-800" title={c.name ?? undefined}>{c.name ?? '—'}</td>
-                    <td className="max-w-0 truncate whitespace-nowrap py-2 pr-3 font-mono text-xs text-neutral-600" title={c.prevDevice?.imei ?? undefined}>{c.prevDevice?.imei || '—'}</td>
-                    <td className="max-w-0 truncate whitespace-nowrap py-2 pr-3 font-mono text-xs text-neutral-600" title={c.prevDevice?.scanQr ?? undefined}>
-                      {c.prevDevice?.scanQr || '—'}
+                {groups.flatMap((group) => group.rows.map(({ customer: c, device, index }, rowIndex) => (
+                  <tr key={`${c.stt ?? c.name ?? 'customer'}-${device.sourceRecordId ?? device.scanQr ?? index}`} className="border-b border-neutral-100 last:border-0">
+                    {rowIndex === 0 && (
+                      <>
+                        <td rowSpan={group.rows.length} className="align-middle whitespace-nowrap py-2 pr-3">
+                          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-amber-500 px-2 text-xs font-bold text-white">
+                            {c.stt ?? '—'}
+                          </span>
+                        </td>
+                        <td rowSpan={group.rows.length} className="max-w-0 align-middle truncate whitespace-nowrap py-2 pr-3 font-medium text-neutral-800" title={c.name ?? undefined}>{c.name ?? '—'}</td>
+                      </>
+                    )}
+                    <td className="max-w-0 truncate whitespace-nowrap py-2 pr-3 font-mono text-xs text-neutral-600" title={device.imei ?? undefined}>{device.imei || '—'}</td>
+                    <td className="max-w-0 truncate whitespace-nowrap py-2 pr-3 font-mono text-xs text-neutral-600" title={device.scanQr ?? undefined}>
+                      {device.scanQr || '—'}
                     </td>
                     <td className="whitespace-nowrap py-2 text-center">
                       <button
                         type="button"
-                        onClick={() => setImageCustomer(c)}
-                        disabled={!c.prevDevice?.images.length}
-                        aria-label={c.prevDevice?.images.length ? `Xem ảnh máy của STT ${c.stt ?? ''}` : 'Chưa có ảnh máy'}
-                        title={c.prevDevice?.images.length ? `Xem ${c.prevDevice.images.length} ảnh máy` : 'Chưa có ảnh máy'}
+                        onClick={() => setImageCustomer({ customer: c, device, index })}
+                        disabled={!device.images.length}
+                        aria-label={device.images.length ? `Xem ảnh máy của STT ${c.stt ?? ''}` : 'Chưa có ảnh máy'}
+                        title={device.images.length ? `Xem ${device.images.length} ảnh máy` : 'Chưa có ảnh máy'}
                         className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 shadow-sm transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:border-neutral-100 disabled:bg-neutral-50 disabled:text-neutral-300"
                       >
                         <ImageIcon />
                       </button>
                     </td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>
         )}
       </div>
-      {imageCustomer && <DeviceImagesModal customer={imageCustomer} onClose={() => setImageCustomer(null)} />}
+      {imageCustomer && <DeviceImagesModal customer={imageCustomer.customer} device={imageCustomer.device} onClose={() => setImageCustomer(null)} />}
     </div>
   );
 }
