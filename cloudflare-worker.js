@@ -704,6 +704,13 @@ function incrementGuestNghiemThu(value) {
   return '✅ Đã nghiệm thu (1) máy';
 }
 
+function incrementGuestNghiemThuBy(value, amount) {
+  const text = guestCellText(value);
+  const match = text.match(/Đã nghiệm thu\s*\((\d+)\)\s*máy/i);
+  if (match) return text.replace(match[1], String(Number(match[1]) + amount));
+  return `✅ Đã nghiệm thu (${Math.max(1, amount)}) máy`;
+}
+
 // Cache map optionId→tên hiển thị theo TỪNG BẢNG (10 phút) — tránh gọi lại
 // API field-metadata mỗi request.
 const fieldOptionCache = new Map();
@@ -1766,6 +1773,24 @@ export class GuestSimulationRoom extends DurableObject {
             return fileToken ? { file_token: fileToken, ...(name ? { name } : {}) } : null;
           }).filter(Boolean)
         : null;
+      let deviceBatch = [];
+      if (typeof body?.devices === 'string') {
+        try { deviceBatch = JSON.parse(body.devices); } catch { deviceBatch = []; }
+      }
+      deviceBatch = Array.isArray(deviceBatch)
+        ? deviceBatch.slice(0, 20).map((device) => ({
+            scanQr: typeof device?.scanQr === 'string' ? device.scanQr.trim().slice(0, 200) : '',
+            imei: typeof device?.imei === 'string' ? device.imei.trim().slice(0, 80) : '',
+            hinhNghiemThu: Array.isArray(device?.hinhNghiemThu)
+              ? device.hinhNghiemThu.slice(0, 3).map((image) => ({
+                  file_token: typeof image?.file_token === 'string' ? image.file_token.trim().slice(0, 160) : '',
+                  name: typeof image?.name === 'string' ? image.name.trim().slice(0, 120) : '',
+                })).filter((image) => image.file_token)
+              : [],
+          })).filter((device) => device.scanQr)
+        : [];
+      const completeStage = body?.completeStage === 'true';
+      const daXoaICloudVaDuLieuKhach = body?.daXoaICloudVaDuLieuKhach === 'true';
       const orderCode = typeof body?.orderCode === 'string' ? body.orderCode.trim().slice(0, 120) : '';
       const productLabel = typeof body?.productLabel === 'string' ? body.productLabel.trim().slice(0, 40) : '';
       const product = typeof body?.product === 'string' ? body.product.trim().slice(0, 240) : '';
@@ -1782,7 +1807,7 @@ export class GuestSimulationRoom extends DurableObject {
       if (typeof body?.handover === 'string') {
         try { handover = JSON.parse(body.handover); } catch { handover = null; }
       }
-      if (!stage || !deskId || !['dispatch', 'receive', 'complete', 'device', 'help', 'help-ack', 'help-clear', 'claim-order', 'claim-orders', 'send-order', 'handover'].includes(action)) {
+      if (!stage || !deskId || !['dispatch', 'receive', 'complete', 'device', 'devices', 'help', 'help-ack', 'help-clear', 'claim-order', 'claim-orders', 'send-order', 'handover'].includes(action)) {
         return json({ code: -1, msg: 'Guest room action không hợp lệ.' }, 400);
       }
       if (action === 'send-order') {
@@ -1932,6 +1957,63 @@ export class GuestSimulationRoom extends DurableObject {
         if (checkinRow) {
           const acceptedKey = Object.keys(checkinRow.fields).find((key) => key.trim().toLowerCase() === 'check nghiệm thu');
           if (acceptedKey) checkinRow.fields[acceptedKey] = incrementGuestNghiemThu(checkinRow.fields[acceptedKey]);
+        }
+      } else if (action === 'devices') {
+        if (!deviceBatch.length) return json({ code: -1, msg: 'Guest batch thu máy thiếu danh sách máy.' }, 400);
+        const at = Date.now();
+        const deviceAssignments = deviceBatch.map((device) => {
+          const target = this.state.assignments.find((item) =>
+            item.stt === stt
+            && item.stage === stage
+            && item.thuLaiMay === 'Thu máy sau'
+            && (item.scanQr?.trim().toUpperCase() ?? '') === device.scanQr.toUpperCase(),
+          );
+          return {
+            stt,
+            stage,
+            deskId: target?.deskId || deskId,
+            status: 'completed',
+            at,
+            thuLaiMay: 'Thu máy ngay',
+            scanQr: device.scanQr.toUpperCase(),
+            ...(device.imei ? { imei: device.imei } : {}),
+            ...(device.hinhNghiemThu.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
+          };
+        });
+        this.state.assignments = [
+          ...this.state.assignments,
+          ...deviceAssignments,
+        ].map((item) => item.stt === stt && item.stage === stage && item.status === 'active' && completeStage
+          ? {
+              ...item,
+              status: 'completed',
+              at,
+              ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
+            }
+          : item);
+        const checkinRow = this.state.baseTables.checkin.find((row) => Object.entries(row.fields).some(([key, value]) => key.trim().toLowerCase() === 'stt' && guestCellText(value) === stt));
+        if (checkinRow) {
+          const acceptedKey = Object.keys(checkinRow.fields).find((key) => key.trim().toLowerCase() === 'check nghiệm thu');
+          if (acceptedKey) checkinRow.fields[acceptedKey] = incrementGuestNghiemThuBy(checkinRow.fields[acceptedKey], deviceBatch.length);
+          if (completeStage) {
+            const oldDeviceKey = Object.keys(checkinRow.fields).find((key) => key.toLowerCase().includes('thu cũ check') || key.toLowerCase().includes('thu cu check'));
+            const backupKey = Object.keys(checkinRow.fields).find((key) => key.toLowerCase().includes('backup check'));
+            const oldDevice = oldDeviceKey ? guestCellText(checkinRow.fields[oldDeviceKey]).toLowerCase() : '';
+            const backup = backupKey ? guestCellText(checkinRow.fields[backupKey]).toLowerCase() : '';
+            const required = Number(guestCellText(checkinRow.fields[Object.keys(checkinRow.fields).find((key) => key.toLowerCase() === 'số lượng thu cũ') || '']));
+            const acceptedText = acceptedKey ? guestCellText(checkinRow.fields[acceptedKey]) : '';
+            const acceptedMatch = acceptedText.match(/đã nghiệm thu\s*\((\d+)\)\s*máy/i);
+            const accepted = acceptedMatch ? Number(acceptedMatch[1]) : 0;
+            const completed = new Set(this.state.assignments.filter((item) => item.stt === stt && item.status === 'completed').map((item) => item.stage));
+            const ready = completed.has('consult')
+              && (!(oldDevice.includes('có') || oldDevice.includes('thu cũ') || oldDevice.includes('thu cu')) || completed.has('tradein'))
+              && (!(backup.includes('có') || backup.includes('backup')) || completed.has('backup'))
+              && (!Number.isFinite(required) || required <= 0 || accepted >= required);
+            if (ready) {
+              const endFlowKey = Object.keys(checkinRow.fields).find((key) => key.toLowerCase().includes('end flow'));
+              if (endFlowKey) checkinRow.fields[endFlowKey] = 'End flow';
+            }
+          }
         }
       } else {
         let matched = false;

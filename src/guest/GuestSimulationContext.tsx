@@ -42,6 +42,7 @@ interface GuestSimulationValue {
   receive: (stt: string, stage: ClusterKey, deskId?: string) => void;
   complete: (stt: string, stage: ClusterKey, checkBackup?: 'Có' | 'Không', thuLaiMay?: 'Thu máy ngay' | 'Thu máy sau', device?: GuestDeviceData, khachKhongDongYGiaThuCu?: boolean, daXoaICloudVaDuLieuKhach?: boolean) => void;
   quickDevice: (stt: string, stage: ClusterKey, deskId?: string, device?: GuestDeviceData) => void;
+  completePendingDevices: (stt: string, stage: ClusterKey, deskId: string, devices: GuestDeviceData[], completeStage: boolean, daXoaICloudVaDuLieuKhach?: boolean) => void;
   callCoordinator: (deskId: string, role: string, stt: string | null, customerName: string | null) => void;
   acknowledgeCoordinatorAlert: (deskId: string) => void;
   orderClaims: WarehouseOrderClaims;
@@ -67,6 +68,13 @@ function incrementGuestNghiemThu(value: unknown): string {
   const match = text.match(/Đã nghiệm thu\s*\((\d+)\)\s*máy/i);
   if (match) return text.replace(match[1], String(Number(match[1]) + 1));
   return '✅ Đã nghiệm thu (1) máy';
+}
+
+function incrementGuestNghiemThuBy(value: unknown, amount: number): string {
+  const text = cellToString(value as LarkCellValue) ?? '';
+  const match = text.match(/Đã nghiệm thu\s*\((\d+)\)\s*máy/i);
+  if (match) return text.replace(match[1], String(Number(match[1]) + amount));
+  return `✅ Đã nghiệm thu (${Math.max(1, amount)}) máy`;
 }
 
 function deskForGuestRole(deskId: string): string | null {
@@ -362,15 +370,24 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
     })();
   };
 
-  const markEndFlowIfReady = (nextAssignments: Assignment[], stt: string, latestBackup?: 'Có' | 'Không') => {
+  const markEndFlowIfReady = (nextAssignments: Assignment[], stt: string, latestBackup?: 'Có' | 'Không', acceptedIncrement = 0) => {
     const customer = base.checkin.find((row) => cellToString(row.fields[fields.checkin.stt]) === stt);
     if (!customer) return;
     const oldDevice = cellToString(customer.fields[fields.checkin.oldDeviceCheck])?.toLowerCase() ?? '';
     const backup = (latestBackup ?? cellToString(customer.fields[fields.checkin.backupCheck]))?.toLowerCase() ?? '';
     const needsTradein = oldDevice.includes('có') || oldDevice.includes('thu cũ') || oldDevice.includes('thu cu');
     const needsBackup = backup.includes('có') || backup.includes('backup');
+    const acceptedText = cellToString(customer.fields[fields.checkin.deviceAccepted]) ?? '';
+    const acceptedMatch = acceptedText.match(/đã nghiệm thu\s*\((\d+)\)\s*máy/i);
+    const acceptedCount = acceptedMatch ? Number(acceptedMatch[1]) : 0;
+    const requiredCount = Number(cellToString(customer.fields[fields.checkin.oldDeviceQuantity]));
+    const devicesReady = !needsTradein || !Number.isFinite(requiredCount) || requiredCount <= 0
+      || acceptedCount + acceptedIncrement >= requiredCount;
     const completed = new Set(nextAssignments.filter((item) => item.stt === stt && item.status === 'completed').map((item) => item.stage));
-    const ready = completed.has('consult') && (!needsTradein || completed.has('tradein')) && (!needsBackup || completed.has('backup'));
+    const ready = completed.has('consult')
+      && (!needsTradein || completed.has('tradein'))
+      && (!needsBackup || completed.has('backup'))
+      && devicesReady;
     if (!ready) return;
     setBase((current) => ({
       ...current,
@@ -462,7 +479,7 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
             ),
           }));
         }
-        markEndFlowIfReady(nextAssignments, stt, checkBackup);
+        markEndFlowIfReady(nextAssignments, stt, checkBackup, thuLaiMay === 'Thu máy ngay' ? 1 : 0);
         if (target) void postAction('complete', stt, stage, target.deskId, {
           ...(checkBackup ? { checkBackup } : {}),
           ...(thuLaiMay ? { thuLaiMay } : {}),
@@ -491,9 +508,18 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
         };
         // Giữ record `Thu máy sau` ban đầu để mô phỏng đúng audit trail; mỗi
         // MTC được xác nhận tạo thêm một record `Thu máy ngay` riêng.
+        const deviceAssignment: Assignment = {
+          stt,
+          stage,
+          deskId: resolvedDesk,
+          status: 'completed',
+          at: Date.now(),
+          ...deviceFields,
+        };
+        const nextAssignments = [...assignments, deviceAssignment];
         setAssignments((current) => [
           ...current,
-          { stt, stage, deskId: resolvedDesk, status: 'completed', at: Date.now(), ...deviceFields },
+          deviceAssignment,
         ]);
         setBase((current) => ({
           ...current,
@@ -503,11 +529,74 @@ export function GuestSimulationProvider({ children, fields = DEFAULT_FIELD_CONFI
               : row,
           ),
         }));
+        markEndFlowIfReady(nextAssignments, stt, undefined, 1);
         void postAction('device', stt, stage, resolvedDesk, {
             ...(device?.scanQr ? { scanQr: device.scanQr } : {}),
             ...(device?.imei ? { imei: device.imei } : {}),
             ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: JSON.stringify(device.hinhNghiemThu) } : {}),
         });
+      },
+      completePendingDevices(stt, stage, guestDeskId, devices, completeStage, daXoaICloudVaDuLieuKhach = false) {
+        const selected = devices.map((device) => {
+          const deviceKey = device?.scanQr?.trim().toUpperCase() ?? '';
+          const target = assignments.find((item) =>
+            item.stt === stt
+            && item.stage === stage
+            && item.thuLaiMay === 'Thu máy sau'
+            && (item.scanQr?.trim().toUpperCase() ?? '') === deviceKey,
+          );
+          return { device, target };
+        });
+        const resolvedDesk = selected[0]?.target?.deskId ?? deskForGuestRole(guestDeskId) ?? guestDeskId;
+        if (!resolvedDesk || selected.some(({ target }) => !target)) return;
+        const at = Date.now();
+        const deviceAssignments = selected.map(({ device, target }) => ({
+          stt,
+          stage,
+          deskId: target?.deskId ?? resolvedDesk,
+          status: 'completed' as const,
+          at,
+          thuLaiMay: 'Thu máy ngay' as const,
+          ...(device?.scanQr ? { scanQr: device.scanQr.trim().toUpperCase() } : {}),
+          ...(device?.imei ? { imei: device.imei } : {}),
+          ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
+        }));
+        const nextAssignments = [
+          ...assignments,
+          ...deviceAssignments,
+        ].map((item) => item.stt === stt && item.stage === stage && item.status === 'active' && completeStage
+          ? {
+              ...item,
+              status: 'completed' as const,
+              at,
+              ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
+            }
+          : item);
+        setAssignments(nextAssignments);
+        setBase((current) => ({
+          ...current,
+          checkin: current.checkin.map((row) =>
+            cellToString(row.fields[fields.checkin.stt]) === stt
+              ? {
+                  ...row,
+                  fields: {
+                    ...row.fields,
+                    [fields.checkin.deviceAccepted]: incrementGuestNghiemThuBy(row.fields[fields.checkin.deviceAccepted], devices.length),
+                  },
+                }
+              : row,
+          ),
+        }));
+        void postAction('devices', stt, stage, resolvedDesk, {
+          devices: JSON.stringify(selected.map(({ device }) => ({
+            ...(device?.scanQr ? { scanQr: device.scanQr.trim().toUpperCase() } : {}),
+            ...(device?.imei ? { imei: device.imei } : {}),
+            ...(device?.hinhNghiemThu?.length ? { hinhNghiemThu: device.hinhNghiemThu } : {}),
+          }))),
+          completeStage: completeStage ? 'true' : 'false',
+          ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: 'true' } : {}),
+        });
+        markEndFlowIfReady(nextAssignments, stt, undefined, devices.length);
       },
       callCoordinator(deskId, role, stt, customerName) {
         const resolvedDesk = deskForGuestRole(deskId) ?? deskId;

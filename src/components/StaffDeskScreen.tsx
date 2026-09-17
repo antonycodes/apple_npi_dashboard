@@ -33,7 +33,7 @@ import { uploadNghiemThuImage } from '@/services/larkUpload';
 import { uploadGuestImage } from '@/services/guestMedia';
 import { sendStaffAction } from '@/services/staffActionWebhook';
 import { sendDispatchForm } from '@/services/dispatchWebhook';
-import type { PrevDeviceData, PrevImage, StaffCustomer, StaffDeskView } from '@/services/staffMapper';
+import { pendingDeviceIdentity, type PrevDeviceData, type PrevImage, type StaffCustomer, type StaffDeskView } from '@/services/staffMapper';
 import StaffReceiveFormModal, { type ReceiveFormValues } from './StaffReceiveFormModal';
 import ThuMayModal, { type ThuMayValues } from './ThuMayModal';
 import DispatchSummary from './DispatchSummary';
@@ -80,6 +80,11 @@ function pendingDeviceKey(stt: string | null | undefined, device: Pick<PrevDevic
   return `${stt ?? ''}|${device.scanQr?.trim().toUpperCase() || device.sourceRecordId || 'unknown'}`;
 }
 
+function pendingDevicesForCustomer(customer: StaffCustomer | null): PrevDeviceData[] {
+  return (customer?.prevDevices ?? (customer?.prevDevice ? [customer.prevDevice] : []))
+    .filter((device) => device.thuLaiMay === 'Thu máy sau');
+}
+
 /** Cùng quy ước tô màu với `CustomerPopover` — theo TỪ KHOÁ, không so chuỗi cứng. */
 /**
  * Phần "máy thu cũ" của form Hoàn tất: giá trị điền sẵn theo khâu.
@@ -98,12 +103,17 @@ function buildDeviceDefaults(
   const prev = cluster === 'backup'
     ? customer.prevDevices?.find((device) => device.thuLaiMay === 'Thu máy sau') ?? customer.prevDevice
     : undefined;
+  const hasPendingDevices = Boolean(
+    cluster === 'backup'
+    && (customer.prevDevices?.some((device) => device.thuLaiMay === 'Thu máy sau')
+      || customer.prevDevice?.thuLaiMay === 'Thu máy sau'),
+  );
   const hoanTat = action === 'hoan_tat' && isDeviceStage;
 
   const coThuMaySau = prev?.thuLaiMay === 'Thu máy sau';
-  // Có MTC đã hẹn trước thì form Hoàn tất thu tiếp máy đó ngay. Không ghi
-  // lại "Thu máy sau", vì máy đã có định danh và đang cần được thu.
-  const thuMaySauNgay = hoanTat && coThuMaySau;
+  // Máy đã hẹn trước được chọn bằng checkbox trong form Backup. Không tự
+  // chọn sẵn để tránh ghi nhận nhầm khi khách chỉ giao một phần máy.
+  const thuMaySauNgay = hoanTat && coThuMaySau && !hasPendingDevices;
   const dienSan = thuMaySauNgay;
   const thuLaiMay = thuMaySauNgay ? 'Thu máy ngay' : '';
 
@@ -111,6 +121,8 @@ function buildDeviceDefaults(
     values: {
       checkBackup: '',
       thuLaiMay,
+      pendingDeviceKeys: [],
+      pendingDeviceValues: {},
       khachKhongDongYGiaThuCu: false,
       daXoaICloudVaDuLieuKhach: false,
       hinhNghiemThu: [] as File[],
@@ -723,8 +735,43 @@ export default function StaffDeskScreen({
     if (!stt || sending) return; // `sending` = khoá chống bấm đúp → tránh tạo record trùng
     const isComplete = formAction === 'hoan_tat';
     const isDeviceStage = view.cluster === 'tradein' || view.cluster === 'backup';
+    const pendingDevices = view.cluster === 'backup' ? pendingDevicesForCustomer(formCustomer) : [];
+    const isPendingDeviceBatch = isComplete && view.cluster === 'backup' && pendingDevices.length > 0;
+    const selectedPendingDevices = isPendingDeviceBatch
+      ? pendingDevices
+        .map((device, index) => ({ device, index, key: pendingDeviceIdentity(device, index) }))
+        .filter(({ key }) => values.pendingDeviceKeys.includes(key))
+      : [];
+    const completesBackupAfterDeviceBatch = isPendingDeviceBatch
+      && selectedPendingDevices.length === pendingDevices.length;
+    if (isPendingDeviceBatch) {
+      if (selectedPendingDevices.length === 0) {
+        setActionError('Chọn ít nhất một máy đã thu.');
+        return;
+      }
+      const incomplete = selectedPendingDevices.flatMap(({ device, key, index }) => {
+        const form = values.pendingDeviceValues[key] ?? {
+          anhGiuLai: device.images,
+          hinhNghiemThu: [],
+          scanQr: device.scanQr ?? '',
+          imei: device.imei ?? '',
+        };
+        const missing = [
+          form.anhGiuLai.length + form.hinhNghiemThu.length > 0 ? '' : 'ảnh nghiệm thu',
+          form.scanQr.trim() ? '' : 'QR máy',
+          form.imei.trim() ? '' : 'Serial Number',
+        ].filter(Boolean);
+        return missing.length > 0
+          ? [`${form.scanQr.trim() || device.scanQr?.trim() || `MTC.${index + 1}`}: ${missing.join(', ')}`]
+          : [];
+      });
+      if (incomplete.length > 0) {
+        setActionError(`Chưa thể gửi máy đã chọn. Bổ sung: ${incomplete.join('; ')}.`);
+        return;
+      }
+    }
     const requiresDeviceEvidence =
-      isComplete && isDeviceStage && values.thuLaiMay.length > 0 && !values.khachKhongDongYGiaThuCu;
+      isComplete && isDeviceStage && values.thuLaiMay.length > 0 && !isPendingDeviceBatch && !values.khachKhongDongYGiaThuCu;
     if (requiresDeviceEvidence) {
       const missing = [
         values.anhGiuLai.length + values.hinhNghiemThu.length > 0 ? '' : 'ảnh nghiệm thu',
@@ -745,6 +792,47 @@ export default function StaffDeskScreen({
       const submittedName = values.hoTen.trim() || formCustomer?.name?.trim() || '';
       const submittedDesk = values.maBan.trim() || view.id;
       if (simulation) {
+        if (formAction === 'hoan_tat' && isPendingDeviceBatch) {
+          const guestPendingDevices = [];
+          for (const { device, key } of selectedPendingDevices) {
+            const form = values.pendingDeviceValues[key] ?? {
+              anhGiuLai: device.images,
+              hinhNghiemThu: [],
+              scanQr: device.scanQr ?? '',
+              imei: device.imei ?? '',
+            };
+            const images = [...form.anhGiuLai];
+            for (const file of form.hinhNghiemThu.slice(0, Math.max(0, 3 - images.length))) {
+              const uploaded = await uploadGuestImage(guestSimulation?.roomCode ?? '', file);
+              images.push({ fileToken: uploaded.fileToken, name: uploaded.name });
+            }
+            guestPendingDevices.push({
+              scanQr: form.scanQr.trim() || undefined,
+              imei: form.imei.trim() || undefined,
+              hinhNghiemThu: images.map((image) => ({
+                file_token: image.fileToken,
+                ...(image.name ? { name: image.name } : {}),
+              })),
+            });
+          }
+          guestSimulation?.completePendingDevices(
+            stt,
+            view.cluster,
+            view.id,
+            guestPendingDevices,
+            completesBackupAfterDeviceBatch,
+            values.daXoaICloudVaDuLieuKhach,
+          );
+          if (completesBackupAfterDeviceBatch) completeCustomer(stt);
+          setFormAction(null);
+          setFormCustomer(null);
+          setSimulationMessage(
+            completesBackupAfterDeviceBatch
+              ? `Thành công · mô phỏng thu ${selectedPendingDevices.length} máy và Hoàn tất STT ${stt}.`
+              : `Thành công · mô phỏng thu ${selectedPendingDevices.length} máy STT ${stt}. Máy chưa chọn vẫn còn chờ thu.`,
+          );
+          return;
+        }
         if (formAction === 'hoan_tat') completeCustomer(stt);
         else {
           receiveCustomer(stt);
@@ -853,6 +941,74 @@ export default function StaffDeskScreen({
               leadtimeHienThi: (moc?.approx ? '~' : '') + formatElapsed(leadtimeMs),
               leadtimeUocLuong: (moc?.approx ? 'Có' : 'Không') as 'Có' | 'Không',
             };
+
+      if (isPendingDeviceBatch) {
+        // Mỗi MTC là một bản ghi `Thu máy nhanh`, giống nút thu từng máy.
+        // Không dùng nhiều dòng `Hoàn tất`: như vậy sẽ làm sai trạng thái Backup.
+        for (const { device, key } of selectedPendingDevices) {
+          const form = values.pendingDeviceValues[key] ?? {
+            anhGiuLai: device.images,
+            hinhNghiemThu: [],
+            scanQr: device.scanQr ?? '',
+            imei: device.imei ?? '',
+          };
+          const hinhNghiemThu = form.anhGiuLai.map((image) => image.fileToken);
+          for (const [i, file] of form.hinhNghiemThu.slice(0, Math.max(0, 3 - hinhNghiemThu.length)).entries()) {
+            try {
+              hinhNghiemThu.push(await uploadNghiemThuImage(file));
+            } catch (err) {
+              setActionError(
+                `Upload ảnh máy ${form.scanQr.trim() || device.scanQr?.trim() || 'đã chọn'} (${i + 1}/${form.hinhNghiemThu.length}) thất bại: ${
+                  err instanceof Error ? err.message : String(err)
+                }`,
+              );
+              setSending(false);
+              return;
+            }
+          }
+          await sendStaffAction(webhookUrl, {
+            action: 'thu_may',
+            trangThai: 'Thu máy nhanh',
+            stt: submittedStt,
+            hoTen: submittedName,
+            maBan: submittedDesk,
+            msnv: submitByMsnv,
+            auditStaffName: view.staffName ?? undefined,
+            phanLoai: 'Backup',
+            submitBy: submitByMsnv,
+            thoiGian: new Date().toISOString(),
+            thuLaiMay: 'Thu máy ngay',
+            hinhNghiemThu,
+            scanQr: form.scanQr.trim().toUpperCase(),
+            imei: form.imei.trim() || undefined,
+          });
+          setVuaThu((current) => ({
+            ...current,
+            [pendingDeviceKey(submittedStt, device)]: Date.now(),
+          }));
+        }
+
+        if (completesBackupAfterDeviceBatch) {
+          await sendStaffAction(webhookUrl, {
+            action: 'hoan_tat',
+            trangThai: 'Hoàn tất',
+            stt: submittedStt,
+            hoTen: submittedName,
+            maBan: submittedDesk,
+            msnv: submitByMsnv,
+            auditStaffName: view.staffName ?? undefined,
+            phanLoai: STAGE_LABEL[view.cluster],
+            submitBy: submitByMsnv,
+            thoiGian: new Date().toISOString(),
+            ...(daXoaICloudVaDuLieuKhach ? { daXoaICloudVaDuLieuKhach: true } : {}),
+            ...leadtime,
+          });
+          completeCustomer(stt);
+        }
+        setFormAction(null);
+        setFormCustomer(null);
+        return;
+      }
 
       await sendStaffAction(webhookUrl, {
         action: formAction ?? 'tiep_nhan',

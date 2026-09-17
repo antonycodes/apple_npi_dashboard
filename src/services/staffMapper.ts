@@ -53,6 +53,14 @@ export interface PrevDeviceData {
   sourceRevision?: number;
 }
 
+/** Khoá ổn định cho từng máy cũ trong nhóm máy đang chờ thu. */
+export function pendingDeviceIdentity(
+  device: Pick<PrevDeviceData, 'scanQr' | 'sourceRecordId'>,
+  index = 0,
+): string {
+  return device.scanQr?.trim().toUpperCase() || device.sourceRecordId || `device-${index}`;
+}
+
 /** 1 khách trên màn hình NV — như `DeskCustomer`, thêm URL cho nút bấm. */
 export interface StaffCustomer extends DeskCustomer {
   /** Link mở form Tiếp nhận trong Lark cho đúng khách này (chỉ khách kế tiếp mới cần). */

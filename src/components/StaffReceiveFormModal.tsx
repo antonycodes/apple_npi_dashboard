@@ -19,7 +19,7 @@ import QrScanButton from '@/components/QrScanButton';
 import SerialScanButton from '@/components/SerialScanButton';
 import { workerBaseUrl } from '@/services/adminApi';
 import { guestMediaUrl } from '@/services/guestMedia';
-import type { PrevImage, StaffCustomer } from '@/services/staffMapper';
+import { pendingDeviceIdentity, type PrevImage, type StaffCustomer } from '@/services/staffMapper';
 import type { ClusterKey } from '@/types/desk';
 import PhotoSlotPicker, { type PhotoSlot } from '@/components/PhotoSlotPicker';
 import { isTradeInCustomer } from '@/utils/tradeInFilter';
@@ -50,6 +50,17 @@ export interface ReceiveFormValues {
   /** Nội dung QR máy thu cũ (quét bằng camera hoặc gõ tay). */
   scanQr: string;
   /** IMEI máy thu cũ. */
+  imei: string;
+  /** Các máy `Thu máy sau` được chọn trong form Backup. */
+  pendingDeviceKeys: string[];
+  /** Dữ liệu 3 trường riêng của từng máy đã tick trong form Backup. */
+  pendingDeviceValues: Record<string, PendingDeviceFormValue>;
+}
+
+export interface PendingDeviceFormValue {
+  anhGiuLai: PrevImage[];
+  hinhNghiemThu: File[];
+  scanQr: string;
   imei: string;
 }
 
@@ -109,22 +120,34 @@ export default function StaffReceiveFormModal({
     ? (customer?.prevDevices ?? (customer?.prevDevice ? [customer.prevDevice] : []))
       .filter((device) => device.thuLaiMay === 'Thu máy sau')
     : [];
-  const selectedPendingDevice = pendingDevices.find(
-    (device) => device.scanQr?.trim().toUpperCase() === values.scanQr.trim().toUpperCase(),
-  ) ?? pendingDevices[0];
-  const selectPendingDevice = (device: (typeof pendingDevices)[number]) => {
-    setValues((current) => ({
-      ...current,
-      thuLaiMay: 'Thu máy ngay',
+  // Cân nhắc giá hoặc đổi ý sẽ ẩn các trường thu máy liên quan.
+  const hasPendingDevices = pendingDevices.length > 0;
+  const showPendingDeviceSelection = action === 'hoan_tat'
+    && cluster === 'backup'
+    && hasPendingDevices
+    && !values.khachKhongDongYGiaThuCu
+    && !customerChangedMind;
+  const selectedPendingDeviceEntries = pendingDevices
+    .map((device, index) => ({ device, index, key: pendingDeviceIdentity(device, index) }))
+    .filter(({ key }) => values.pendingDeviceKeys.includes(key));
+  const selectedPendingDevices = selectedPendingDeviceEntries.map(({ device }) => device);
+  const incompletePendingDevices = selectedPendingDeviceEntries.flatMap(({ device, index, key }) => {
+    const form = values.pendingDeviceValues[key] ?? {
       anhGiuLai: device.images,
       hinhNghiemThu: [],
       scanQr: device.scanQr ?? '',
       imei: device.imei ?? '',
-    }));
-  };
-
-  // Cân nhắc giá hoặc đổi ý sẽ ẩn các trường thu máy liên quan.
-  const hasPendingDevices = pendingDevices.length > 0;
+    };
+    const imageCount = form.anhGiuLai.length + form.hinhNghiemThu.length;
+    const missing = [
+      imageCount > 0 ? '' : 'ảnh nghiệm thu',
+      form.scanQr.trim() ? '' : 'QR',
+      form.imei.trim() ? '' : 'Serial',
+    ].filter(Boolean);
+    return missing.length > 0
+      ? [`${form.scanQr.trim() || device.scanQr?.trim() || `MTC.${index + 1}`}: ${missing.join(', ')}`]
+      : [];
+  });
   const needsDeviceCollection = cluster === 'tradein'
     || (cluster === 'backup' && Boolean(
       customer
@@ -137,6 +160,7 @@ export default function StaffReceiveFormModal({
     && !customerChangedMind;
   const showThuLaiMay = action === 'hoan_tat'
     && needsDeviceCollection
+    && !showPendingDeviceSelection
     && !values.khachKhongDongYGiaThuCu
     && !customerChangedMind;
   // Thu cũ luôn giữ đủ 2 lựa chọn để xử lý khách có nhiều máy. Chỉ Backup
@@ -151,7 +175,8 @@ export default function StaffReceiveFormModal({
   const showICloudDeletion = action === 'hoan_tat'
     && (cluster === 'tradein' || cluster === 'backup')
     && !values.khachKhongDongYGiaThuCu
-    && !customerChangedMind;
+    && !customerChangedMind
+    && (!showPendingDeviceSelection || selectedPendingDevices.length === pendingDevices.length);
   const showDeviceFields = showThuLaiMay
     && values.thuLaiMay.length > 0
     && !values.khachKhongDongYGiaThuCu
@@ -164,6 +189,13 @@ export default function StaffReceiveFormModal({
         values.imei.trim() ? '' : 'Serial Number',
       ].filter(Boolean)
     : [];
+  const pendingDeviceSelectionError = showPendingDeviceSelection
+    ? values.pendingDeviceKeys.length === 0
+      ? 'Chọn ít nhất một máy đã thu.'
+      : incompletePendingDevices.length > 0
+        ? `Thiếu dữ liệu: ${incompletePendingDevices.join('; ')}`
+        : ''
+    : '';
   const photoSlots: PhotoSlot[] = [
     ...values.anhGiuLai.map((image) => ({ kind: 'existing' as const, image })),
     ...values.hinhNghiemThu.map((file) => ({ kind: 'new' as const, file })),
@@ -174,6 +206,7 @@ export default function StaffReceiveFormModal({
     values.maBan.trim().length > 0 &&
     (!showBackupCheck || values.checkBackup.length > 0) &&
     missingDeviceEvidence.length === 0 &&
+    !pendingDeviceSelectionError &&
     !busy;
 
   const openChangeMindConfirmation = () => {
@@ -277,35 +310,6 @@ export default function StaffReceiveFormModal({
             </div>
           )}
 
-          {showThuLaiMay && pendingDevices.length > 0 && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Máy cần thu</p>
-              <p className="mt-1 text-xs leading-5 text-amber-900">
-                Chọn đúng mã MTC đang ở trạng thái Thu máy sau.
-              </p>
-              <div className="mt-2 grid gap-2">
-                {pendingDevices.map((device, index) => {
-                  const selected = selectedPendingDevice === device;
-                  const label = device.scanQr?.trim() || 'MTC.' + (index + 1);
-                  return (
-                    <button
-                      key={label + '-' + (device.sourceRecordId ?? index)}
-                      type="button"
-                      onClick={() => selectPendingDevice(device)}
-                      aria-pressed={selected}
-                      className={selected
-                        ? 'flex min-h-11 items-center justify-between gap-3 rounded-xl border border-amber-600 bg-amber-100 px-3 py-2 text-left text-amber-950'
-                        : 'flex min-h-11 items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-neutral-900 active:bg-amber-100'}
-                    >
-                      <span className="text-sm font-bold">{label}</span>
-                      <span className="text-xs font-semibold">{device.imei || 'Chưa có Serial'}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {showPriceConsideration && (
             <div className="space-y-2">
               {!customerChangedMind && (
@@ -324,6 +328,8 @@ export default function StaffReceiveFormModal({
                               daXoaICloudVaDuLieuKhach: false,
                               checkBackup: '',
                               thuLaiMay: '',
+                              pendingDeviceKeys: [],
+                              pendingDeviceValues: {},
                               hinhNghiemThu: [],
                               anhGiuLai: [],
                               scanQr: '',
@@ -351,6 +357,8 @@ export default function StaffReceiveFormModal({
                         daXoaICloudVaDuLieuKhach: false,
                         checkBackup: '',
                         thuLaiMay: '',
+                        pendingDeviceKeys: [],
+                        pendingDeviceValues: {},
                         hinhNghiemThu: [],
                         anhGiuLai: [],
                         scanQr: '',
@@ -363,6 +371,196 @@ export default function StaffReceiveFormModal({
                 <span className="text-sm font-semibold text-neutral-700">Khách đổi ý không thu cũ nữa</span>
               </label>
             </div>
+          )}
+
+          {showPendingDeviceSelection && (
+            <section className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3" aria-label="Chọn máy cần thu">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Chọn máy cần thu</p>
+                  <p className="mt-1 text-xs leading-5 text-amber-900">
+                    Tick đúng máy khách đã giao. Mỗi máy sẽ tạo một bản ghi riêng.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-amber-200 px-2 py-1 text-xs font-bold text-amber-900">
+                  {values.pendingDeviceKeys.length}/{pendingDevices.length}
+                </span>
+              </div>
+              <div className="grid gap-2">
+                {pendingDevices.map((device, index) => {
+                  const key = pendingDeviceIdentity(device, index);
+                  const selected = values.pendingDeviceKeys.includes(key);
+                  const form = values.pendingDeviceValues[key] ?? {
+                    anhGiuLai: device.images,
+                    hinhNghiemThu: [],
+                    scanQr: device.scanQr ?? '',
+                    imei: device.imei ?? '',
+                  };
+                  const devicePhotoSlots: PhotoSlot[] = [
+                    ...form.anhGiuLai.map((image) => ({ kind: 'existing' as const, image })),
+                    ...form.hinhNghiemThu.map((file) => ({ kind: 'new' as const, file })),
+                  ];
+                  const deviceImageCount = devicePhotoSlots.length;
+                  const label = device.scanQr?.trim() || `MTC.${index + 1}`;
+                  const missing = [
+                    form.scanQr.trim() ? '' : 'thiếu QR',
+                    deviceImageCount > 0 ? '' : 'thiếu ảnh',
+                    form.imei.trim() ? '' : 'thiếu Serial',
+                  ].filter(Boolean);
+                  return (
+                    <div
+                      key={`${label}-${device.sourceRecordId ?? index}`}
+                      className={`rounded-xl border transition-colors ${selected
+                        ? 'border-amber-600 bg-amber-100 text-amber-950'
+                        : 'border-amber-200 bg-white text-neutral-900'}`}
+                    >
+                      <label className="flex min-h-14 cursor-pointer items-center gap-3 px-3 py-2 active:bg-amber-50">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={(event) => {
+                            setValues((current) => {
+                              const next = event.target.checked
+                                ? [...current.pendingDeviceKeys, key]
+                                : current.pendingDeviceKeys.filter((item) => item !== key);
+                              const pendingDeviceValues = event.target.checked
+                                ? {
+                                    ...current.pendingDeviceValues,
+                                    [key]: current.pendingDeviceValues[key] ?? {
+                                      anhGiuLai: device.images,
+                                      hinhNghiemThu: [],
+                                      scanQr: device.scanQr ?? '',
+                                      imei: device.imei ?? '',
+                                    },
+                                  }
+                                : Object.fromEntries(
+                                    Object.entries(current.pendingDeviceValues).filter(([item]) => item !== key),
+                                  );
+                              return { ...current, pendingDeviceKeys: next, pendingDeviceValues };
+                            });
+                          }}
+                          className="h-5 w-5 shrink-0 accent-amber-700"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-bold">{label}</span>
+                          <span className="mt-0.5 block text-xs font-semibold text-amber-900">
+                            Serial: {form.imei || 'Chưa có Serial'} · {deviceImageCount} ảnh
+                          </span>
+                          {missing.length > 0 && (
+                            <span className="mt-0.5 block text-xs font-semibold text-red-700">
+                              {missing.join(' · ')}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                      {selected && (
+                        <div className="space-y-3 border-t border-amber-200 px-3 pb-3 pt-3">
+                          <div>
+                            <span className="text-xs font-semibold text-neutral-500">Ảnh nghiệm thu sản phẩm (tối đa 3 ảnh)</span>
+                            <PhotoSlotPicker
+                              slots={devicePhotoSlots}
+                              mediaUrl={(image) => guestMediaUrl(image.fileToken) ?? `${workerBaseUrl()}/media/${encodeURIComponent(image.fileToken)}?table=master&record_id=${encodeURIComponent(image.sourceRecordId ?? '')}&field=${encodeURIComponent('Hình nghiệm thu máy cũ')}${image.sourceRevision ? `&rev=${image.sourceRevision}` : ''}`}
+                              onPick={(_, file) => setValues((current) => ({
+                                ...current,
+                                pendingDeviceValues: {
+                                  ...current.pendingDeviceValues,
+                                  [key]: {
+                                    ...form,
+                                    hinhNghiemThu: [...form.hinhNghiemThu, file].slice(0, Math.max(0, 3 - form.anhGiuLai.length)),
+                                  },
+                                },
+                              }))}
+                              onRemove={(slot) => setValues((current) => ({
+                                ...current,
+                                pendingDeviceValues: {
+                                  ...current.pendingDeviceValues,
+                                  [key]: {
+                                    ...form,
+                                    anhGiuLai: slot < form.anhGiuLai.length
+                                      ? form.anhGiuLai.filter((_, imageIndex) => imageIndex !== slot)
+                                      : form.anhGiuLai,
+                                    hinhNghiemThu: slot < form.anhGiuLai.length
+                                      ? form.hinhNghiemThu
+                                      : form.hinhNghiemThu.filter((_, imageIndex) => imageIndex !== slot - form.anhGiuLai.length),
+                                  },
+                                },
+                              }))}
+                            />
+                            <p className={`mt-1 text-xs font-semibold ${deviceImageCount > 0 ? 'text-neutral-500' : 'text-red-600'}`}>
+                              Đã có {deviceImageCount}/3 ảnh · bắt buộc ít nhất 1 ảnh
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-xs font-semibold text-neutral-500">Scan QR máy thu cũ</span>
+                            <div className="mt-1 flex items-center gap-2">
+                              <input
+                                value={form.scanQr}
+                                onChange={(event) => setValues((current) => ({
+                                  ...current,
+                                  pendingDeviceValues: {
+                                    ...current.pendingDeviceValues,
+                                    [key]: { ...form, scanQr: event.target.value },
+                                  },
+                                }))}
+                                placeholder="Quét QR hoặc gõ tay"
+                                className={`min-h-11 w-full rounded-xl border px-3 text-base ${form.scanQr.trim() ? 'border-neutral-300' : 'border-red-300'}`}
+                              />
+                              <QrScanButton
+                                onScan={(value) => setValues((current) => ({
+                                  ...current,
+                                  pendingDeviceValues: {
+                                    ...current.pendingDeviceValues,
+                                    [key]: { ...form, scanQr: value },
+                                  },
+                                }))}
+                                label="Quét QR máy thu cũ"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-xs font-semibold text-neutral-500">Serial Number</span>
+                            <div className="mt-1 flex items-center gap-2">
+                              <input
+                                value={form.imei}
+                                onChange={(event) => setValues((current) => ({
+                                  ...current,
+                                  pendingDeviceValues: {
+                                    ...current.pendingDeviceValues,
+                                    [key]: { ...form, imei: event.target.value },
+                                  },
+                                }))}
+                                inputMode="text"
+                                placeholder="Quét Serial Number hoặc gõ tay"
+                                className={`min-h-11 w-full rounded-xl border px-3 text-base ${form.imei.trim() ? 'border-neutral-300' : 'border-red-300'}`}
+                              />
+                              <SerialScanButton
+                                onScan={(value) => setValues((current) => ({
+                                  ...current,
+                                  pendingDeviceValues: {
+                                    ...current.pendingDeviceValues,
+                                    [key]: { ...form, imei: value },
+                                  },
+                                }))}
+                              />
+                            </div>
+                          </div>
+                          {missing.length > 0 && (
+                            <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+                              Bổ sung: {missing.map((item) => item.replace('thiếu ', '')).join(', ')} để gửi máy này.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {pendingDeviceSelectionError && (
+                <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+                  {pendingDeviceSelectionError}
+                </p>
+              )}
+            </section>
           )}
 
           {/* 3 field máy thu cũ — đủ cả ảnh, QR và Serial mới được Hoàn tất. */}
@@ -497,6 +695,8 @@ export default function StaffReceiveFormModal({
                 ? 'Gửi khách đổi ý'
                 : action === 'tiep_nhan'
                   ? 'Gửi Tiếp nhận'
+                  : showPendingDeviceSelection
+                    ? `Hoàn tất và Thu ${values.pendingDeviceKeys.length} máy`
                   : 'Gửi Hoàn tất'}
           </button>
         </div>
