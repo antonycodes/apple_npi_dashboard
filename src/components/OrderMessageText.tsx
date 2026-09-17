@@ -1,6 +1,8 @@
+import { warehouseOrderTypeTone } from '@/utils/warehouseOrderType';
+
 const ORDER_HEADER_TONES = {
-  '#Lấy hàng cho khách': 'text-blue-700',
-  '#Trả hàng về kho': 'text-red-700',
+  '#Lấy hàng cho khách': warehouseOrderTypeTone('#Lấy hàng cho khách'),
+  '#Trả hàng về kho': warehouseOrderTypeTone('#Trả hàng về kho'),
 } as const;
 
 type OrderHeader = keyof typeof ORDER_HEADER_TONES;

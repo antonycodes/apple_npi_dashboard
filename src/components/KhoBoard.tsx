@@ -23,7 +23,7 @@ import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 import type { WarehouseInboxOrder, WarehouseOrderClaims } from '@/types/warehouse';
 import { warehouseClaimantFull, warehouseClaimedAt } from '@/utils/warehouseClaimant';
 import { warehouseClaimMatchesCustomer, warehouseOrderMatchesCustomer } from '@/utils/warehouseClaim';
-import { warehouseOrderTypeLabel } from '@/utils/warehouseOrderType';
+import { warehouseOrderTypeLabel, warehouseOrderTypeTone } from '@/utils/warehouseOrderType';
 import ProductList from './ProductList';
 import OrderMessageText from './OrderMessageText';
 
@@ -320,17 +320,20 @@ export function OrderDetailsModal({ order, canDelete, onDelete, onClose }: { ord
       setDeleting(false);
     }
   };
+  const orderType = warehouseOrderTypeLabel(order.orderType, order.rawText);
   return (
     <div role="dialog" aria-modal="true" aria-label="Chi tiết order" onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
+      <div onClick={(event) => event.stopPropagation()} className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
         <header className="flex items-start justify-between gap-3 border-b border-neutral-200 pb-3">
           <div>
-            <h2 className="text-base font-black text-neutral-900">Nội dung Order</h2>
+            <h2 className="text-base font-black text-neutral-900">
+              Nội dung Order <span className={warehouseOrderTypeTone(orderType)}> - {orderType}</span>
+            </h2>
             <p className="mt-1 text-xs font-semibold text-neutral-500">Mã đơn: {order.orderCode}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Đóng" className="rounded-lg px-2 text-2xl leading-none text-neutral-400 hover:bg-neutral-100">×</button>
         </header>
-        <OrderMessageText rawText={order.rawText} className="mt-3 max-h-72 overflow-auto rounded-xl bg-neutral-50 p-3 text-sm text-neutral-800" />
+        <OrderMessageText rawText={order.rawText} className="mt-3 max-h-[70vh] overflow-auto rounded-xl bg-neutral-50 p-4 text-sm text-neutral-800" />
         {canDelete && onDelete && (
           <button
             type="button"

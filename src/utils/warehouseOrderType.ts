@@ -16,3 +16,9 @@ export function warehouseOrderTypeLabel(orderType: string | null | undefined, ra
     ? firstLine
     : '#Chưa phân loại';
 }
+
+export function warehouseOrderTypeTone(orderType: string): string {
+  if (orderType === '#Lấy hàng cho khách') return 'text-blue-700';
+  if (orderType === '#Trả hàng về kho') return 'text-red-700';
+  return 'text-neutral-500';
+}
