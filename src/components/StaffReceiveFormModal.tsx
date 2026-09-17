@@ -103,8 +103,12 @@ export default function StaffReceiveFormModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [busy, changeMindConfirmOpen, onClose]);
 
-  const pendingDevices = (customer?.prevDevices ?? (customer?.prevDevice ? [customer.prevDevice] : []))
-    .filter((device) => device.thuLaiMay === 'Thu máy sau');
+  // Chỉ Backup tiếp tục máy đã chọn `Thu máy sau`. Thu cũ luôn nhập máy mới
+  // theo form bình thường, không hiện lại máy vừa thu.
+  const pendingDevices = cluster === 'backup'
+    ? (customer?.prevDevices ?? (customer?.prevDevice ? [customer.prevDevice] : []))
+      .filter((device) => device.thuLaiMay === 'Thu máy sau')
+    : [];
   const selectedPendingDevice = pendingDevices.find(
     (device) => device.scanQr?.trim().toUpperCase() === values.scanQr.trim().toUpperCase(),
   ) ?? pendingDevices[0];
@@ -120,12 +124,12 @@ export default function StaffReceiveFormModal({
   };
 
   // Cân nhắc giá hoặc đổi ý sẽ ẩn các trường thu máy liên quan.
-  const hasPendingTradeInDevices = pendingDevices.length > 0;
+  const hasPendingDevices = pendingDevices.length > 0;
   const needsDeviceCollection = cluster === 'tradein'
     || (cluster === 'backup' && Boolean(
       customer
       && isTradeInCustomer(customer)
-      && (customer.deviceAccepted !== true || hasPendingTradeInDevices),
+      && (customer.deviceAccepted !== true || hasPendingDevices),
     ));
   const showBackupCheck = action === 'hoan_tat'
     && cluster !== 'backup'
@@ -386,11 +390,11 @@ export default function StaffReceiveFormModal({
                   <input
                     value={values.scanQr}
                     onChange={(e) => set('scanQr', e.target.value)}
-                    readOnly={hasPendingTradeInDevices}
+                    readOnly={hasPendingDevices}
                     placeholder="Quét QR hoặc gõ tay"
                     className={`min-h-11 w-full rounded-xl border px-3 text-base read-only:border-amber-300 read-only:bg-amber-100 read-only:text-amber-950 ${values.scanQr.trim() ? 'border-neutral-300' : 'border-red-300'}`}
                   />
-                  {!hasPendingTradeInDevices && <QrScanButton onScan={(v) => set('scanQr', v)} label="Quét QR máy thu cũ" />}
+                  {!hasPendingDevices && <QrScanButton onScan={(v) => set('scanQr', v)} label="Quét QR máy thu cũ" />}
                 </div>
               </div>
 

@@ -92,10 +92,10 @@ function buildDeviceDefaults(
   cluster: ClusterKey,
   action: 'tiep_nhan' | 'hoan_tat',
 ) {
-  // Ưu tiên máy còn treo `Thu máy sau`, thay vì record mới nhất bất kỳ của
-  // khách. Với nhiều MTC, đây là máy thực sự cần được chọn/thu tiếp.
+  // Chỉ Backup tiếp tục máy còn treo `Thu máy sau`. Thu cũ luôn nhập máy mới
+  // theo form bình thường, không tự điền lại máy vừa thu.
   const isDeviceStage = cluster === 'tradein' || cluster === 'backup';
-  const prev = isDeviceStage
+  const prev = cluster === 'backup'
     ? customer.prevDevices?.find((device) => device.thuLaiMay === 'Thu máy sau') ?? customer.prevDevice
     : undefined;
   const hoanTat = action === 'hoan_tat' && isDeviceStage;
