@@ -379,7 +379,7 @@ export default function StaffReceiveFormModal({
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Chọn máy cần thu</p>
                   <p className="mt-1 text-xs leading-5 text-amber-900">
-                    Tick đúng máy khách đã giao. Mỗi máy sẽ tạo một bản ghi riêng.
+                    Tick vào máy thu cũ của khách cần thu lại, kiểm tra kỹ thông tin của máy và trạng thái factory reset
                   </p>
                 </div>
                 <span className="shrink-0 rounded-full bg-amber-200 px-2 py-1 text-xs font-bold text-amber-900">
