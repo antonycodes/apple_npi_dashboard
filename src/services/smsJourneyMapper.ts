@@ -209,27 +209,20 @@ export function mapSmsJourneys(
   }
 
   for (const row of tables.dispatch) {
-    const smsNotification = cellToString(fieldValue(row.fields, fields.dispatch.smsNoti));
-    if (smsNotification) {
-      const stt = canonicalStt(
-        cellToString(fieldValue(row.fields, 'STT Input Lookup'))
-          ?? cellToString(fieldValue(row.fields, 'STT input'))
-          ?? cellToString(fieldValue(row.fields, 'STT Input'))
-          ?? cellToString(fieldValue(row.fields, 'STT')),
-      );
-      const journey = stt ? byStt.get(stt) : null;
-      if (journey) {
-        journey.smsNotification = smsNotification;
-        journey.smsRequested = true;
-      }
-    }
+    // `SMS_Noti` may contain a formula/default value before any SMS request.
+    // Only the explicit `Đẩy SMS` flag proves that this row requested SMS.
     if (!cellToBool(fieldValue(row.fields, 'Đẩy SMS'))) continue;
     const stt = canonicalStt(
-      cellToString(fieldValue(row.fields, 'STT input'))
-        ?? cellToString(fieldValue(row.fields, 'STT Input')),
+      cellToString(fieldValue(row.fields, 'STT Input Lookup'))
+        ?? cellToString(fieldValue(row.fields, 'STT input'))
+        ?? cellToString(fieldValue(row.fields, 'STT Input'))
+        ?? cellToString(fieldValue(row.fields, 'STT')),
     );
     const journey = stt ? byStt.get(stt) : null;
-    if (journey) journey.smsRequested = true;
+    if (!journey) continue;
+    journey.smsRequested = true;
+    const smsNotification = cellToString(fieldValue(row.fields, fields.dispatch.smsNoti));
+    if (smsNotification) journey.smsNotification = smsNotification;
   }
 
   return byStt;
