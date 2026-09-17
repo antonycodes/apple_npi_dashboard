@@ -3,6 +3,7 @@ import type { DeskKhoState, KhoCustomer } from '@/services/khoMapper';
 import type { WarehouseInboxOrder, WarehouseOrderClaim, WarehouseOrderClaims } from '@/types/warehouse';
 import { warehouseClaimantFull, warehouseClaimantShort, warehouseClaimedAt } from '@/utils/warehouseClaimant';
 import { warehouseClaimMatchesCustomer, warehouseOrderMatchesCustomer } from '@/utils/warehouseClaim';
+import { warehouseOrderTypeLabel } from '@/utils/warehouseOrderType';
 import OrderMessageText from './OrderMessageText';
 
 function claimKey(orderCode: string) {
@@ -30,7 +31,9 @@ function CustomerOrders({
     : customer.productName
       ? [{ label: 'SP1', product: customer.productName, orderCode: null }]
       : [];
-  const sentOrders = inboxOrders.filter((order) => warehouseOrderMatchesCustomer(order, customer));
+  const sentOrders = inboxOrders
+    .filter((order) => warehouseOrderMatchesCustomer(order, customer))
+    .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id));
   const productOrders = products.filter((item) => item.orderCode).map((item) => ({
     id: `product-${item.orderCode}`,
     orderCode: item.orderCode!,
@@ -55,15 +58,17 @@ function CustomerOrders({
         const rawClaim = item.productLabel === 'ORDER' ? undefined : claims[claimKey(item.orderCode)];
         const current = rawClaim && warehouseClaimMatchesCustomer(rawClaim, customer) ? rawClaim : undefined;
         const claimConflict = Boolean(rawClaim && !current);
+        const isNewestOrder = item.productLabel === 'ORDER' && item.id === sentOrders[0]?.id;
         return (
           <button key={item.id} type="button" onClick={() => onInspect(previews, item.id)} className={['flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left', current ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'].join(' ')}>
             {item.productLabel === 'ORDER' ? <span className="shrink-0 text-base" aria-label="Có order">📦</span> : <span className={['shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black', current ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'].join(' ')}>{item.productLabel}</span>}
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-neutral-800">{item.productLabel === 'ORDER' ? 'Nội dung Order' : item.product || '—'}</p>
-              <p className="truncate text-[10px] text-neutral-500">Mã đơn: {item.orderCode}</p>
+              <p className="truncate text-[10px] text-neutral-500">{item.productLabel === 'ORDER' ? warehouseOrderTypeLabel(item.orderType, item.rawText) : `Mã đơn: ${item.orderCode}`}</p>
             </div>
             {current && <span className="shrink-0 rounded-lg bg-red-100 px-2 py-1.5 text-[10px] font-bold text-red-700">Đã nhận · {warehouseClaimantShort(current)}</span>}
             {claimConflict && <span className="shrink-0 rounded-lg bg-amber-100 px-2 py-1.5 text-[10px] font-bold text-amber-800">Mã đơn trùng khách</span>}
+            {isNewestOrder && <img src="/new-order-badge.png" alt="Mới nhất" className="h-12 w-16 shrink-0 object-contain" />}
           </button>
         );
       })}
