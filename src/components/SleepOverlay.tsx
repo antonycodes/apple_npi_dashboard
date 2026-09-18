@@ -3,6 +3,8 @@ import { useAdminInfo } from '@/config/adminSession';
 import { useLarkSettings } from '@/config/larkSettings';
 import { fetchSharedSleep } from '@/services/appConfigApi';
 
+const SLEEP_SYNC_MS = 5_000;
+
 /** Khóa riêng các màn hình nhân viên khi Điều phối bật chế độ training. */
 export default function SleepOverlay() {
   const settings = useLarkSettings();
@@ -15,6 +17,7 @@ export default function SleepOverlay() {
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
+    let timer: number | undefined;
 
     async function sync() {
       try {
@@ -22,15 +25,16 @@ export default function SleepOverlay() {
         if (!cancelled && env?.updatedAt) setLocked(Boolean(env.sleepMode));
       } catch {
         // Mất mạng không tự mở khóa màn hình; giữ trạng thái Lock hiện tại.
+      } finally {
+        if (!cancelled) timer = window.setTimeout(() => void sync(), SLEEP_SYNC_MS);
       }
     }
 
     void sync();
-    const timer = setInterval(() => void sync(), 1_000);
     return () => {
       cancelled = true;
       controller.abort();
-      clearInterval(timer);
+      if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [settings.apiUrl]);
 
